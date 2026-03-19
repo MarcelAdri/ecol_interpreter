@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>ECOL Online</title>
+        <style>
+            body { background: #1a1a1a; color: #00ff00; font-family: monospace; padding: 20px; }
+            #output { white-space: pre-wrap; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+            input { background: #000; color: #00ff00; border: none; width: 100%; font-size: 1.2rem; outline: none; }
+            body { background: #0c0c0c; color: #33ff33; font-family: 'Courier New', monospace; padding: 20px; line-height: 1.4; }
+            #terminal { display: flex; flex-direction: column; }
+            #cursor-line { outline: none; display: inline-block; min-width: 5px; caret-color: #33ff33; }
+            .prompt { font-weight: bold; }
+        </style>
+    </head>
+    <body>
+    <div id="terminal">
+        <div id="history">ECOL INTERPRETER v0.1<br/>Typ 'HELP' voor instructies.</div>
+        <div id="input-line">
+            <span class="prompt">ECOL >&nbsp;</span><span id="cursor-line" contenteditable="true" autofocus></span>
+        </div>
+    </div>
+</body>
+</html>
