@@ -113,45 +113,49 @@
 <pre>START
 KLAAR</pre>
 
-<h2>Toewijzing</h2>
+<h2>Variabeledeclaraties</h2>
 
-<span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
+<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
 
-<p>Elke geldige ECOL-regel begint met een keyword — er bestaat geen keyword-loze syntaxis. Toewijzing van een variabele gebruikt een type-keyword, ook bij hertoekenning:</p>
+<p>Variabelen worden gedeclareerd met een type-keyword. De schrapkaart toont drie declaratievormen:</p>
 
 <table>
   <tr>
-    <th>Commando</th>
+    <th>Declaratie</th>
     <th>Type</th>
     <th>Voorbeeld</th>
-    <th>Status</th>
   </tr>
   <tr>
-    <td><code>TEKST &lt;naam&gt; := &lt;expressie&gt;</code></td>
-    <td>Tekst (string)</td>
-    <td><code>TEKST naam := "Alice"</code></td>
-    <td><span class="tag ok">geïmpl.</span></td>
-  </tr>
-  <tr>
-    <td><code>NR &lt;naam&gt; := &lt;expressie&gt;</code></td>
+    <td><code>NR &lt;naam&gt;</code></td>
     <td>Getal (numeriek)</td>
-    <td><code>NR teller := 5</code></td>
-    <td><span class="tag ok">geïmpl.</span></td>
+    <td><code>10 NR teller</code></td>
   </tr>
   <tr>
-    <td><code>RIJ &lt;naam&gt; := &lt;expressie&gt;</code></td>
+    <td><code>TEKST &lt;naam&gt;</code></td>
+    <td>Tekst (string)</td>
+    <td><code>20 TEKST naam</code></td>
+  </tr>
+  <tr>
+    <td><code>RIJ &lt;naam&gt;</code></td>
     <td>Reeks/array</td>
-    <td><code>RIJ waarden := ...</code></td>
-    <td><span class="tag todo">gepland</span></td>
+    <td><code>30 RIJ waarden</code></td>
   </tr>
 </table>
 
-<p>Het type wordt bepaald door het keyword, niet door de naam. Variabelenamen bestaan uit kleine letters, cijfers en underscores, en mogen niet beginnen met een cijfer. Geen suffixen zoals <code>$</code> of <code>%</code>.</p>
+<p>In de huidige interpreter wordt het type dynamisch bepaald door de meest recente toekenning (geen expliciete declaratie vereist). Variabelenamen bestaan uit kleine letters, cijfers en underscores, en mogen niet beginnen met een cijfer.</p>
+
+<h2>Toewijzing</h2>
+
+<span class="tag ok">geïmpl.</span>
+
+<pre>&lt;variabele&gt; := &lt;expressie&gt;</pre>
+
+<p>Geen keyword nodig. Het type van de variabele wordt bepaald door de expressie aan de rechterkant.</p>
 
 <p>Voorbeelden:</p>
-<pre>TEKST naam := "Alice"
-TEKST groet := "Hallo " + naam
-NR prijs := 3.14</pre>
+<pre>naam := "Alice"
+groet := "Hallo " + naam
+prijs := 3.14</pre>
 
 <h2>Uitvoer</h2>
 
@@ -243,7 +247,7 @@ NR prijs := 3.14</pre>
 
 <p>Posities bij <code>MIDDEN$</code> zijn <strong>1-gebaseerd</strong> (het eerste teken is positie 1).</p>
 
-<pre>TEKST s := "Programmeren"
+<pre>s := "Programmeren"
 SCHRIJF LINKS$(s, 6)          &apos;→ "Progra"
 SCHRIJF RECHTS$(s, 4)         &apos;→ "eren"
 SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
@@ -283,11 +287,9 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 
 <h3>Voorwaarde: ALS … DAN … ANDERS</h3>
 <p>Altijd een complete one-liner. <code>ANDERS</code> is optioneel. Het statement na <code>DAN</code> of <code>ANDERS</code> kan elk geldig commando zijn.</p>
-<pre>10 NR a := 25
-20 ALS a = 25 DAN SUB 200 ANDERS SUB 300
-30 ALS a &gt; 10 DAN NAAR 50
-40 NR b := 0
-50 ALS b = 0 DAN SCHRIJF "nul"</pre>
+<pre>10 ALS a = 25 DAN SUB 200 ANDERS SUB 300
+20 ALS a &gt; 10 DAN NAAR 50
+30 ALS b = 0 DAN SCHRIJF "nul"</pre>
 
 <p>Voor complexere vertakkingen gebruik je subroutines (<code>SUB</code>).</p>
 
@@ -333,10 +335,10 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 20 KLAAR</pre>
 
 <h3>Naamgroet</h3>
-<pre>10 LEES naam
-20 SCHRIJF "Hallo, " + naam + "!"
-30 KLAAR</pre>
-<p class="notice"><span class="tag onzeker">onzeker</span> De exacte syntaxis van <code>LEES</code> in combinatie met <code>TEKST</code>/<code>NR</code> is nog niet vastgesteld.</p>
+<pre>10 TEKST naam
+20 LEES naam
+30 SCHRIJF "Hallo, " + naam + "!"
+40 KLAAR</pre>
 
 <h3>Teller (MET-lus)</h3>
 <pre>10 MET 1, teller := 1, 10
@@ -345,9 +347,10 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 40 KLAAR</pre>
 
 <h3>Conditie met subroutine</h3>
-<pre>10 NR a := 25
-20 ALS a = 25 DAN SUB 100 ANDERS SUB 200
-30 KLAAR
+<pre>10 NR a
+20 a := 25
+30 ALS a = 25 DAN SUB 100 ANDERS SUB 200
+40 KLAAR
 
 100 SCHRIJF "a is vijfentwintig"
 110 END
