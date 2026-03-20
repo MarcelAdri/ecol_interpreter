@@ -291,9 +291,11 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 
 <p>Voor complexere vertakkingen gebruik je subroutines (<code>SUB</code>).</p>
 
-<h3>Teller-lus: MET … TOT … / HERHAAL</h3>
-<p><code>MET</code> opent de lus; <code>HERHAAL &lt;variabele&gt;</code> sluit hem. De lusvariabele in <code>HERHAAL</code> verwijst naar de bijbehorende <code>MET</code>-regel; de terugsprong is impliciet.</p>
-<pre>10 MET a = 1 TOT 10
+<h3>Teller-lus: MET … / HERHAAL</h3>
+<p><code>MET</code> opent de lus; <code>HERHAAL &lt;variabele&gt;</code> sluit hem. De terugsprong is impliciet. De syntax is komma-gescheiden: eerst de stapgrootte, dan <code>&lt;var&gt; := &lt;begin&gt;</code>, dan de eindwaarde. Geen <code>TOT</code>-keyword.</p>
+<pre>MET &lt;stap&gt;, &lt;var&gt; := &lt;begin&gt;, &lt;einde&gt;</pre>
+<p>Bevestigd op de schrapkaart van de Ubbo Emmius scholengemeenschap: <code>MET 1,i:=1,m</code> — equivalent aan <code>FOR i := 1 TO m STEP 1</code>.</p>
+<pre>10 MET 1, a := 1, 10
 20 SCHRIJF a
 30 SCHRIJF a * a
 40 HERHAAL a</pre>
@@ -337,11 +339,10 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 <p class="notice"><span class="tag onzeker">onzeker</span> De exacte syntaxis van <code>LEES</code> in combinatie met <code>TEKST</code>/<code>NR</code> is nog niet vastgesteld.</p>
 
 <h3>Teller (MET-lus)</h3>
-<pre>10 NR teller := 0
-20 MET teller = 1 TOT 10
-30 SCHRIJF teller
-40 HERHAAL teller
-50 KLAAR</pre>
+<pre>10 MET 1, teller := 1, 10
+20 SCHRIJF teller
+30 HERHAAL teller
+40 KLAAR</pre>
 
 <h3>Conditie met subroutine</h3>
 <pre>10 NR a := 25
