@@ -117,45 +117,19 @@ KLAAR</pre>
 
 <span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
 
-<p>Variabelen worden gedeclareerd met een type-keyword. De schrapkaart toont drie declaratievormen:</p>
-
-<table>
-  <tr>
-    <th>Declaratie</th>
-    <th>Type</th>
-    <th>Voorbeeld</th>
-  </tr>
-  <tr>
-    <td><code>NR &lt;naam&gt;</code></td>
-    <td>Getal (numeriek)</td>
-    <td><code>10 NR teller</code></td>
-  </tr>
-  <tr>
-    <td><code>TEKST &lt;naam&gt;</code></td>
-    <td>Tekst (string)</td>
-    <td><code>20 TEKST naam</code></td>
-  </tr>
-  <tr>
-    <td><code>RIJ &lt;naam&gt;</code></td>
-    <td>Reeks/array</td>
-    <td><code>30 RIJ waarden</code></td>
-  </tr>
-</table>
-
-<p>In de huidige interpreter wordt het type dynamisch bepaald door de meest recente toekenning (geen expliciete declaratie vereist). Variabelenamen bestaan uit kleine letters, cijfers en underscores, en mogen niet beginnen met een cijfer.</p>
-
-<h2>Toewijzing</h2>
-
-<span class="tag ok">geïmpl.</span>
+<p>Toewijzing is keyword-loos. Het type van de variabele wordt bepaald door de expressie aan de rechterkant.</p>
 
 <pre>&lt;variabele&gt; := &lt;expressie&gt;</pre>
 
-<p>Geen keyword nodig. Het type van de variabele wordt bepaald door de expressie aan de rechterkant.</p>
+<p>Variabelenamen bestaan uit kleine letters, cijfers en underscores, en mogen niet beginnen met een cijfer. Geen suffixen zoals <code>$</code> of <code>%</code>.</p>
 
 <p>Voorbeelden:</p>
 <pre>naam := "Alice"
 groet := "Hallo " + naam
-prijs := 3.14</pre>
+prijs := 3.14
+array(k) := LEES</pre>
+
+<p><code>LEES</code> staat aan de <em>rechterkant</em> van de toewijzing en leest één waarde van de invoer. Het is geen losse opdracht maar een waarde-expressie.</p>
 
 <h2>Uitvoer</h2>
 
@@ -166,36 +140,47 @@ prijs := 3.14</pre>
     <th>Status</th>
   </tr>
   <tr>
-    <td><code>SCHRIJF &lt;expressie&gt;</code></td>
-    <td>Druk waarde af op het scherm</td>
-    <td><span class="tag ok">geïmpl.</span></td>
+    <td><code>SCHRIJF (breedte, decimalen) : expressie</code></td>
+    <td>Geformateerde getaluitvoer — breedte in kolommen, aantal decimalen</td>
+    <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>TEKST : expressie</code></td>
+    <td>Tekstuitvoer — drukt een tekst-expressie af</td>
+    <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>TEKST :</code></td>
+    <td>Lege tekstuitvoer — vermoedelijk lege regel of scheidingsteken <span class="tag onzeker">onzeker</span></td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>NR</code></td>
+    <td>Nieuwe regel (newline) — staat alleen op een regel</td>
+    <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
   </tr>
   <tr>
     <td><code>SCHRIJM &lt;expressie&gt;</code></td>
-    <td>Schrijf met opmaak — vermoedelijk zonder automatische newline, of met vaste kolombreedte <span class="tag onzeker">onzeker</span></td>
+    <td>Uitvoer met opmaak <span class="tag onzeker">onzeker</span></td>
     <td><span class="tag todo">gepland</span></td>
   </tr>
   <tr>
     <td><code>SCHRIJFSYM &lt;expressie&gt;</code></td>
-    <td>Schrijf een symbool of speciaal teken <span class="tag onzeker">onzeker</span></td>
+    <td>Symbool of speciaal teken afdrukken <span class="tag onzeker">onzeker</span></td>
     <td><span class="tag todo">gepland</span></td>
   </tr>
   <tr>
     <td><code>SPATIE</code></td>
-    <td>Druk witruimte of lege regel af <span class="tag onzeker">onzeker</span></td>
-    <td><span class="tag todo">gepland</span></td>
-  </tr>
-  <tr>
-    <td><code>LEES &lt;variabele&gt;</code></td>
-    <td>Lees invoer van de gebruiker</td>
+    <td>Witruimte of lege regel <span class="tag onzeker">onzeker</span></td>
     <td><span class="tag todo">gepland</span></td>
   </tr>
 </table>
 
-<p>Voorbeelden:</p>
-<pre>10 SCHRIJF "Hallo wereld"
-20 SCHRIJF naam
-30 SCHRIJF "De prijs is: " + prijs</pre>
+<p>Voorbeelden (uit ecol.txt):</p>
+<pre>87 SCHRIJF (4,0) : opinr
+91 SCHRIJF (2,0) : x
+118 TEKST : "klaar"
+85 NR</pre>
 
 <h2>Tekst-expressies</h2>
 
@@ -287,9 +272,11 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 
 <h3>Voorwaarde: ALS … DAN … ANDERS</h3>
 <p>Altijd een complete one-liner. <code>ANDERS</code> is optioneel. Het statement na <code>DAN</code> of <code>ANDERS</code> kan elk geldig commando zijn.</p>
-<pre>10 ALS a = 25 DAN SUB 200 ANDERS SUB 300
-20 ALS a &gt; 10 DAN NAAR 50
-30 ALS b = 0 DAN SCHRIJF "nul"</pre>
+<pre>10 a := 25
+20 ALS a = 25 DAN SUB 200 ANDERS SUB 300
+30 ALS a &gt; 10 DAN NAAR 50
+40 b := 0
+50 ALS b = 0 DAN TEKST : "nul"</pre>
 
 <p>Voor complexere vertakkingen gebruik je subroutines (<code>SUB</code>).</p>
 
@@ -335,27 +322,25 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 20 KLAAR</pre>
 
 <h3>Naamgroet</h3>
-<pre>10 TEKST naam
-20 LEES naam
-30 SCHRIJF "Hallo, " + naam + "!"
-40 KLAAR</pre>
+<pre>10 naam := LEES
+20 TEKST : "Hallo, " + naam + "!"
+30 KLAAR</pre>
 
 <h3>Teller (MET-lus)</h3>
 <pre>10 MET 1, teller := 1, 10
-20 SCHRIJF teller
+20 SCHRIJF (3,0) : teller
 30 HERHAAL teller
 40 KLAAR</pre>
 
 <h3>Conditie met subroutine</h3>
-<pre>10 NR a
-20 a := 25
-30 ALS a = 25 DAN SUB 100 ANDERS SUB 200
-40 KLAAR
+<pre>10 a := 25
+20 ALS a = 25 DAN SUB 100 ANDERS SUB 200
+30 KLAAR
 
-100 SCHRIJF "a is vijfentwintig"
+100 TEKST : "a is vijfentwintig"
 110 END
 
-200 SCHRIJF "a is iets anders"
+200 TEKST : "a is iets anders"
 210 END</pre>
 
 <h2>Bronnen &amp; verder lezen</h2>

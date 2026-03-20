@@ -36,16 +36,16 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 - `data: Vec<Waarde>` — data pool of all stored values
 - `execute(&mut self, command: &str) -> String` — main entry point called from JS per line
 
-**`Waarde`** (`src/interpreter/waarden.rs`) — The value enum: `Integer(i32)`, `Float(f32)`, `Tekst(EcolString)`. Variable type is determined by name suffix: `$` = text, `%` = integer, no suffix = float.
+**`Waarde`** (`src/interpreter/waarden.rs`) — The value enum: `Float(f32)`, `Tekst(EcolString)`. Variable type is inferred from the expression, not declared by keyword.
 
-**`program.rs`** — Tokenization structs/enums (`Lexeem`, `Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures.
+**`program.rs`** — Tokenization structs/enums (`Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures.
 
 ### Execution Flow
 
 ```
 User types input → keydown Enter → JS calls machine.execute(line)
   → lexer() tokenizes
-  → parseer_regel() parses into command type (ZET or SCHRIJF)
+  → parseer_regel() parses into command type
   → solve_expression() dispatches to string or numeric evaluator
   → solve_string_expression()
       → vervang_variabelen_in_tekst_expressie()  (substitute variable values)
@@ -54,21 +54,31 @@ User types input → keydown Enter → JS calls machine.execute(line)
   → result appended to #history div
 ```
 
-### Language Features
+### Language Features (verified against real ECOL program + ALGOL translation)
 
-Currently implemented:
-- `ZET VAR$ := expression` — variable assignment
-- `SCHRIJF expression` — print to terminal
+Currently implemented (partially outdated — refactor needed):
+- `variabele := expressie` — keyword-less assignment
+- `SCHRIJF expressie` — print to terminal (format specifier not yet implemented)
 - String concatenation with `+`
 - String functions: `LINKS$(str, n)`, `RECHTS$(str, n)`, `MIDDEN$(str, start, len)` (1-indexed)
-- Escape sequences in strings: `\"`, `\\`, `\n`, `\r`, `\t`, `\0`
+
+Verified ECOL syntax (not yet implemented):
+- `SCHRIJF (breedte, decimalen) : expressie` — formatted numeric output
+- `TEKST : expressie` — text output (TEKST is an output command, not assignment)
+- `NR` — newline output (stands alone on a line)
+- `variabele := LEES` — read input as a value (LEES appears on the right-hand side)
+- `RIJ (start:einde) naam` — 1D array declaration; no 2D arrays
+- `array(index) := expressie` — array element assignment
+- `ALS voorwaarde DAN regelnr ANDERS regelnr` — jumps to line numbers
+- `NAAR regelnr` — unconditional jump
+- `MET stap, var := begin, einde` ... `HERHAAL var` — counted loop
 
 Not yet implemented:
-- Numeric expression evaluation (parsing exists, evaluation returns error)
-- Flow control, line numbers, arrays, INPUT
+- Numeric expression evaluation
+- Flow control, line numbers, arrays
 
 ### Variable Naming Rules
 
-- Must start with an uppercase ASCII letter
-- Can contain uppercase letters, digits, underscores
-- Suffix determines type: `NAAM$` (text), `TELLER%` (integer), `PRIJS` (float)
+- Assignment is keyword-less: `variabele := expressie`
+- Variable names: lowercase ASCII letters, digits, underscores; must not start with a digit
+- Type is inferred from the expression (no suffixes, no type keywords)
