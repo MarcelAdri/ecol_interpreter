@@ -73,9 +73,10 @@
       margin-left: 0.3em;
       vertical-align: middle;
     }
-    .tag.ok  { background: #1a3a1a; color: #7fcc7f; border: 1px solid #336633; }
-    .tag.todo { background: #3a2a1a; color: #ccaa66; border: 1px solid #886633; }
-    .tag.hist { background: #1a2a3a; color: #7fb3cc; border: 1px solid #335566; }
+    .tag.ok      { background: #1a3a1a; color: #7fcc7f; border: 1px solid #336633; }
+    .tag.todo    { background: #3a2a1a; color: #ccaa66; border: 1px solid #886633; }
+    .tag.hist    { background: #1a2a3a; color: #7fb3cc; border: 1px solid #335566; }
+    .tag.onzeker { background: #2a1a2a; color: #cc88cc; border: 1px solid #664466; }
   </style>
 </head>
 <body>
@@ -84,7 +85,7 @@
 <p>Syntaxisreferentie voor de <em>ecol_interpreter</em> — een WebAssembly-reconstructie van de ECOL-taal van het IOWO (1970s–1980s).</p>
 
 <div class="notice">
-  <strong>Opmerking:</strong> De originele ECOL-syntaxisdocumentatie is nooit gedigitaliseerd. Deze referentie combineert wat historisch aantoonbaar is (gemarkeerd <span class="tag hist">historisch</span>) met de keuzes in de huidige interpreter (gemarkeerd <span class="tag ok">geïmpl.</span>) en nog te implementeren onderdelen (<span class="tag todo">gepland</span>).
+  <strong>Opmerking:</strong> De originele ECOL-syntaxisdocumentatie is nooit gedigitaliseerd. Deze referentie combineert wat historisch aantoonbaar is (gemarkeerd <span class="tag hist">historisch</span>) met de keuzes in de huidige interpreter (gemarkeerd <span class="tag ok">geïmpl.</span>), nog te implementeren onderdelen (<span class="tag todo">gepland</span>) en gereconstrueerde syntax waarover nog onzekerheid bestaat (<span class="tag onzeker">onzeker</span>).
 </div>
 
 <h2>Historische context</h2>
@@ -97,32 +98,51 @@
 
 <p>122 originele schrapkaarten zijn bewaard in het <a href="https://www.europeana.eu/en/item/2021657/resource_document_museon_100194" target="_blank">Museon in Den Haag</a>. ECOL wordt in academische literatuur beschreven als een <em>"variation of Algol/Pascal"</em> — een structurele taal met Nederlandse sleutelwoorden.</p>
 
-<h2>Variabelen</h2>
+<h2>Programmastructuur en regelnummers</h2>
 
-<p>Variabelenamen bestaan uitsluitend uit <strong>kleine letters, cijfers en underscores</strong>. Het type wordt <em>niet</em> door de naam bepaald, maar dynamisch: het type van een variabele is het type van de meest recente toekenning.</p>
+<span class="tag hist">historisch</span>
+
+<p>Elke regel kan beginnen met een <strong>regelnummer</strong> (een positief geheel getal). Regels met een regelnummer worden opgeslagen als programma; regels zonder regelnummer worden direct uitgevoerd.</p>
+
+<pre>10 NR a
+20 a := 5
+30 SCHRIJF a</pre>
+
+<p><code>START</code> start de uitvoering van het opgeslagen programma. <code>KLAAR</code> beëindigt het programma.</p>
+
+<pre>START
+KLAAR</pre>
+
+<h2>Variabeledeclaraties</h2>
+
+<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
+
+<p>Variabelen worden gedeclareerd met een type-keyword. De schrapkaart toont drie declaratievormen:</p>
 
 <table>
   <tr>
+    <th>Declaratie</th>
     <th>Type</th>
-    <th>Bepaald door</th>
     <th>Voorbeeld</th>
-    <th>Status</th>
   </tr>
   <tr>
+    <td><code>NR &lt;naam&gt;</code></td>
+    <td>Getal (numeriek)</td>
+    <td><code>10 NR teller</code></td>
+  </tr>
+  <tr>
+    <td><code>TEKST &lt;naam&gt;</code></td>
     <td>Tekst (string)</td>
-    <td>Toekenning van een tekst-expressie</td>
-    <td><code>naam := "Alice"</code></td>
-    <td><span class="tag ok">geïmpl.</span></td>
+    <td><code>20 TEKST naam</code></td>
   </tr>
   <tr>
-    <td>Kommagetal (float)</td>
-    <td>Toekenning van een numerieke expressie</td>
-    <td><code>prijs := 3.14</code></td>
-    <td><span class="tag ok">geïmpl.</span></td>
+    <td><code>RIJ &lt;naam&gt;</code></td>
+    <td>Reeks/array</td>
+    <td><code>30 RIJ waarden</code></td>
   </tr>
 </table>
 
-<p>Geldige variabelenamen: <code>naam</code>, <code>teller</code>, <code>prijs_excl</code>, <code>x1</code>. Namen mogen niet beginnen met een cijfer.</p>
+<p>In de huidige interpreter wordt het type dynamisch bepaald door de meest recente toekenning (geen expliciete declaratie vereist). Variabelenamen bestaan uit kleine letters, cijfers en underscores, en mogen niet beginnen met een cijfer.</p>
 
 <h2>Toewijzing</h2>
 
@@ -137,16 +157,45 @@
 groet := "Hallo " + naam
 prijs := 3.14</pre>
 
-<h2>Uitvoer: SCHRIJF</h2>
+<h2>Uitvoer</h2>
 
-<span class="tag ok">geïmpl.</span>
-
-<pre>SCHRIJF &lt;expressie&gt;</pre>
+<table>
+  <tr>
+    <th>Commando</th>
+    <th>Beschrijving</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><code>SCHRIJF &lt;expressie&gt;</code></td>
+    <td>Druk waarde af op het scherm</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>SCHRIJM &lt;expressie&gt;</code></td>
+    <td>Schrijf met opmaak — vermoedelijk zonder automatische newline, of met vaste kolombreedte <span class="tag onzeker">onzeker</span></td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>SCHRIJFSYM &lt;expressie&gt;</code></td>
+    <td>Schrijf een symbool of speciaal teken <span class="tag onzeker">onzeker</span></td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>SPATIE</code></td>
+    <td>Druk witruimte of lege regel af <span class="tag onzeker">onzeker</span></td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>LEES &lt;variabele&gt;</code></td>
+    <td>Lees invoer van de gebruiker</td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+</table>
 
 <p>Voorbeelden:</p>
-<pre>SCHRIJF "Hallo wereld"
-SCHRIJF naam
-SCHRIJF "De prijs is: " + prijs</pre>
+<pre>10 SCHRIJF "Hallo wereld"
+20 SCHRIJF naam
+30 SCHRIJF "De prijs is: " + prijs</pre>
 
 <h2>Tekst-expressies</h2>
 
@@ -228,55 +277,45 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
   <tr><td><code>ASELECT(n)</code></td><td>Willekeurig getal 0..n</td></tr>
 </table>
 
-<h2>Invoer/uitvoer</h2>
-
-<table>
-  <tr><th>Commando</th><th>Beschrijving</th><th>Status</th></tr>
-  <tr>
-    <td><code>SCHRIJF &lt;expressie&gt;</code></td>
-    <td>Druk waarde af op het scherm</td>
-    <td><span class="tag ok">geïmpl.</span></td>
-  </tr>
-  <tr>
-    <td><code>LEES &lt;variabele&gt;</code></td>
-    <td>Lees invoer van de gebruiker</td>
-    <td><span class="tag todo">gepland</span></td>
-  </tr>
-</table>
-
 <h2>Stroombesturing</h2>
 
 <span class="tag todo">gepland</span>
 
-<table>
-  <tr><th>Constructie</th><th>Beschrijving</th></tr>
-  <tr>
-    <td><code>ALS &lt;voorwaarde&gt; DAN &lt;actie&gt;</code></td>
-    <td>Enkelvoudige voorwaarde</td>
-  </tr>
-  <tr>
-    <td><code>ALS &lt;voorwaarde&gt; DAN ... ANDERS ...</code></td>
-    <td>Voorwaarde met alternatief</td>
-  </tr>
-  <tr>
-    <td><code>VOOR &lt;var&gt; := &lt;begin&gt; TOT &lt;einde&gt;</code></td>
-    <td>Teller-lus</td>
-  </tr>
-  <tr>
-    <td><code>VOLGENDE &lt;var&gt;</code></td>
-    <td>Einde van VOOR-lus</td>
-  </tr>
-  <tr>
-    <td><code>HERHAAL ... TOTDAT &lt;voorwaarde&gt;</code></td>
-    <td>Herhaal-lus</td>
-  </tr>
-  <tr>
-    <td><code>STOP</code></td>
-    <td>Programma beëindigen</td>
-  </tr>
-</table>
+<h3>Onvoorwaardelijke sprong: NAAR</h3>
+<p>Sprong naar een regelnummer (vergelijkbaar met GOTO).</p>
+<pre>50 NAAR 10</pre>
 
-<p>Vergelijkingsoperatoren (in voorwaarden):</p>
+<h3>Voorwaarde: ALS … DAN … ANDERS</h3>
+<p>Altijd een complete one-liner. <code>ANDERS</code> is optioneel. Het statement na <code>DAN</code> of <code>ANDERS</code> kan elk geldig commando zijn.</p>
+<pre>10 ALS a = 25 DAN SUB 200 ANDERS SUB 300
+20 ALS a &gt; 10 DAN NAAR 50
+30 ALS b = 0 DAN SCHRIJF "nul"</pre>
+
+<p>Voor complexere vertakkingen gebruik je subroutines (<code>SUB</code>).</p>
+
+<h3>Teller-lus: MET … TOT … / HERHAAL</h3>
+<p><code>MET</code> opent de lus; <code>HERHAAL &lt;variabele&gt;</code> sluit hem. De lusvariabele in <code>HERHAAL</code> verwijst naar de bijbehorende <code>MET</code>-regel; de terugsprong is impliciet.</p>
+<pre>10 MET a = 1 TOT 10
+20 SCHRIJF a
+30 SCHRIJF a * a
+40 HERHAAL a</pre>
+
+<h3>Subroutines: SUB … END</h3>
+<p><code>SUB &lt;regelnummer&gt;</code> roept een subroutine aan. <code>END</code> markeert het einde en keert terug naar de aanroeper.</p>
+<pre>10 SUB 200
+20 KLAAR
+
+200 SCHRIJF "dit is een subroutine"
+210 END</pre>
+
+<h3>Functies: FUN</h3>
+<span class="tag onzeker">onzeker</span>
+<p>Vermoedelijk definieert <code>FUN</code> een subroutine met een returnwaarde. <code>FUN = &lt;expressie&gt;</code> stelt de returnwaarde in, waarna <code>END</code> terugkeert. De exacte aanroepsyntaxis is onbekend.</p>
+<pre>200 FUN kwadraat
+210 FUN = x * x
+220 END</pre>
+
+<h3>Vergelijkingsoperatoren</h3>
 <table>
   <tr><th>Operator</th><th>Betekenis</th></tr>
   <tr><td><code>=</code></td><td>Gelijk aan</td></tr>
@@ -290,16 +329,33 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 <h2>Voorbeeldprogramma's</h2>
 
 <h3>Hallo wereld</h3>
-<pre>SCHRIJF "Hallo, wereld!"</pre>
+<pre>10 SCHRIJF "Hallo, wereld!"
+20 KLAAR</pre>
 
 <h3>Naamgroet</h3>
-<pre>LEES naam
-SCHRIJF "Hallo, " + naam + "!"</pre>
+<pre>10 TEKST naam
+20 LEES naam
+30 SCHRIJF "Hallo, " + naam + "!"
+40 KLAAR</pre>
 
-<h3>Teller</h3>
-<pre>VOOR teller := 1 TOT 10
-  SCHRIJF teller
-VOLGENDE teller</pre>
+<h3>Teller (MET-lus)</h3>
+<pre>10 NR teller
+20 MET teller = 1 TOT 10
+30 SCHRIJF teller
+40 HERHAAL teller
+50 KLAAR</pre>
+
+<h3>Conditie met subroutine</h3>
+<pre>10 NR a
+20 a := 25
+30 ALS a = 25 DAN SUB 100 ANDERS SUB 200
+40 KLAAR
+
+100 SCHRIJF "a is vijfentwintig"
+110 END
+
+200 SCHRIJF "a is iets anders"
+210 END</pre>
 
 <h2>Bronnen &amp; verder lezen</h2>
 
