@@ -1,162 +1,5 @@
-//! ```
-//! # Documentation for the provided code:
-//!
-//! This code defines a basic structure representing an interpreter or
-//! a processing machine called `EcolMachine`. The interpreter handles variables,
-//! interprets expressions, and executes commands written in a specific language.
-//!
-//! ---
-//!
-//! ## Modules and Imports:
-//!
-//! - **`std::collections::HashMap`**: Used as a symbol table for storing variable names and their indices.
-//! - **`web_sys::js_sys::JSON::parse`**: Provides parsing functionality for JSON strings.
-//! - **`super::waarden`**: Contains utility functions and structures (`haal_data`, `type_van_naam`, `waarde_naar_expressie`)
-//!   and enums (`VariabeleType`, `Waarde`) crucial for handling variable data and types.
-//! - **`super::program`**: Contains helper types (`Line`, `Sleutelwoord`, `Operator`, `Functie`) for command parsing,
-//!   operators, and keyword mappings.
-//!
-//! ---
-//!
-//! ## Structures:
-//!
-//! 1. **`FunctieAanroep`**
-//!    - Represents a function call within the interpreter.
-//!    - **Fields**:
-//!      - `functie`: The function to be called.
-//!      - `start`: Start index of the function call in the input string.
-//!      - `einde`: End index of the function call in the input string.
-//!      - `argumenten`: The arguments passed to the function.
-//!    - **Associated Functions**:
-//!      - `new`: Constructor for creating a new `FunctieAanroep` instance.
-//!
-//! 2. **`VariabeleAanroep`**
-//!    - Represents a reference to a variable within the interpreter.
-//!    - **Fields**:
-//!      - `variabele_naam`: Name of the referenced variable.
-//!      - `start`: Start index of the variable name in the input string.
-//!      - `einde`: End index of the variable name in the input string.
-//!    - **Associated Functions**:
-//!      - `new`: Constructor for creating a new `VariabeleAanroep` instance.
-//!
-//! 3. **`EcolMachine`**
-//!    - Represents the core interpreter structure responsible for managing variables, interpreting expressions,
-//!      and executing commands.
-//!    - **Fields**:
-//!      - `symbolen`: A hash map that serves as the symbol table, storing variable names and their respective indices.
-//!      - `data_pool`: A pre-allocated vector storing variable values (`Waarde`).
-//!    - **Associated Functions**:
-//!      - `new`: Initializes a new instance of the interpreter with an empty symbol table and a data pool with pre-allocated capacity.
-//!
-//! ---
-//!
-//! ## Core Methods of `EcolMachine`:
-//!
-//! 1. **`pak_of_maak_index`**
-//!    - Retrieves the index of an existing variable or creates a new entry in `symbolen` and the `data_pool`.
-//!    - **Parameters**:
-//!      - `naam`: Name of the variable to fetch or create.
-//!    - **Returns**:
-//!      - The index of the located or newly created variable.
-//!
-//! 2. **`execute`**
-//!    - Processes an input command and executes the corresponding functionality.
-//!    - **Parameters**:
-//!      - `input`: A string command to execute.
-//!    - **Returns**:
-//!      - A string reply based on the success or failure of the command.
-//!
-//! 3. **`execute_schrijf`**
-//!    - Handles the `SCHRIJF` command, which writes or outputs the result of a given expression.
-//!    - **Parameters**:
-//!      - `regel`: A `Line` instance containing the command and its arguments.
-//!    - **Returns**:
-//!      - The result of the evaluated expression as a string, or an error message.
-//!
-//! 4. **`execute_zet`**
-//!    - Handles the `ZET` command used to assign a value to a variable.
-//!    - **Parameters**:
-//!      - `regel`: A `Line` describing the variable name and the assignment expression.
-//!    - **Returns**:
-//!      - A status string, either `"OK"` for success or an error message.
-//!
-//! 5. **`solve_expression_old`**
-//!    - (Deprecated) Solves expressions with basic variable fetching and type matching.
-//!    - **Parameters**:
-//!      - `expression`: The raw expression string to be evaluated.
-//!      - `variabele_type`: An optional type to enforce for the result.
-//!    - **Returns**:
-//!      - A `Waarde` representing the interpreted result or an error message.
-//!
-//! 6. **`solve_expression`**
-//!    - Parses and evaluates mathematical or string expressions.
-//!    - **Parameters**:
-//!      - `expression`: The raw expression to be parsed and evaluated.
-//!      - `return_type`: (Optional) Expected type of the evaluated result.
-//!    - **Returns**:
-//!      - A `Result` containing the evaluated value (`Waarde`) or an error message.
-//!
-//! 7. **`solve_string_expression`**
-//!    - Specifically solves string-related expressions, handling variables and function calls embedded within.
-//!    - **Parameters**:
-//!      - `expressie`: The raw string expression to be evaluated.
-//!    - **Returns**:
-//!      - A `Result` containing the evaluated string value (`Waarde::Tekst`) or an error message.
-//!
-//! ---
-//!
-//! ## Auxiliary Functions (to be implemented or completed):
-//!
-//! - **Variable Parsing and Evaluation**:
-//!   - `parseer_variabele`: Identifies and parses variable references within expressions.
-//!   - `is_geldige_variabele_naam`: Checks if a string is a valid variable name.
-//!   - `type_van_naam`: Determines the type of a variable based on its name.
-//!   - `haal_data`: Retrieves the value stored in a `Waarde` structure.
-//!   - `waarde_naar_expressie`: Converts a `Waarde` back into its string representation.
-//!
-//! - **Function Parsing and Execution**:
-//!   - `parseer_functie`: Parses function calls from the expression.
-//!   - `Functie`: Enum representing supported string or numerical functions.
-//!
-//! - **Expression Helpers**:
-//!   - `geen_spaties_buiten_literals`: Removes extraneous spaces from expressions, except inside string literals.
-//!   - `first_word`: Retrieves the first word in an expression (for identifying variables or functions).
-//!
-//! ---
-//!
-//! ## Notes:
-//!
-//! 1. **Unimplemented Features**:
-//!    - Numerical expression parsing (`solve_nummer_expression`) needs to be completed within `solve_expression`.
-//!
-//! 2. **Error Handling**:
-//!    - Several methods propagate errors via `Result` values with detailed string messages.
-//!
-//! 3. **Capacity Considerations**:
-//!    - The `data_pool` is pre-allocated to store up to 100 variables.
-//!
-//! ---
-//!
-//! ## Usage:
-//!
-//! - Initialize the `EcolMachine`:
-//!   ```rust
-//!   let mut machine = EcolMachine::new();
-//!   ```
-//!
-//! - Execute a command:
-//!   ```rust
-//!   let result = machine.execute("SCHRIJF \"Hello, World!\"");
-//!   println!("{}", result);  // Outputs: Hello, World!
-//!   ```
-//!
-//! - Assign a value to a variable:
-//!   ```rust
-//!   machine.execute("ZET myVar = 42");
-//!   let output = machine.execute("SCHRIJF myVar");
-//!   println!("{}", output);  // Outputs: 42
-//!   ```
-//! ```
+const HELP_PAGINA: &str = "ecol_syntaxis.html";
+
 use std::collections::HashMap;
 use super::waarden::{haal_data, waarde_naar_expressie, VariabeleType, Waarde, EcolString};
 use super::program::{Line, LineInhoud, Sleutelwoord, Operator, TOEKENNING_TEKEN, Functie};
@@ -277,14 +120,25 @@ impl EcolMachine {
                     LineInhoud::Toekennen {variabele_naam, expressie} => {
                         reply = self.execute_toekennen(variabele_naam, expressie);
                     },
+                    LineInhoud::Help { } => {
+                        reply = self.execute_help();
+                    }
                 }
             }
             Err(e) => {
-                return e;
+                return format!("Fout in execute: {}" ,e);
             }
         }
        
         reply
+    }
+
+    fn execute_help(&mut self) -> String {
+        if let Some(window) = web_sys::window() {
+            let _ = window.open_with_url_and_target(HELP_PAGINA, "_blank");
+        }
+
+        "Zie het help-document in ander tabblad.".to_string()
     }
 
     fn execute_schrijf(&mut self, expressie: &str) -> String {
@@ -1289,16 +1143,6 @@ fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
                     continue;
                 }
 
-                // if c == '$' || c == '%' {
-                //     let einde = i + c.len_utf8();
-                //     let naam = &expressie[start..einde];
-                //     if is_geldige_variabele_naam(naam) {
-                //         return Some(VariabeleAanroep::new(naam.to_string(), start, einde));
-                //     }
-                //     naam_start = None;
-                //     continue;
-                // }
-
                 let naam = &expressie[start..i];
                 if is_geldige_variabele_naam(naam) {
                     return Some(VariabeleAanroep::new(naam.to_string(), start, i));
@@ -1434,6 +1278,9 @@ fn lexer(input: &str) -> Result<Line, String> {
                     let expressie = tokens[3..].join("");
                     let variabele_naam = tokens[1].to_string();
                     Ok(Line::new(0, LineInhoud::Toekennen { variabele_naam, expressie }))
+                }
+                Sleutelwoord::HELP => {
+                    Ok(Line::new(0, LineInhoud::Help {}))
                 }
             }
 

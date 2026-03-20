@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECOL – Syntaxisreferentie</title>
+  <style>
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background-color: #1a1a1a;
+      color: #e0e0e0;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2em;
+      line-height: 1.6;
+    }
+    h1 { color: #7fcc7f; border-bottom: 1px solid #7fcc7f; padding-bottom: 0.3em; }
+    h2 { color: #7fb3cc; margin-top: 2em; border-left: 4px solid #7fb3cc; padding-left: 0.6em; }
+    h3 { color: #ccb87f; }
+    code, pre {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 0.15em 0.4em;
+      color: #f0c040;
+    }
+    pre {
+      padding: 1em;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    th {
+      background: #2a3a2a;
+      color: #7fcc7f;
+      text-align: left;
+      padding: 0.5em 0.8em;
+      border: 1px solid #444;
+    }
+    td {
+      padding: 0.4em 0.8em;
+      border: 1px solid #333;
+      vertical-align: top;
+    }
+    tr:nth-child(even) { background: #222; }
+    .notice {
+      background: #2a2010;
+      border: 1px solid #886633;
+      border-radius: 4px;
+      padding: 0.8em 1.2em;
+      margin: 1em 0;
+      color: #ccaa66;
+    }
+    .impl {
+      background: #102010;
+      border: 1px solid #336633;
+      border-radius: 4px;
+      padding: 0.8em 1.2em;
+      margin: 1em 0;
+      color: #88cc88;
+    }
+    a { color: #7fb3cc; }
+    .tag {
+      display: inline-block;
+      font-size: 0.75em;
+      background: #333;
+      border-radius: 3px;
+      padding: 0.1em 0.4em;
+      margin-left: 0.3em;
+      vertical-align: middle;
+    }
+    .tag.ok  { background: #1a3a1a; color: #7fcc7f; border: 1px solid #336633; }
+    .tag.todo { background: #3a2a1a; color: #ccaa66; border: 1px solid #886633; }
+    .tag.hist { background: #1a2a3a; color: #7fb3cc; border: 1px solid #335566; }
+  </style>
+</head>
+<body>
+
+<h1>ECOL — Educational Computer Language</h1>
+<p>Syntaxisreferentie voor de <em>ecol_interpreter</em> — een WebAssembly-reconstructie van de ECOL-taal van het IOWO (1970s–1980s).</p>
+
+<div class="notice">
+  <strong>Opmerking:</strong> De originele ECOL-syntaxisdocumentatie is nooit gedigitaliseerd. Deze referentie combineert wat historisch aantoonbaar is (gemarkeerd <span class="tag hist">historisch</span>) met de keuzes in de huidige interpreter (gemarkeerd <span class="tag ok">geïmpl.</span>) en nog te implementeren onderdelen (<span class="tag todo">gepland</span>).
+</div>
+
+<h2>Historische context</h2>
+
+<p><strong>ECOL</strong> stond voor <em>Educational Computer Language</em>, een Nederlandse programmeertaal voor het wiskundeonderwijs, ontwikkeld aan het <strong>IOWO</strong> (Instituut voor de Ontwikkeling van het Wiskunde Onderwijs) aan de Universiteit Utrecht, opgericht in 1971 door prof. dr. <strong>Hans Freudenthal</strong>.</p>
+
+<p>De taal werd halverwege de jaren '70 ingezet door <strong>Guus Vonk</strong> van het IOWO voor middelbare scholen (HAVO/VWO), als onderdeel van het vak <em>Wiskunde II</em>. Leerlingen schreven programma's op <strong>schrapkaarten</strong> — kartonnen kaartjes met vakjes voor letters en commando's — die per post naar Utrecht werden opgestuurd. Een week later kwamen de resultaten (of een foutmelding) per post terug.</p>
+
+<p>In 1981 werd het IOWO opgeheven; Vonk zette zijn werk voort bij het <strong>Onderwijs Computercentrum (OW&amp;OC)</strong>, dat in 1991 werd omgedoopt tot het <strong>Freudenthal Instituut</strong>. Begin jaren '80 verdrong BASIC (op BBC Micro-computers) geleidelijk ECOL op de scholen.</p>
+
+<p>122 originele schrapkaarten zijn bewaard in het <a href="https://www.europeana.eu/en/item/2021657/resource_document_museon_100194" target="_blank">Museon in Den Haag</a>. ECOL wordt in academische literatuur beschreven als een <em>"variation of Algol/Pascal"</em> — een structurele taal met Nederlandse sleutelwoorden.</p>
+
+<h2>Variabelen</h2>
+
+<p>Variabelenamen bestaan uitsluitend uit <strong>kleine letters, cijfers en underscores</strong>. Het type wordt <em>niet</em> door de naam bepaald, maar dynamisch: het type van een variabele is het type van de meest recente toekenning.</p>
+
+<table>
+  <tr>
+    <th>Type</th>
+    <th>Bepaald door</th>
+    <th>Voorbeeld</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td>Tekst (string)</td>
+    <td>Toekenning van een tekst-expressie</td>
+    <td><code>naam := "Alice"</code></td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td>Kommagetal (float)</td>
+    <td>Toekenning van een numerieke expressie</td>
+    <td><code>prijs := 3.14</code></td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+</table>
+
+<p>Geldige variabelenamen: <code>naam</code>, <code>teller</code>, <code>prijs_excl</code>, <code>x1</code>. Namen mogen niet beginnen met een cijfer.</p>
+
+<h2>Toewijzing</h2>
+
+<span class="tag ok">geïmpl.</span>
+
+<pre>&lt;variabele&gt; := &lt;expressie&gt;</pre>
+
+<p>Geen keyword nodig. Het type van de variabele wordt bepaald door de expressie aan de rechterkant.</p>
+
+<p>Voorbeelden:</p>
+<pre>naam := "Alice"
+groet := "Hallo " + naam
+prijs := 3.14</pre>
+
+<h2>Uitvoer: SCHRIJF</h2>
+
+<span class="tag ok">geïmpl.</span>
+
+<pre>SCHRIJF &lt;expressie&gt;</pre>
+
+<p>Voorbeelden:</p>
+<pre>SCHRIJF "Hallo wereld"
+SCHRIJF naam
+SCHRIJF "De prijs is: " + prijs</pre>
+
+<h2>Tekst-expressies</h2>
+
+<h3>Aaneenschakeling <span class="tag ok">geïmpl.</span></h3>
+<pre>SCHRIJF "Voor" + "naam: " + naam</pre>
+
+<h3>Escape-tekens in strings</h3>
+<p>Escape-reeksen zijn <strong>niet toegestaan</strong> in string-literals die de gebruiker intypt. Speciale tekens (zoals newline of tab) kunnen wel intern in de interpreter voorkomen, maar worden niet via <code>\n</code> e.d. in broncode geschreven.</p>
+
+<h2>Ingebouwde tekst-functies</h2>
+
+<table>
+  <tr>
+    <th>Functie</th>
+    <th>Beschrijving</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><code>LINKS$(tekst, n)</code></td>
+    <td>De eerste <em>n</em> tekens van <em>tekst</em></td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>RECHTS$(tekst, n)</code></td>
+    <td>De laatste <em>n</em> tekens van <em>tekst</em></td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>MIDDEN$(tekst, start, lengte)</code></td>
+    <td>Deelstring vanaf positie <em>start</em> (1-gebaseerd), <em>lengte</em> tekens lang</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>LENGTE$(tekst)</code></td>
+    <td>Aantal tekens in <em>tekst</em></td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>HOOFDLETTER$(tekst)</code></td>
+    <td>Tekst in hoofdletters</td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+  <tr>
+    <td><code>KLEINE$(tekst)</code></td>
+    <td>Tekst in kleine letters</td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+</table>
+
+<p>Posities bij <code>MIDDEN$</code> zijn <strong>1-gebaseerd</strong> (het eerste teken is positie 1).</p>
+
+<pre>s := "Programmeren"
+SCHRIJF LINKS$(s, 6)          &apos;→ "Progra"
+SCHRIJF RECHTS$(s, 4)         &apos;→ "eren"
+SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
+
+<h2>Rekenkundige expressies</h2>
+
+<span class="tag todo">gepland</span>
+
+<table>
+  <tr><th>Operator</th><th>Betekenis</th></tr>
+  <tr><td><code>+</code></td><td>Optellen</td></tr>
+  <tr><td><code>-</code></td><td>Aftrekken</td></tr>
+  <tr><td><code>*</code></td><td>Vermenigvuldigen</td></tr>
+  <tr><td><code>/</code></td><td>Delen</td></tr>
+  <tr><td><code>^</code></td><td>Machtsverheffing</td></tr>
+  <tr><td><code>(</code> <code>)</code></td><td>Haakjes voor volgorde</td></tr>
+</table>
+
+<p>Wiskundige functies (gepland):</p>
+<table>
+  <tr><th>Functie</th><th>Beschrijving</th></tr>
+  <tr><td><code>WORTEL(x)</code></td><td>Vierkantswortel</td></tr>
+  <tr><td><code>SIN(x)</code></td><td>Sinus (radialen)</td></tr>
+  <tr><td><code>COS(x)</code></td><td>Cosinus (radialen)</td></tr>
+  <tr><td><code>ABS(x)</code></td><td>Absolute waarde</td></tr>
+  <tr><td><code>INT(x)</code></td><td>Afkappen naar geheel getal</td></tr>
+  <tr><td><code>ASELECT(n)</code></td><td>Willekeurig getal 0..n</td></tr>
+</table>
+
+<h2>Invoer/uitvoer</h2>
+
+<table>
+  <tr><th>Commando</th><th>Beschrijving</th><th>Status</th></tr>
+  <tr>
+    <td><code>SCHRIJF &lt;expressie&gt;</code></td>
+    <td>Druk waarde af op het scherm</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>LEES &lt;variabele&gt;</code></td>
+    <td>Lees invoer van de gebruiker</td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+</table>
+
+<h2>Stroombesturing</h2>
+
+<span class="tag todo">gepland</span>
+
+<table>
+  <tr><th>Constructie</th><th>Beschrijving</th></tr>
+  <tr>
+    <td><code>ALS &lt;voorwaarde&gt; DAN &lt;actie&gt;</code></td>
+    <td>Enkelvoudige voorwaarde</td>
+  </tr>
+  <tr>
+    <td><code>ALS &lt;voorwaarde&gt; DAN ... ANDERS ...</code></td>
+    <td>Voorwaarde met alternatief</td>
+  </tr>
+  <tr>
+    <td><code>VOOR &lt;var&gt; := &lt;begin&gt; TOT &lt;einde&gt;</code></td>
+    <td>Teller-lus</td>
+  </tr>
+  <tr>
+    <td><code>VOLGENDE &lt;var&gt;</code></td>
+    <td>Einde van VOOR-lus</td>
+  </tr>
+  <tr>
+    <td><code>HERHAAL ... TOTDAT &lt;voorwaarde&gt;</code></td>
+    <td>Herhaal-lus</td>
+  </tr>
+  <tr>
+    <td><code>STOP</code></td>
+    <td>Programma beëindigen</td>
+  </tr>
+</table>
+
+<p>Vergelijkingsoperatoren (in voorwaarden):</p>
+<table>
+  <tr><th>Operator</th><th>Betekenis</th></tr>
+  <tr><td><code>=</code></td><td>Gelijk aan</td></tr>
+  <tr><td><code>&lt;&gt;</code></td><td>Ongelijk aan</td></tr>
+  <tr><td><code>&lt;</code></td><td>Kleiner dan</td></tr>
+  <tr><td><code>&gt;</code></td><td>Groter dan</td></tr>
+  <tr><td><code>&lt;=</code></td><td>Kleiner dan of gelijk aan</td></tr>
+  <tr><td><code>&gt;=</code></td><td>Groter dan of gelijk aan</td></tr>
+</table>
+
+<h2>Voorbeeldprogramma's</h2>
+
+<h3>Hallo wereld</h3>
+<pre>SCHRIJF "Hallo, wereld!"</pre>
+
+<h3>Naamgroet</h3>
+<pre>LEES naam
+SCHRIJF "Hallo, " + naam + "!"</pre>
+
+<h3>Teller</h3>
+<pre>VOOR teller := 1 TOT 10
+  SCHRIJF teller
+VOLGENDE teller</pre>
+
+<h2>Bronnen &amp; verder lezen</h2>
+
+<ul>
+  <li><a href="https://www.deeeuw.nl/ervaringen/computers-op-het-ubbo" target="_blank">Computers op het Ubbo (deeeuw.nl)</a> — persoonlijk verslag over ECOL en schrapkaarten, Ubbo Emmius scholengemeenschap</li>
+  <li><a href="https://www.europeana.eu/en/item/2021657/resource_document_museon_100194" target="_blank">ECOL schrapkaarten — Europeana / Museon Den Haag</a> — 122 originele schrapkaarten</li>
+  <li><a href="https://archief.vakbladeuclides.nl/jaargang_059.html" target="_blank">Euclides jaargang 59 (1983–1984)</a> — artikelen over computers in het wiskundeonderwijs</li>
+  <li><a href="https://link.springer.com/chapter/10.1007/978-3-030-33824-4_10" target="_blank">Digital Tools in Dutch Mathematics Education (Springer)</a> — ECOL als "variation of Algol/Pascal"</li>
+  <li><a href="https://inria.hal.science/hal-01272196v1/document" target="_blank">The Dutch Situation (INRIA/HAL)</a> — overzicht computer en wiskunde onderwijs Nederland</li>
+  <li><a href="https://www.uu.nl/en/research/freudenthal-institute/about-us/history/mathematics-education" target="_blank">Freudenthal Instituut — Geschiedenis</a></li>
+</ul>
+
+<hr>
+<p style="color:#666; font-size:0.85em;">
+  Samengesteld op basis van web-onderzoek (maart 2026) voor het <em>ecol_interpreter</em>-project.<br>
+  Aanvullingen welkom — de originele ECOL-handleiding is nooit gedigitaliseerd.
+</p>
+
+</body>
+</html>

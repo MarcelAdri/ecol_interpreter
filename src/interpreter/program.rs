@@ -2,6 +2,7 @@
 pub(super) enum Sleutelwoord {
     SCHRIJF,
     TOEKENNEN,
+    HELP,
 }
 
 impl Sleutelwoord {
@@ -10,6 +11,7 @@ impl Sleutelwoord {
         match input {
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
             "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
+            "HELP" => Some(Sleutelwoord::HELP),
             _ => None
         }
     }
@@ -37,6 +39,9 @@ pub(super) enum LineInhoud {
     Toekennen {
         variabele_naam: String,
         expressie: String,
+    },
+    Help {
+
     },
 }
 
