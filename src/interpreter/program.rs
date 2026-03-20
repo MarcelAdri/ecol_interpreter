@@ -1,41 +1,15 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     SCHRIJF,
-    ZET,
+    TOEKENNEN,
 }
 
 impl Sleutelwoord {
-    /// ```rust
-    /// Converts a string slice to a corresponding `Sleutelwoord` enum variant.
-    ///
-    /// # Parameters
-    /// - `input`: A string slice representing a potential `Sleutelwoord` variant.
-    ///
-    /// # Returns
-    /// - `Ok(Sleutelwoord)` if the input matches a recognized keyword.
-    /// - `Err(String)` containing an error message if the input is invalid.
-    ///
-    /// # Supported Keywords
-    /// - `"SCHRIJF"`: Corresponds to `Sleutelwoord::SCHRIJF`.
-    /// - `"ZET"`: Corresponds to `Sleutelwoord::ZET`.
-    ///
-    /// # Errors
-    /// Returns an error if the input string does not match any supported keyword.
-    /// The error message will include the invalid input string.
-    ///
-    /// # Examples
-    /// ```rust
-    /// let result = Sleutelwoord::from_string("SCHRIJF");
-    /// assert_eq!(result, Ok(Sleutelwoord::SCHRIJF));
-    ///
-    /// let result = Sleutelwoord::from_string("INVALID");
-    /// assert!(result.is_err());
-    /// ```
-    /// ```
+
     pub(super) fn from_string(input: &str) -> Option<Self> {
         match input {
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
-            "ZET" => Some(Sleutelwoord::ZET),
+            "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
             _ => None
         }
     }
@@ -60,7 +34,7 @@ pub(super) enum LineInhoud {
     Schrijf {
         expressie: String,
     },
-    Zet {
+    Toekennen {
         variabele_naam: String,
         expressie: String,
     },

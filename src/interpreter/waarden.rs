@@ -304,38 +304,42 @@ impl EcolString {
 
 #[derive(Debug, Clone)]
 pub(super) enum Waarde {
-    Integer(i32),
     Float(f32),
     Tekst(EcolString),
 }
 impl Waarde {
     pub(super) fn standaard_voor_type(var_type: VariabeleType) -> Self {
         match var_type {
-            VariabeleType::Integer => Waarde::Integer(0),
             VariabeleType::Float => Waarde::Float(0.0),
             VariabeleType::Tekst => Waarde::Tekst(EcolString::default()),
+        }
+    }
+
+    pub(super) fn type_van(&mut self) -> Option<VariabeleType> {
+        match self {
+            Waarde::Float(_) => Some(VariabeleType::Float),
+            Waarde::Tekst(_) => Some(VariabeleType::Tekst),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum VariabeleType {
-    Integer,
     Float,
     Tekst,
 }
 
 
 
-pub(super) fn type_van_naam(naam: &str) -> VariabeleType {
-    if naam.ends_with('$') {
-        VariabeleType::Tekst
-    } else if naam.ends_with('%') {
-        VariabeleType::Integer
-    } else {
-        VariabeleType::Float
-    }
-}
+// pub(super) fn type_van_naam(naam: &str) -> VariabeleType {
+//     if naam.ends_with('$') {
+//         VariabeleType::Tekst
+//     } else if naam.ends_with('%') {
+//         VariabeleType::Integer
+//     } else {
+//         VariabeleType::Float
+//     }
+// }
 
 /// ```rust
 /// Retrieves data from a `Waarde` enum and converts it into a `String`.
@@ -371,7 +375,6 @@ pub(super) fn type_van_naam(naam: &str) -> VariabeleType {
 pub(super) fn haal_data(token: &Waarde) -> String {
 
     match token {
-        Waarde::Integer(x) => format!("{}", x),
         Waarde::Float(x) => format_float(*x),
         Waarde::Tekst(x) => format!("{}", x),
     }
@@ -424,7 +427,6 @@ fn format_float(x: f32) -> String {
 /// ```
 pub(super) fn waarde_naar_expressie(waarde: &Waarde) -> String {
     match waarde {
-        Waarde::Integer(x) => x.to_string(),
         Waarde::Float(x) => format_float(*x),
         Waarde::Tekst(x) => {
             x.to_expressions()

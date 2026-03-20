@@ -158,7 +158,7 @@
 //!   ```
 //! ```
 use std::collections::HashMap;
-use super::waarden::{haal_data, type_van_naam, waarde_naar_expressie, VariabeleType, Waarde, EcolString};
+use super::waarden::{haal_data, waarde_naar_expressie, VariabeleType, Waarde, EcolString};
 use super::program::{Line, LineInhoud, Sleutelwoord, Operator, TOEKENNING_TEKEN, Functie};
 
 struct FunctieAanroep {
@@ -207,14 +207,61 @@ impl EcolMachine {
         }
     }
 
-    fn pak_of_maak_index(&mut self, naam: &str) -> usize {
+    fn pak_of_maak_index(&mut self, naam: &str, variabele_type: Option<VariabeleType>) -> Result<usize, String> {
+        use std::collections::hash_map::Entry;
+
         let volgende_vrije_index = self.data_pool.len();
-        if let std::collections::hash_map::Entry::Vacant(entry) = self.symbolen.entry(naam.to_string()) {
-            let var_type = type_van_naam(naam);
-            self.data_pool.push(Waarde::standaard_voor_type(var_type));
-            entry.insert(volgende_vrije_index);
+
+        match self.symbolen.entry(naam.to_string()) {
+            Entry::Vacant(entry) => {
+                let var_type = variabele_type
+                    .ok_or_else(|| format!("Variabele '{}' heeft geen type", naam))?;
+
+                self.data_pool.push(Waarde::standaard_voor_type(var_type));
+                entry.insert(volgende_vrije_index);
+                Ok(volgende_vrije_index)
+            }
+            Entry::Occupied(entry) => Ok(*entry.get()),
         }
-        self.symbolen[naam]
+    }
+
+    /// ```rust
+    /// Retrieves the variable type associated with a given name from the symbol table.
+    ///
+    /// This function looks up the provided variable name (`naam`) in the symbol table (`symbolen`).
+    /// If the name exists in the table, it retrieves its index in the data pool (`data_pool`) and
+    /// returns the associated variable type. If the name does not exist in the symbol table, the
+    /// function returns `None`.
+    ///
+    /// # Parameters
+    ///
+    /// - `naam`: A string slice (`&str`) representing the name of the variable to look up.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<VariabeleType>`:
+    ///     - `Some(VariabeleType)` if the name exists in the symbol table and the variable type
+    ///       is successfully retrieved from the data pool.
+    ///     - `None` if the name does not exist in the symbol table.
+    ///
+    /// # Example
+    /// ```rust
+    /// let mut mijn_struct = MijnStruct::new();
+    /// mijn_struct.voeg_toe("x", VariabeleType::Integer);
+    ///
+    /// if let Some(type_van) = mijn_struct.haal_variabele_type("x") {
+    ///     println!("Het type van 'x' is: {:?}", type_van);
+    /// } else {
+    ///     println!("'x' bestaat niet in de symbolentabel.");
+    /// }
+    /// ```
+    /// //
+    fn haal_variabele_type(&mut self, naam: &str) -> Option<VariabeleType> {
+        if let Some(index) = self.symbolen.get(naam) {
+            self.data_pool[*index].type_van()
+        } else {
+            None
+        }
     }
 
 
@@ -227,8 +274,8 @@ impl EcolMachine {
                     LineInhoud::Schrijf { expressie } => {
                         reply = self.execute_schrijf(expressie);
                     },
-                    LineInhoud::Zet {variabele_naam, expressie} => {
-                        reply = self.execute_zet(variabele_naam, expressie);
+                    LineInhoud::Toekennen {variabele_naam, expressie} => {
+                        reply = self.execute_toekennen(variabele_naam, expressie);
                     },
                 }
             }
@@ -242,20 +289,62 @@ impl EcolMachine {
 
     fn execute_schrijf(&mut self, expressie: &str) -> String {
 
-        match self.solve_expression(expressie, None) {
+        match self.solve_expression(expressie) {
             Ok(value) => {
                 haal_data(&value)
             }
             Err(error_message) => error_message,
         }
     }
-    fn execute_zet(&mut self, variabele_naam: &str, expressie: &str) -> String {
-        let variabele_index = self.pak_of_maak_index(variabele_naam);
 
-        match self.solve_expression(expressie, Some(type_van_naam(variabele_naam))) {
+    /// ```
+    /// Executes the assignment of a value (defined by an expression) to a variable.
+    ///
+    /// This function handles assigning the result of an expression to a variable, dynamically determining
+    /// the variable type if it has not been previously declared. It involves the following steps:
+    /// 1. Determines the type of the variable based on prior declarations or evaluates the type from the expression.
+    /// 2. Finds or creates the associated index for the variable in the `data_pool`.
+    /// 3. Evaluates the given expression and assigns the result to the variable.
+    ///
+    /// # Arguments
+    /// - `variabele_naam` (`&str`): The name of the variable to which the value will be assigned.
+    /// - `expressie` (`&str`): The expression whose result will be assigned to the variable.
+    ///
+    /// # Returns
+    /// A `String` indicating the result of executing the assignment:
+    /// - If successful, an empty string (`""`) is returned.
+    /// - If an error occurs (e.g., during type handling, index creation, or expression solving), an error message is returned.
+    ///
+    /// # Errors
+    /// - Returns an error message if:
+    ///   - The variable index creation (`pak_of_maak_index`) fails.
+    ///   - The expression evaluation (`solve_expression`) fails.
+    ///
+    /// # Example
+    /// ```
+    /// let mut executor = MyExecutor::new();
+    /// let result = executor.execute_toekennen("my_var", "10 + 20");
+    /// assert_eq!(result, ""); // Successfully assigned value.
+    /// ```
+    /// ```
+    fn execute_toekennen(&mut self, variabele_naam: &str, expressie: &str) -> String {
+        let mut var_type: VariabeleType;
+
+        if let Some(variabeleType) = self.haal_variabele_type(variabele_naam) {
+            var_type = variabeleType;
+        } else {
+            var_type = self.expressie_type(expressie);
+        }
+
+        let variabele_index = match self.pak_of_maak_index(variabele_naam, Some(var_type)) {
+            Ok(index) => index,
+            Err(e) => return e,
+        };
+
+        match self.solve_expression(expressie) {
             Ok(value) => {
                 self.data_pool[variabele_index] = value;
-                "OK".to_string()
+                "".to_string()
             }
             Err(error_message) => {
                 error_message
@@ -263,8 +352,44 @@ impl EcolMachine {
         }
     }
 
-    fn solve_expression(&mut self, expression: &str, return_type: Option<VariabeleType>) -> Result<Waarde, String> {
-        let mut werk_expressie = geen_spaties_buiten_literals(expression);
+    /// ```rust
+    /// Determines the type of an expression as either a string or a number.
+    ///
+    /// # Parameters
+    /// - `&mut self`: A mutable reference to the current object, which is used to access
+    ///   stored variable types and corresponding helper methods.
+    /// - `expressie: &str`: A string reference representing the expression to evaluate.
+    ///   The expression is analyzed to determine its type.
+    ///
+    /// # Returns
+    /// A `VariabeleType` enumerator:
+    /// - Returns `VariabeleType::Tekst` if the expression is determined to be a string.
+    /// - Returns `VariabeleType::Float` if the expression is determined to be a numeric value.
+    ///
+    /// # Process
+    /// 1. The function removes spaces outside literals from the given expression by calling
+    ///    `geen_spaties_buiten_literals`.
+    /// 2. It determines whether the expression represents a string:
+    ///     - If the expression starts with a double quote (`"`) it is identified as a string.
+    ///     - If the expression starts with an opening parenthesis (`(`), it is assumed not to be a string.
+    ///     - If the first word of the expression is a valid variable name:
+    ///       - It checks if the variable is of type `Tekst` by querying `self.haal_variabele_type`.
+    ///     - If the first word of the expression is a string function, verified by
+    ///       `Functie::is_string_functie`, the expression is identified as a string.
+    /// 3. Based on the analysis, the function returns `VariabeleType::Tekst` for string-like
+    ///    expressions, or `VariabeleType::Float` for numeric expressions.
+    ///
+    /// # Assumptions
+    /// - The helper functions including `geen_spaties_buiten_literals`, `first_word`,
+    ///   `is_geldige_variabele_naam`, `self.haal_variabele_type`, and `Functie::is_string_functie`
+    ///   are assumed to function correctly and provide valid outputs.
+    ///
+    /// # Note
+    /// This method may evaluate expressions in a simplified manner, and the logic may need to
+    /// be extended if more nuanced expression evaluation is needed in the future.
+    /// ```
+    fn expressie_type(&mut self, expressie: &str) -> VariabeleType {
+        let mut werk_expressie = geen_spaties_buiten_literals(expressie);
 
         //1: string of getal?
         let mut is_string = false;
@@ -278,8 +403,10 @@ impl EcolMachine {
         }
         //1.2 eerste waarde een tekst variabele
         else if is_geldige_variabele_naam(first_word) {
-            if first_word.ends_with('$') {
-                is_string = true;
+            if let Some(variabele_type) = self.haal_variabele_type(first_word) {
+                if variabele_type == VariabeleType::Tekst {
+                    is_string = true;
+                }
             }
         }
         //1.3 eerste waarde een string functie?
@@ -288,12 +415,24 @@ impl EcolMachine {
         }
 
         if is_string {
-            self.solve_string_expression(&werk_expressie)
+            VariabeleType::Tekst
         } else {
-            //TODO
-            //self.solve_nummer_expression(&werk_expressie, return_type)
-            Err("Nummerieke expressies zijn nog niet geïmplementeerd".to_string())
+            VariabeleType::Float
         }
+    }
+
+    fn solve_expression(&mut self, expression: &str) -> Result<Waarde, String> {
+        let mut werk_expressie = geen_spaties_buiten_literals(expression);
+
+        match self.expressie_type(&werk_expressie) {
+            VariabeleType::Tekst => self.solve_string_expression(&werk_expressie),
+            VariabeleType::Float => {
+                //TODO
+                //self.solve_nummer_expression(&werk_expressie, return_type)
+                Err("Numerieke expressies zijn nog niet geïmplementeerd".to_string())
+            }
+        }
+
     }
 
 
@@ -399,7 +538,7 @@ impl EcolMachine {
     /// ```
     fn vervang_variabelen_in_tekst_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
         while let Some(werk_variabele) = parseer_variabele(werk_expressie) {
-            let idx = self.pak_of_maak_index(&werk_variabele.variabele_naam);
+            let idx = self.pak_of_maak_index(&werk_variabele.variabele_naam, Some(VariabeleType::Tekst))?;
             let complete_waarde = Waarde::Tekst(EcolString::new(&haal_data(&self.data_pool[idx])));
             let result = waarde_naar_expressie(&complete_waarde);
 
@@ -823,58 +962,59 @@ impl EcolMachine {
         Ok(Waarde::Tekst(EcolString::new(reply)))
     }
 
-       /// ```rust
-    /// Lees een integerwaarde uit een gegeven argument.
+
+    /// ```rust
+    /// Parses an integer argument, either by interpreting it as a variable name
+    /// or directly as a raw integer value provided in string format.
     ///
-    /// Deze functie probeert een integerwaarde te extraheren uit het opgegeven
-    /// argument. Het ondersteunt zowel directe integerwaarden als variabelenamen
-    /// die verwijzen naar opgeslagen waarden in de `data_pool`.
-    ///
-    /// # Parameters
-    /// - `&mut self`: Een mutabele referentie naar de huidige instantie van de struct.
-    /// - `argument`: Een referentie naar een string die het argument bevat. Het kan
-    ///   een directe integerwaarde zijn of een variabelenaam.
+    /// # Arguments
+    /// - `argument`: A string slice that represents either a variable name or a string containing an integer.
     ///
     /// # Returns
-    /// - `Ok(usize)`: De gelezen integerwaarde wordt geretourneerd indien succesvol.
-    /// - `Err(String)`: Een foutmelding wordt geretourneerd als:
-    ///     - Het argument geen geldige variabelenaam is volgens `is_geldige_variabele_naam`
-    ///       en het niet kan worden geparsed naar een integerwaarde.
-    ///     - Het argument eindigt niet op '%' wanneer het een variabelenaam is.
+    /// - `Ok(usize)`: Returns the parsed integer as `usize` if successful.
+    /// - `Err(String)`: Returns an error message in case of failure to parse the integer.
     ///
-    /// # Gedragsdetails
-    /// - Als het argument een geldige variabelenaam is en eindigt op '%':
-    ///     - De variabele wordt opgehaald uit de `data_pool` via `pak_of_maak_index`.
-    ///     - De opgeslagen data wordt verwerkt via `haal_data` en geparsed naar `i32`,
-    ///       en vervolgens naar een `usize` geconverteerd.
-    /// - Als het geen variabelenaam is, wordt geprobeerd om de waarde direct naar een
-    ///   `usize` te parsen.
+    /// # Behavior
+    /// 1. If the provided `argument` is a valid variable name (as determined by `is_geldige_variabele_naam`):
+    ///     - Checks whether its data type is not `Float`, and if so, returns an error "Argument moet een getal zijn".
+    ///     - Otherwise, it retrieves or creates the index for this variable (via `pak_of_maak_index`) and
+    ///       fetches the complete data through the `data_pool`. The retrieved value is parsed as a 32-bit integer
+    ///       and then cast to `usize`.
+    /// 2. If `argument` is not a valid variable name:
+    ///     - Attempts to parse it directly as a `usize`.
+    ///     - If parsing fails, returns an error "Ongeldige integerwaarde".
     ///
-    /// # Fouten
-    /// - `"Argument moet een integer zijn"`: Als het een variabelenaam is maar niet
-    ///   eindigt op '%'.
-    /// - `"Ongeldige integerwaarde"`: Als het argument geen geldige integer kan worden.
+    /// # Errors
+    /// This function will return an error in the following scenarios:
+    /// - The variable name exists, but its type is not compatible (e.g., it is not a numeric type like `Float`).
+    /// - `argument` is not a valid integer or variable name.
+    /// - Other failures related to parsing or data retrieval.
     ///
-    /// # Voorbeeld
-    /// ```
-    /// let mut instance = MyStruct::new();
-    /// let resultaat = instance.lees_integer_argument("100");
-    /// assert_eq!(resultaat, Ok(100));
+    /// # Example Usage
+    /// ```rust
+    /// let mut interpreter = Interpreter::new();
     ///
-    /// let resultaat = instance.lees_integer_argument("variabele%");
-    /// assert!(resultaat.is_ok());
+    /// // Assuming `x` is a valid variable with a numeric value
+    /// let result = interpreter.lees_integer_argument("x");
+    /// assert!(result.is_ok());
     ///
-    /// let resultaat = instance.lees_integer_argument("ongeldig%");
-    /// assert!(resultaat.is_err());
+    /// // Parsing a raw integer string directly
+    /// let result = interpreter.lees_integer_argument("42");
+    /// assert_eq!(result.unwrap(), 42);
+    ///
+    /// // Invalid case
+    /// let result = interpreter.lees_integer_argument("invalid");
+    /// assert!(result.is_err());
     /// ```
     /// ```
     fn lees_integer_argument(&mut self, argument: &str) -> Result<usize, String> {
         if is_geldige_variabele_naam(argument) {
-            if !argument.ends_with('%') {
-                return Err("Argument moet een integer zijn".to_string());
+            if !(self.haal_variabele_type(argument) == Some(VariabeleType::Float))
+            {
+                return Err("Argument moet een getal zijn".to_string());
             }
 
-            let idx = self.pak_of_maak_index(argument);
+            let idx = self.pak_of_maak_index(argument, Some(VariabeleType::Float))?;
             let complete_waarde = self.data_pool[idx].clone();
             Ok(parse_i32(&haal_data(&complete_waarde)) as usize)
         } else {
@@ -1140,24 +1280,24 @@ fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
 
         match naam_start {
             None => {
-                if c.is_ascii_uppercase() {
+                if c.is_ascii_lowercase() {
                     naam_start = Some(i);
                 }
             }
             Some(start) => {
-                if c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_' {
+                if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
                     continue;
                 }
 
-                if c == '$' || c == '%' {
-                    let einde = i + c.len_utf8();
-                    let naam = &expressie[start..einde];
-                    if is_geldige_variabele_naam(naam) {
-                        return Some(VariabeleAanroep::new(naam.to_string(), start, einde));
-                    }
-                    naam_start = None;
-                    continue;
-                }
+                // if c == '$' || c == '%' {
+                //     let einde = i + c.len_utf8();
+                //     let naam = &expressie[start..einde];
+                //     if is_geldige_variabele_naam(naam) {
+                //         return Some(VariabeleAanroep::new(naam.to_string(), start, einde));
+                //     }
+                //     naam_start = None;
+                //     continue;
+                // }
 
                 let naam = &expressie[start..i];
                 if is_geldige_variabele_naam(naam) {
@@ -1251,7 +1391,7 @@ fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
 /// ```
 fn lexer(input: &str) -> Result<Line, String> {
 
-    let Some(tokens) = parseer_regel(input) else {
+    let Some(mut tokens) = parseer_regel(input) else {
         return Err("Syntax fout: regel wordt niet herkend".to_string());
     };
 
@@ -1263,6 +1403,11 @@ fn lexer(input: &str) -> Result<Line, String> {
             return Err("Programma's worden nog niet ondersteund".to_string());
 
         }
+    }
+
+    //Toekenning heeft geen sleutelwoord
+    if tokens[0].chars().next().is_some_and(|c| c.is_ascii_lowercase())  {
+        tokens.insert(0, "TOEKENNEN".to_string());
     }
 
     //Sleutelwoord?
@@ -1277,9 +1422,9 @@ fn lexer(input: &str) -> Result<Line, String> {
                     let expressie = tokens[1..].join("");
                     Ok(Line::new(0, LineInhoud::Schrijf { expressie }))
                 }
-                Sleutelwoord::ZET => {
+                Sleutelwoord::TOEKENNEN => {
                     if tokens.len() < 4 {
-                        return Err("Incomplete syntax voor ZET".to_string());
+                        return Err("Incomplete syntax voor de toekenning".to_string());
                     } else if !is_geldige_variabele_naam(&tokens[1]) {
                         return Err("Ongeldige naam voor de variabele".to_string());
                     } else if tokens[2] != TOEKENNING_TEKEN {
@@ -1288,7 +1433,7 @@ fn lexer(input: &str) -> Result<Line, String> {
 
                     let expressie = tokens[3..].join("");
                     let variabele_naam = tokens[1].to_string();
-                    Ok(Line::new(0, LineInhoud::Zet { variabele_naam, expressie }))
+                    Ok(Line::new(0, LineInhoud::Toekennen { variabele_naam, expressie }))
                 }
             }
 
@@ -1691,73 +1836,35 @@ fn parse_string(token: &str) -> Result<EcolString, String> {
 /// ```
 pub fn is_geldige_variabele_naam(naam: &str) -> bool {
     heeft_geldige_variabele_syntax(naam)
-        && !Functie::is_functie(naam)
-        && !Sleutelwoord::is_sleutelwoord(naam)
+
 
 }
 
 
-
 /// ```rust
-/// /**
-///  * Checks whether a given string follows a valid variable name syntax defined by specific rules.
-///  *
-///  * The rules for a valid variable name are as follows:
-///  * 1. The first character of the string must be an ASCII uppercase letter.
-///  * 2. The characters after the first one (if any) must satisfy:
-///  *    - If it is not the last character: it can be an ASCII uppercase letter, an underscore ('_'), or an ASCII digit.
-///  *    - If it is the last character: it can only be an ASCII uppercase letter, an ASCII digit, a dollar sign ('$'), or a percentage sign ('%').
-///  * 3. An empty string is considered invalid.
-///  *
-///  * # Arguments
-///  * - `naam`: A string slice (`&str`) representing the variable name to validate.
-///  *
-///  * # Returns
-///  * - `true` if the given string adheres to the defined variable syntax rules.
-///  * - `false` otherwise.
-///  *
-///  * # Examples
-///  * ```
-///  * assert_eq!(heeft_geldige_variabele_syntax("A123"), true);   // Valid variable name
-///  * assert_eq!(heeft_geldige_variabele_syntax("A_12"), true);   // Valid variable name
-///  * assert_eq!(heeft_geldige_variabele_syntax("A%"), true);     // Valid variable name
-///  * assert_eq!(heeft_geldige_variabele_syntax("A"), true);      // Single uppercase letter is valid
-///  * assert_eq!(heeft_geldige_variabele_syntax("123"), false);   // Does not start with an uppercase letter
-///  * assert_eq!(heeft_geldige_variabele_syntax("a123"), false);  // Does not start with an uppercase letter
-///  * assert_eq!(heeft_geldige_variabele_syntax("A!123"), false); // Contains invalid characters
-///  * ```
-///  */
-/// fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
-///     let mut chars = naam.chars();
+/// Checks whether a given string is a valid variable name according to specific syntax rules.
 ///
-///     let Some(eerste) = chars.next() else {
-///         return false;
-///     };
+/// # Syntax Rules:
+/// 1. The first character must be a lowercase ASCII letter.
+/// 2. Subsequent characters (if any) must either be lowercase ASCII letters,
+///    digits, or underscores (`_`), except the last character, which must be
+///    either a lowercase ASCII letter or a digit.
 ///
-///     if !eerste.is_ascii_uppercase() {
-///         return false;
-///     }
+/// # Arguments:
+/// * `naam` - A string slice containing the variable name to validate.
 ///
-///     let rest: Vec<char> = chars.collect();
+/// # Returns:
+/// * `true` if the string conforms to the syntax rules for a valid variable name.
+/// * `false` otherwise.
 ///
-///     if rest.is_empty() {
-///         return true;
-///     }
-///
-///     for (i, &c) in rest.iter().enumerate() {
-///         let is_laatste = i == rest.len() - 1;
-///
-///         if is_laatste {
-///             if !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '$' || c == '%') {
-///                 return false;
-///             }
-///         } else if !(c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit()) {
-///             return false;
-///         }
-///     }
-///
-///     true
-/// }
+/// # Examples:
+/// ```
+/// assert_eq!(heeft_geldige_variabele_syntax("var_1"), true);  // Valid: starts with lowercase letter and follows rules.
+/// assert_eq!(heeft_geldige_variabele_syntax("9variable"), false); // Invalid: starts with digit.
+/// assert_eq!(heeft_geldige_variabele_syntax("variable_"), false); // Invalid: ends with an underscore.
+/// assert_eq!(heeft_geldige_variabele_syntax("a"), true);        // Valid: single lowercase letter.
+/// assert_eq!(heeft_geldige_variabele_syntax(""), false);        // Invalid: empty string.
+/// ```
 /// ```
 fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     let mut chars = naam.chars();
@@ -1766,7 +1873,7 @@ fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
         return false;
     };
 
-    if !eerste.is_ascii_uppercase() {
+    if !eerste.is_ascii_lowercase() {
         return false;
     }
 
@@ -1780,10 +1887,10 @@ fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
         let is_laatste = i == rest.len() - 1;
 
         if is_laatste {
-            if !(c.is_ascii_uppercase() || c.is_ascii_digit() || c == '$' || c == '%') {
+            if !(c.is_ascii_lowercase() || c.is_ascii_digit()) {
                 return false;
             }
-        } else if !(c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit()) {
+        } else if !(c.is_ascii_lowercase() || c == '_' || c.is_ascii_digit()) {
             return false;
         }
     }
@@ -1911,3 +2018,5 @@ fn geen_spaties_buiten_literals(input: &str) -> String {
     }
     result
 }
+
+

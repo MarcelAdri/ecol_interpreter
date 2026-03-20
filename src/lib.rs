@@ -40,44 +40,17 @@ pub fn start() -> Result<(), JsValue> {
     cursor_line.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref())?;
     keydown_closure.forget();
 
-    // --- CLOSURE 2: INPUT FILTER (HOOFDLETTERS) ---
+    // --- CLOSURE 2: INPUT FILTER (ZONDER HOOFDLETTERS) ---
     let cur_input_filter = cursor_line.clone();
-    let doc_input_filter = document.clone();
 
     let input_closure = Closure::wrap(Box::new(move |_e: web_sys::InputEvent| {
         let text = cur_input_filter.inner_text();
-        let mut new_text = String::new();
-        let mut inside_quotes = false;
 
-        for c in text.chars() {
-            if c == '"' {
-                inside_quotes = !inside_quotes;
-                new_text.push(c);
-            } else if inside_quotes {
-                new_text.push(c);
-            } else {
-                new_text.push_str(&c.to_uppercase().to_string());
-            }
+        // Geen omzetting meer naar hoofdletters:
+        // de invoer blijft gewoon zoals de gebruiker die typt.
+        if text.is_empty() {
+            // optioneel: hier kun je extra logica zetten
         }
-
-        if text != new_text {
-            cur_input_filter.set_inner_text(&new_text);
-
-            // De "Hamer-methode" voor de cursor:
-            if let Ok(Some(selection)) = doc_input_filter.get_selection() {
-                let range = web_sys::Range::new().unwrap();
-
-                // 1. Selecteer de inhoud van onze typ-regel
-                range.select_node_contents(&cur_input_filter).unwrap();
-
-                // 2. In plaats van collapse op de range, gebruiken we de SELECTION
-                // Dit dwingt de browser om het focus-punt naar het einde van de selectie te verplaatsen
-                let _ = selection.remove_all_ranges();
-                let _ = selection.add_range(&range);
-                let _ = selection.collapse_to_end();
-            }
-        }
-
     }) as Box<dyn FnMut(web_sys::InputEvent)>);
 
     cursor_line.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
