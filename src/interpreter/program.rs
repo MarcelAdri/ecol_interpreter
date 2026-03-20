@@ -1,7 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     SCHRIJF,
-    TOEKENNEN,
+    TEKST,
+    NR,
     HELP,
 }
 
@@ -10,7 +11,8 @@ impl Sleutelwoord {
     pub(super) fn from_string(input: &str) -> Option<Self> {
         match input {
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
-            "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
+            "TEKST" => Some(Sleutelwoord::TEKST),
+            "NR" => Some(Sleutelwoord::NR),
             "HELP" => Some(Sleutelwoord::HELP),
             _ => None
         }
@@ -36,7 +38,11 @@ pub(super) enum LineInhoud {
     Schrijf {
         expressie: String,
     },
-    Toekennen {
+    Tekst {
+        variabele_naam: String,
+        expressie: String,
+    },
+    Nr {
         variabele_naam: String,
         expressie: String,
     },

@@ -36,16 +36,16 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 - `data: Vec<Waarde>` — data pool of all stored values
 - `execute(&mut self, command: &str) -> String` — main entry point called from JS per line
 
-**`Waarde`** (`src/interpreter/waarden.rs`) — The value enum: `Integer(i32)`, `Float(f32)`, `Tekst(EcolString)`. Variable type is determined by name suffix: `$` = text, `%` = integer, no suffix = float.
+**`Waarde`** (`src/interpreter/waarden.rs`) — The value enum: `Float(f32)`, `Tekst(EcolString)`. Variable type is determined by the assignment keyword, not the variable name.
 
-**`program.rs`** — Tokenization structs/enums (`Lexeem`, `Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures.
+**`program.rs`** — Tokenization structs/enums (`Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures.
 
 ### Execution Flow
 
 ```
 User types input → keydown Enter → JS calls machine.execute(line)
   → lexer() tokenizes
-  → parseer_regel() parses into command type (ZET or SCHRIJF)
+  → parseer_regel() parses into command type (TEKST, NR, SCHRIJF, HELP)
   → solve_expression() dispatches to string or numeric evaluator
   → solve_string_expression()
       → vervang_variabelen_in_tekst_expressie()  (substitute variable values)
@@ -57,11 +57,11 @@ User types input → keydown Enter → JS calls machine.execute(line)
 ### Language Features
 
 Currently implemented:
-- `ZET VAR$ := expression` — variable assignment
-- `SCHRIJF expression` — print to terminal
+- `TEKST naam := expressie` — text variable assignment (repeat keyword on reassignment)
+- `NR naam := expressie` — numeric variable assignment (repeat keyword on reassignment)
+- `SCHRIJF expressie` — print to terminal
 - String concatenation with `+`
 - String functions: `LINKS$(str, n)`, `RECHTS$(str, n)`, `MIDDEN$(str, start, len)` (1-indexed)
-- Escape sequences in strings: `\"`, `\\`, `\n`, `\r`, `\t`, `\0`
 
 Not yet implemented:
 - Numeric expression evaluation (parsing exists, evaluation returns error)
@@ -69,6 +69,7 @@ Not yet implemented:
 
 ### Variable Naming Rules
 
-- Must start with an uppercase ASCII letter
-- Can contain uppercase letters, digits, underscores
-- Suffix determines type: `NAAM$` (text), `TELLER%` (integer), `PRIJS` (float)
+- Every valid ECOL line begins with a keyword — there is no keyword-less syntax
+- Variable names: lowercase ASCII letters, digits, underscores; must not start with a digit
+- Type is determined by the keyword (`TEKST` or `NR`), not by any suffix
+- No `$` or `%` suffixes
