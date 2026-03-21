@@ -56,16 +56,15 @@ User types input → keydown Enter → JS calls machine.execute(line)
 
 ### Language Features (verified against real ECOL program + ALGOL translation)
 
-Currently implemented (partially outdated — refactor needed):
+Currently implemented:
 - `variabele := expressie` — keyword-less assignment
-- `SCHRIJF expressie` — print to terminal (format specifier not yet implemented)
+- `TEKST := expressie` — voeg tekst toe aan de regelbuffer
+- `NR` — dump de regelbuffer naar het scherm en maak hem leeg
 - String concatenation with `+`
 - String functions: `LINKS$(str, n)`, `RECHTS$(str, n)`, `MIDDEN$(str, start, len)` (1-indexed)
 
 Verified ECOL syntax (not yet implemented):
-- `SCHRIJF (breedte, decimalen) : expressie` — formatted numeric output
-- `TEKST : expressie` — text output (TEKST is an output command, not assignment)
-- `NR` — newline output (stands alone on a line)
+- `SCHRIJF (breedte, decimalen) := expressie` — formatted numeric output
 - `variabele := LEES` — read input as a value (LEES appears on the right-hand side)
 - `RIJ (start:einde) naam` — 1D array declaration; no 2D arrays
 - `array(index) := expressie` — array element assignment
