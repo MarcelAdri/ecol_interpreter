@@ -133,6 +133,10 @@ array(k) := LEES</pre>
 
 <h2>Uitvoer</h2>
 
+<div class="notice">
+  <strong>Regelbuffer-model:</strong> ECOL werkt met de logica van een regelprinter. <code>TEKST</code> en <code>SCHRIJF</code> schrijven naar een interne <em>regelbuffer</em> — ze produceren nog geen zichtbare uitvoer. Pas als <code>NR</code> (nieuwe regel) wordt uitgevoerd, wordt de buffer doorgestuurd naar het scherm of de printer en gewist. Meerdere TEKST/SCHRIJF-opdrachten op opeenvolgende regels bouwen zo samen één uitvoerregel op.
+</div>
+
 <table>
   <tr>
     <th>Commando</th>
@@ -140,52 +144,47 @@ array(k) := LEES</pre>
     <th>Status</th>
   </tr>
   <tr>
-    <td><code>SCHRIJF (breedte, decimalen) : expressie</code></td>
-    <td>Geformateerde getaluitvoer — breedte in kolommen, aantal decimalen</td>
+    <td><code>TEKST := &lt;tekstexpressie&gt;</code></td>
+    <td>Voegt tekst toe aan de regelbuffer</td>
     <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
   </tr>
   <tr>
-    <td><code>TEKST : expressie</code></td>
-    <td>Tekstuitvoer — drukt een tekst-expressie af</td>
+    <td><code>SCHRIJF (breedte, decimalen) := &lt;nummerexpressie&gt;</code></td>
+    <td>Voegt een geformatteerd getal toe aan de regelbuffer — breedte in kolommen, aantal decimalen</td>
     <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
-  </tr>
-  <tr>
-    <td><code>TEKST :</code></td>
-    <td>Lege tekstuitvoer — vermoedelijk lege regel of scheidingsteken <span class="tag onzeker">onzeker</span></td>
-    <td><span class="tag todo">gepland</span></td>
   </tr>
   <tr>
     <td><code>NR</code></td>
-    <td>Nieuwe regel (newline) — staat alleen op een regel</td>
+    <td>Stuurt de regelbuffer naar de uitvoer en wist hem (nieuwe regel)</td>
     <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
   </tr>
   <tr>
-    <td><code>SCHRIJM &lt;expressie&gt;</code></td>
-    <td>Uitvoer met opmaak <span class="tag onzeker">onzeker</span></td>
+    <td><code>SCHRIJFSYM &lt;expressie&gt;</code></td>
+    <td>Voegt een teken in de buffer dat niet op de schrapkaart staat (bijv. <code>&amp;</code>, <code>#</code>, <code>@</code>)</td>
     <td><span class="tag todo">gepland</span></td>
   </tr>
   <tr>
-    <td><code>SCHRIJFSYM &lt;expressie&gt;</code></td>
-    <td>Symbool of speciaal teken afdrukken <span class="tag onzeker">onzeker</span></td>
+    <td><code>SCHRIJM (breedte, decimalen) := &lt;nummerexpressie&gt;</code></td>
+    <td>Vermoedelijk "SCHRIJF METEEN": vult de buffer én stuurt direct een impliciete <code>NR</code> <span class="tag onzeker">onzeker</span></td>
     <td><span class="tag todo">gepland</span></td>
   </tr>
   <tr>
     <td><code>SPATIE</code></td>
-    <td>Witruimte of lege regel <span class="tag onzeker">onzeker</span></td>
+    <td>Witruimte in de regelbuffer <span class="tag onzeker">onzeker</span></td>
     <td><span class="tag todo">gepland</span></td>
   </tr>
 </table>
 
 <p>Voorbeelden (uit ecol.txt):</p>
-<pre>87 SCHRIJF (4,0) : opinr
-91 SCHRIJF (2,0) : x
-118 TEKST : "klaar"
+<pre>87 SCHRIJF (4,0) := opinr
+91 SCHRIJF (2,0) := x
+118 TEKST := "klaar"
 85 NR</pre>
 
 <h2>Tekst-expressies</h2>
 
 <h3>Aaneenschakeling <span class="tag ok">geïmpl.</span></h3>
-<pre>SCHRIJF "Voor" + "naam: " + naam</pre>
+<pre>TEKST := "Voor" + "naam: " + naam</pre>
 
 <h3>Escape-tekens in strings</h3>
 <p>Escape-reeksen zijn <strong>niet toegestaan</strong> in string-literals die de gebruiker intypt. Speciale tekens (zoals newline of tab) kunnen wel intern in de interpreter voorkomen, maar worden niet via <code>\n</code> e.d. in broncode geschreven.</p>
@@ -233,9 +232,9 @@ array(k) := LEES</pre>
 <p>Posities bij <code>MIDDEN$</code> zijn <strong>1-gebaseerd</strong> (het eerste teken is positie 1).</p>
 
 <pre>s := "Programmeren"
-SCHRIJF LINKS$(s, 6)          &apos;→ "Progra"
-SCHRIJF RECHTS$(s, 4)         &apos;→ "eren"
-SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
+TEKST := LINKS$(s, 6)          &apos;→ "Progra"
+TEKST := RECHTS$(s, 4)         &apos;→ "eren"
+TEKST := MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 
 <h2>Rekenkundige expressies</h2>
 
@@ -271,14 +270,18 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 <pre>50 NAAR 10</pre>
 
 <h3>Voorwaarde: ALS … DAN … ANDERS</h3>
-<p>Altijd een complete one-liner. <code>ANDERS</code> is optioneel. Het statement na <code>DAN</code> of <code>ANDERS</code> kan elk geldig commando zijn.</p>
+<p>Altijd een complete one-liner. <code>ANDERS</code> is optioneel. Na <code>DAN</code> en <code>ANDERS</code> staat altijd een <strong>regelnummer</strong> — <code>NAAR</code> is impliciet. Er is geen inline-actie.</p>
 <pre>10 a := 25
-20 ALS a = 25 DAN SUB 200 ANDERS SUB 300
-30 ALS a &gt; 10 DAN NAAR 50
-40 b := 0
-50 ALS b = 0 DAN TEKST : "nul"</pre>
+20 ALS a = 25 DAN 100 ANDERS 200
+30 KLAAR
 
-<p>Voor complexere vertakkingen gebruik je subroutines (<code>SUB</code>).</p>
+100 TEKST := "a is vijfentwintig"
+110 NR
+120 NAAR 30
+
+200 TEKST := "a is iets anders"
+210 NR
+220 NAAR 30</pre>
 
 <h3>Teller-lus: MET … / HERHAAL</h3>
 <p><code>MET</code> opent de lus; <code>HERHAAL &lt;variabele&gt;</code> sluit hem. De terugsprong is impliciet. De syntax is komma-gescheiden: eerst de stapgrootte, dan <code>&lt;var&gt; := &lt;begin&gt;</code>, dan de eindwaarde. Geen <code>TOT</code>-keyword.</p>
@@ -290,12 +293,15 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 40 HERHAAL a</pre>
 
 <h3>Subroutines: SUB … END</h3>
-<p><code>SUB &lt;regelnummer&gt;</code> roept een subroutine aan. <code>END</code> markeert het einde en keert terug naar de aanroeper.</p>
-<pre>10 SUB 200
+<span class="tag onzeker">onzeker</span>
+<p>Een subroutine wordt vermoedelijk aangeroepen door er direct naartoe te springen (via <code>NAAR</code> of een <code>ALS</code>-sprong). De eerste regel van de subroutine is gemarkeerd met <code>SUB</code>; <code>END</code> keert terug naar de aanroeper. Of <code>SUB &lt;regelnummer&gt;</code> als expliciete aanroepopdracht bestaat is onzeker.</p>
+<pre>10 NAAR 200
 20 KLAAR
 
-200 SCHRIJF "dit is een subroutine"
-210 END</pre>
+200 SUB
+210 TEKST := "dit is een subroutine"
+220 NR
+230 END</pre>
 
 <h3>Functies: FUN</h3>
 <span class="tag onzeker">onzeker</span>
@@ -318,30 +324,35 @@ SCHRIJF MIDDEN$(s, 4, 5)      &apos;→ "grami"</pre>
 <h2>Voorbeeldprogramma's</h2>
 
 <h3>Hallo wereld</h3>
-<pre>10 SCHRIJF "Hallo, wereld!"
-20 KLAAR</pre>
+<pre>10 TEKST := "Hallo, wereld!"
+20 NR
+30 KLAAR</pre>
 
 <h3>Naamgroet</h3>
 <pre>10 naam := LEES
-20 TEKST : "Hallo, " + naam + "!"
-30 KLAAR</pre>
+20 TEKST := "Hallo, " + naam + "!"
+30 NR
+40 KLAAR</pre>
 
 <h3>Teller (MET-lus)</h3>
 <pre>10 MET 1, teller := 1, 10
-20 SCHRIJF (3,0) : teller
-30 HERHAAL teller
-40 KLAAR</pre>
+20 SCHRIJF (3,0) := teller
+30 NR
+40 HERHAAL teller
+50 KLAAR</pre>
 
-<h3>Conditie met subroutine</h3>
+<h3>Conditie met sprong</h3>
 <pre>10 a := 25
-20 ALS a = 25 DAN SUB 100 ANDERS SUB 200
+20 ALS a = 25 DAN 100 ANDERS 200
 30 KLAAR
 
-100 TEKST : "a is vijfentwintig"
-110 END
+100 TEKST := "a is vijfentwintig"
+110 NR
+120 NAAR 30
 
-200 TEKST : "a is iets anders"
-210 END</pre>
+200 TEKST := "a is iets anders"
+210 NR
+220 NAAR 30</pre>
 
 <h2>Bronnen &amp; verder lezen</h2>
 
