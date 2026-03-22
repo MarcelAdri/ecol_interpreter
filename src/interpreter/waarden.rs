@@ -1,26 +1,3 @@
-/// ```rust
-/// The `EcolString` struct is a simple wrapper around the standard `String` type,
-/// designed with additional traits derived for ease of use. 
-///
-/// # Attributes
-/// - `inhoud` (`String`): The inner string value encapsulated by the `EcolString`.
-///
-/// # Derives
-/// - `Debug`: Allows instances of `EcolString` to be formatted using the {:?} formatter.
-/// - `Clone`: Enables the creation of an exact copy of an `EcolString` instance.
-/// - `Default`: Provides a default value for `EcolString`, which is an instance with an empty `String`.
-/// - `PartialEq` / `Eq`: Makes `EcolString` comparable for equality, both partially and fully.
-///
-/// # Visibility
-/// This struct is scoped as `pub(super)` and is accessible only within the current module and its children.
-///
-/// # Example
-/// ```
-/// let mut custom_string = EcolString::default();
-/// custom_string.inhoud = "Hello, world!".to_owned();
-/// println!("{:?}", custom_string); // Outputs: EcolString { inhoud: "Hello, world!" }
-/// ```
-/// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct EcolString {
     inhoud: String,
@@ -303,21 +280,21 @@ impl EcolString {
 }
 
 #[derive(Debug, Clone)]
-pub(super) enum Waarde {
-    Float(f32),
+pub enum Waarde {
+    Getal(f32),
     Tekst(EcolString),
 }
 impl Waarde {
     pub(super) fn standaard_voor_type(var_type: VariabeleType) -> Self {
         match var_type {
-            VariabeleType::Float => Waarde::Float(0.0),
+            VariabeleType::Getal => Waarde::Getal(0.0),
             VariabeleType::Tekst => Waarde::Tekst(EcolString::default()),
         }
     }
 
-    pub(super) fn type_van(&mut self) -> Option<VariabeleType> {
+    pub(super) fn type_van(&self) -> Option<VariabeleType> {
         match self {
-            Waarde::Float(_) => Some(VariabeleType::Float),
+            Waarde::Getal(_) => Some(VariabeleType::Getal),
             Waarde::Tekst(_) => Some(VariabeleType::Tekst),
         }
     }
@@ -325,62 +302,19 @@ impl Waarde {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum VariabeleType {
-    Float,
+    Getal,
     Tekst,
 }
 
-
-
-// pub(super) fn type_van_naam(naam: &str) -> VariabeleType {
-//     if naam.ends_with('$') {
-//         VariabeleType::Tekst
-//     } else if naam.ends_with('%') {
-//         VariabeleType::Integer
-//     } else {
-//         VariabeleType::Float
-//     }
-// }
-
-/// ```rust
-/// Retrieves data from a `Waarde` enum and converts it into a `String`.
-///
-/// This function takes a reference to a `Waarde` enum and pattern matches on its
-/// variants to extract the underlying value. The extracted value is then formatted
-/// into a `String`.
-///
-/// # Parameters
-/// - `token`: A reference to a `Waarde` enum instance, which can hold one of the following:
-///   - `Waarde::Integer(x)` - An integer value.
-///   - `Waarde::Float(x)` - A floating-point value. This value is formatted using the `format_float` function.
-///   - `Waarde::Tekst(x)` - A string slice (`&str`) value.
-///
-/// # Returns
-/// A `String` representing the formatted value of the `token`.
-///
-/// # Example
-/// ```rust
-/// let integer_token = Waarde::Integer(42);
-/// let result = haal_data(&integer_token);
-/// assert_eq!(result, "42");
-///
-/// let float_token = Waarde::Float(3.14);
-/// let result = haal_data(&float_token);
-/// assert_eq!(result, "3.14");
-///
-/// let tekst_token = Waarde::Tekst(String::from("Hello"));
-/// let result = haal_data(&tekst_token);
-/// assert_eq!(result, "Hello");
-/// ```
-/// ```
 pub(super) fn haal_data(token: &Waarde) -> String {
 
     match token {
-        Waarde::Float(x) => format_float(*x),
+        Waarde::Getal(x) => format_getal(*x),
         Waarde::Tekst(x) => format!("{}", x),
     }
 }
 
-fn format_float(x: f32) -> String {
+pub(super) fn format_getal(x: f32) -> String {
     let mut s = format!("{:.6}", x);
 
     while s.contains('.') && s.ends_with('0') {
@@ -394,78 +328,16 @@ fn format_float(x: f32) -> String {
     s
 }
 
-/// ```rust
-/// Converts a `Waarde` enum variant to its corresponding string representation.
-///
-/// This function takes a reference to a `Waarde` instance and matches its variant to generate
-/// a `String` representation. The supported variants and their conversions are:
-///
-/// - `Waarde::Integer(x)` -> Converts the integer value `x` to a `String`.
-/// - `Waarde::Float(x)` -> Converts the floating-point value `x` to a formatted `String` using the `format_float` function.
-/// - `Waarde::Tekst(x)` -> Wraps the string value `x` in double quotes without escaping any special characters.
-///
-/// # Arguments
-///
-/// * `waarde` - A reference to the `Waarde` value to be converted.
-///
-/// # Returns
-///
-/// A `String` representation of the given `Waarde` value.
-///
-/// # Example
-///
-/// ```rust
-/// let integer_value = Waarde::Integer(42);
-/// assert_eq!(waarde_naar_expressie(&integer_value), "42");
-///
-/// let float_value = Waarde::Float(3.14);
-/// assert_eq!(waarde_naar_expressie(&float_value), "3.14");
-///
-/// let text_value = Waarde::Tekst(String::from("Hello, world"));
-/// assert_eq!(waarde_naar_expressie(&text_value), "\"Hello, world\"");
-/// ```
-/// ```
 pub(super) fn waarde_naar_expressie(waarde: &Waarde) -> String {
     match waarde {
-        Waarde::Float(x) => format_float(*x),
+        Waarde::Getal(x) => format_getal(*x),
         Waarde::Tekst(x) => {
             x.to_expressions()
         }
     }
 }
 
-/// ```rust
-/// Converts a special character into its corresponding escaped string representation.
-///
-/// This function takes a single character as input and returns an `Option<&'static str>`.
-/// If the character is a special character that requires escaping (e.g., '"' or '\n'),
-/// the function returns the escaped representation of the character as a `Some(&str)`.
-/// Otherwise, it returns `None` if the character does not require escaping.
-///
-/// # Parameters
-/// - `c`: A `char` to be checked and potentially escaped.
-///
-/// # Returns
-/// An `Option<&'static str>`:
-/// - `Some(&str)`: The escaped string representation of the input character, if it is a special character.
-/// - `None`: If the input character does not require escaping.
-///
-/// # Escaped Characters
-/// The function recognizes the following special characters and outputs their respective escape sequences:
-/// - `'"'`: `Some("\\\"")`
-/// - `'\\'`: `Some("\\\\")`
-/// - `'\n'`: `Some("\\n")`
-/// - `'\r'`: `Some("\\r")`
-/// - `'\t'`: `Some("\\t")`
-/// - `'\0'`: `Some("\\0")`
-///
-/// # Examples
-/// ```
-/// assert_eq!(escape_char('"'), Some("\\\""));
-/// assert_eq!(escape_char('\n'), Some("\\n"));
-/// assert_eq!(escape_char('a'), None);
-/// ```
-/// //
+
 fn escape_char(c: char) -> Option<&'static str> {
     match c {
         '"' => Some("\\\""),

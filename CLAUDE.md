@@ -48,9 +48,14 @@ User types input → keydown Enter → JS calls machine.execute(line)
   → parseer_regel() parses into command type
   → solve_expression() dispatches to string or numeric evaluator
   → solve_string_expression()
-      → vervang_variabelen_in_tekst_expressie()  (substitute variable values)
-      → vervang_functies_in_tekst_expressie()    (run string functions)
+      → vervang_variabelen_in_expressie(Tekst)   (substitute variable values)
+      → vervang_functies_in_expressie(Tekst)     (run string functions)
       → samenstellen_tekst_resultaat()           (assemble quoted segments)
+  → solve_number_expression()
+      → geen_spaties_buiten_literals()           (strip whitespace)
+      → vervang_variabelen_in_expressie(Getal)   (substitute variable values)
+      → vervang_functies_in_expressie(Getal)     (run numeric functions e.g. INT)
+      → bereken_expressie()                      (evaluate arithmetic, respects precedence + parentheses)
   → result appended to #history div
 ```
 
@@ -60,11 +65,14 @@ Currently implemented:
 - `variabele := expressie` — keyword-less assignment
 - `TEKST := expressie` — voeg tekst toe aan de regelbuffer
 - `NR` — dump de regelbuffer naar het scherm en maak hem leeg
+- `SCHRIJF (breedte, decimalen) := expressie` — numeric output to line buffer (formatting parameters currently ignored)
 - String concatenation with `+`
 - String functions: `LINKS$(str, n)`, `RECHTS$(str, n)`, `MIDDEN$(str, start, len)` (1-indexed)
+- Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
+- Numeric function: `INT(x)` — truncate to integer
 
 Verified ECOL syntax (not yet implemented):
-- `SCHRIJF (breedte, decimalen) := expressie` — formatted numeric output
+- `SCHRIJF` formatting — breedte/decimalen parameters are parsed but ignored
 - `variabele := LEES` — read input as a value (LEES appears on the right-hand side)
 - `RIJ (start:einde) naam` — 1D array declaration; no 2D arrays
 - `array(index) := expressie` — array element assignment
@@ -73,7 +81,6 @@ Verified ECOL syntax (not yet implemented):
 - `MET stap, var := begin, einde` ... `HERHAAL var` — counted loop
 
 Not yet implemented:
-- Numeric expression evaluation
 - Flow control, line numbers, arrays
 
 ### Variable Naming Rules

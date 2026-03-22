@@ -6,6 +6,9 @@ use std::cell::RefCell;
 mod interpreter;
 mod utils;
 
+pub use interpreter::EcolMachine;
+pub use interpreter::Waarde;
+
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
     utils::set_panic_hook();

@@ -2,6 +2,7 @@
 pub(super) enum Sleutelwoord {
     HELP,
     NR,
+    SCHRIJF,
     TEKST,
     TOEKENNEN,
 }
@@ -12,6 +13,7 @@ impl Sleutelwoord {
         match input {
             "HELP" => Some(Sleutelwoord::HELP),
             "NR" => Some(Sleutelwoord::NR),
+            "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
             "TEKST" => Some(Sleutelwoord::TEKST),
             "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
             _ => None
@@ -42,6 +44,11 @@ pub(super) enum LineInhoud {
 
     },
     Tekst {
+        expressie: String,
+    },
+    Schrijf {
+        breedte: usize,
+        decimalen: usize,
         expressie: String,
     },
     Toekennen {
@@ -82,8 +89,36 @@ impl Operator {
         }
     }
 
+    pub(super) fn to_char(&self) -> char {
+        match self {
+            Self::Plus => '+',
+            Self::Min => '-',
+            Self::Vermenigvuldig => '*',
+            Self::Deel => '/',
+        }
+    }
+
     pub(super) fn is_operator_char(c: char) -> bool {
         Self::from_char(c).is_some()
+    }
+
+    pub(super) fn operator_volgorde() -> impl Iterator<Item = Self> {
+        [Self::Vermenigvuldig, Self::Deel, Self::Plus, Self::Min].into_iter().copied()
+
+    }
+
+    pub(super) fn bereken(&self, links: f32, rechts: f32) -> Result<f32, String> {
+        match self {
+            Self::Plus => Ok(links + rechts),
+            Self::Min => Ok(links - rechts),
+            Self::Vermenigvuldig => Ok(links * rechts),
+            Self::Deel => {
+                if rechts == 0.0 {
+                    return Err("Deel door 0 is niet toegestaan".to_string());
+                }
+                Ok(links / rechts)
+            },
+        }
     }
 }
 
@@ -92,7 +127,7 @@ pub(super) enum Functie {
     LinksString,
     RechtsString,
     MiddenString,
-    Val,
+    INT,
 }
 
 impl Functie {
@@ -101,7 +136,7 @@ impl Functie {
             "LINKS$" => Some(Self::LinksString),
             "RECHTS$" => Some(Self::RechtsString),
             "MIDDEN$" => Some(Self::MiddenString),
-            "VAL" => Some(Self::Val),
+            "INT" => Some(Self::INT),
             _ => None,
         }
     }
@@ -111,7 +146,7 @@ impl Functie {
             Self::LinksString => "LINKS$",
             Self::RechtsString => "RECHTS$",
             Self::MiddenString => "MIDDEN$",
-            Self::Val => "VAL",
+            Self::INT => "INT",
         }
     }
     

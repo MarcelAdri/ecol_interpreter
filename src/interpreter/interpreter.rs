@@ -1,7 +1,9 @@
 const HELP_PAGINA: &str = "ecol_syntaxis.html";
 
 use std::collections::HashMap;
-use super::waarden::{haal_data, waarde_naar_expressie, VariabeleType, Waarde, EcolString};
+use std::f32;
+use std::str::FromStr;
+use super::waarden::{haal_data, waarde_naar_expressie, format_getal, VariabeleType, Waarde, EcolString};
 use super::program::{Line, LineInhoud, Sleutelwoord, Operator, WORDT_TEKEN, Functie};
 
 struct FunctieAanroep {
@@ -94,6 +96,9 @@ impl EcolMachine {
                     LineInhoud::NR { } => {
                         reply = self.execute_nr();
                     },
+                    LineInhoud::Schrijf { breedte, decimalen, expressie } => {
+                        reply = self.execute_schrijf(*breedte, *decimalen, expressie);
+                    },
                     LineInhoud::Tekst { expressie } => {
                         reply = self.execute_tekst(expressie);
                     },
@@ -123,6 +128,16 @@ impl EcolMachine {
         std::mem::take(&mut self.regel_buffer)
     }
 
+    fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str) -> String {
+        //TODO: formatting aan de hand van breedte en decimalen
+        match self.solve_expression(expressie) {
+            Ok(value) => {
+                self.naar_regel_buffer(&haal_data(&value));
+                "".to_string()
+            }
+            Err(error_message) => error_message,
+        }
+    }
     fn execute_tekst(&mut self, expressie: &str) -> String {
 
         match self.solve_expression(expressie) {
@@ -190,7 +205,7 @@ impl EcolMachine {
         if is_string {
             VariabeleType::Tekst
         } else {
-            VariabeleType::Float
+            VariabeleType::Getal
         }
     }
 
@@ -199,11 +214,7 @@ impl EcolMachine {
 
         match self.expressie_type(&werk_expressie) {
             VariabeleType::Tekst => self.solve_string_expression(&werk_expressie),
-            VariabeleType::Float => {
-                //TODO
-                //self.solve_nummer_expression(&werk_expressie, return_type)
-                Err("Numerieke expressies zijn nog niet geïmplementeerd".to_string())
-            }
+            VariabeleType::Getal => self.solve_number_expression(&werk_expressie),
         }
 
     }
@@ -213,30 +224,61 @@ impl EcolMachine {
     fn solve_string_expression(&mut self, expressie: &str) -> Result<Waarde, String> {
         let mut werk_expressie = expressie.to_string();
 
-        self.vervang_variabelen_in_tekst_expressie(&mut werk_expressie)?;
-        self.vervang_functies_in_tekst_expressie(&mut werk_expressie)?;
+        self.vervang_variabelen_in_expressie(&mut werk_expressie, VariabeleType::Tekst)?;
+        self.vervang_functies_in_expressie(&mut werk_expressie, VariabeleType::Tekst)?;
 
         let tekst_resultaat = self.samenstellen_tekst_resultaat(&werk_expressie)?;
         Ok(Waarde::Tekst(EcolString::new(tekst_resultaat)))
     }
 
+    pub fn solve_number_expression(&mut self, expressie: &str) -> Result<Waarde, String> {
+        let mut werk_expressie = geen_spaties_buiten_literals(expressie);
+        self.vervang_variabelen_in_expressie(&mut werk_expressie, VariabeleType::Getal)?;
+        self.vervang_functies_in_expressie(&mut werk_expressie, VariabeleType::Getal)?;
+        self.bereken_expressie(&mut werk_expressie)?;
 
-    fn vervang_variabelen_in_tekst_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
+        let resultaat = f32::from_str(&werk_expressie);
+
+        match resultaat {
+            Ok(result) => {
+                return Ok(Waarde::Getal(result));
+            }
+            Err(e) => {
+                return Err(format!("Fout bij parsen van nummer: {}", e));
+            }
+        }
+
+    }
+
+
+    fn vervang_variabelen_in_expressie(&mut self, werk_expressie: &mut String, variabele_type: VariabeleType) -> Result<(), String> {
         while let Some(werk_variabele) = parseer_variabele(werk_expressie) {
-            let idx = self.pak_of_maak_index(&werk_variabele.variabele_naam, Some(VariabeleType::Tekst))?;
-            let complete_waarde = Waarde::Tekst(EcolString::new(&haal_data(&self.data_pool[idx])));
-            let result = waarde_naar_expressie(&complete_waarde);
+            let idx = self.pak_of_maak_index(&werk_variabele.variabele_naam, Some(variabele_type))?;
+            let mut complete_waarde = &self.data_pool[idx];
+            if let Some(var_typ) = complete_waarde.type_van() {
+                if var_typ == variabele_type {
+                    let result = waarde_naar_expressie(&complete_waarde);
 
-            werk_expressie.replace_range(werk_variabele.start..werk_variabele.einde, &result);
+                    werk_expressie.replace_range(werk_variabele.start..werk_variabele.einde, &result);
+                } else {
+                    return Err(format!("Variabele {:?} is niet van het type {:?}", werk_variabele.variabele_naam, variabele_type));
+                }
+            } else {
+                return Err(format!("Variabele {:?} is niet goed opgeslagen", werk_variabele.variabele_naam));
+            }
+
         }
 
         Ok(())
     }
 
 
-    fn vervang_functies_in_tekst_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
+    fn vervang_functies_in_expressie(&mut self, werk_expressie: &mut String, variabele_type: VariabeleType) -> Result<(), String> {
         while let Some(werk_functie) = parseer_functie(werk_expressie) {
-            let uitkomst = self.execute_string_function(&werk_functie)?;
+            let uitkomst = self.execute_function(&werk_functie)?;
+            if uitkomst.type_van() != Some(variabele_type) {
+                return Err(format!("Functie {:?} past niet in een expressie van het type {:?}", werk_functie.functie, variabele_type));
+            }
             let result = waarde_naar_expressie(&uitkomst);
 
             werk_expressie.replace_range(werk_functie.start..werk_functie.einde, &result);
@@ -245,13 +287,132 @@ impl EcolMachine {
         Ok(())
     }
 
+    fn bereken_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
+        self.bereken_tussen_haakjes(werk_expressie)?;
+        self.bereken_operatoren(werk_expressie)?;
 
-    fn execute_string_function(&mut self, werk_functie: &FunctieAanroep) -> Result<Waarde, String> {
+        Ok(())
+    }
+
+    fn bereken_tussen_haakjes(&mut self, expressie: &mut String) -> Result<(), String> {
+        let mut werk_expressie = expressie.to_string();
+
+        loop {
+            let Some(slot) = werk_expressie.find(')') else {
+                break;
+            };
+
+            let Some(start) = werk_expressie[..slot].rfind('(') else {
+                return Err("Haak sluiten gevonden zonder haak openen".to_string());
+            };
+
+            let deel_expressie = &werk_expressie[start + 1..slot];
+            let deel_resultaat = self.solve_number_expression(deel_expressie)?;
+            let vervanging = haal_data(&deel_resultaat);
+
+            werk_expressie.replace_range(start..slot + 1, &vervanging);
+        }
+
+        if let Some(_) = werk_expressie.find('(') { return Err("Haak openen gevonden zonder haak sluiten".to_string()); }
+
+        *expressie = werk_expressie;
+        Ok(())
+    }
+
+
+    fn bereken_operatoren(&mut self, expressie: &mut String) -> Result<(), String> {
+        fn vind_operand_links(expr: &str, op_pos: usize) -> usize {
+            let bytes = expr.as_bytes();
+            let mut i = op_pos;
+
+            while i > 0 {
+                let c = bytes[i - 1] as char;
+
+                if c.is_ascii_digit() || c == '.' {
+                    i -= 1;
+                    continue;
+                }
+
+                if c == '-' {
+                    let prev = if i >= 2 { Some(bytes[i - 2] as char) } else { None };
+
+                    let unary = match prev {
+                        None => true,
+                        Some(p) => p.is_ascii_whitespace() || Operator::is_operator_char(p),
+                    };
+
+                    if unary {
+                        i -= 1;
+                    }
+                }
+
+                break;
+            }
+
+            i
+        }
+
+        fn vind_operand_rechts(expr: &str, op_pos: usize) -> usize {
+            let bytes = expr.as_bytes();
+            let mut i = op_pos + 1;
+
+            while i < expr.len() {
+                let c = bytes[i] as char;
+                if i == op_pos + 1 && c == '-' {
+                    i += 1;
+                    continue;
+                }
+                if c.is_ascii_digit() || c == '.' {
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+
+            i
+        }
+
+        let mut werk_expressie = expressie.to_string();
+
+        for o in Operator::operator_volgorde() {
+            loop {
+                let Some(operator_positie) = werk_expressie.find(o.to_char()) else {
+                    break;
+                };
+
+                let links_pos = vind_operand_links(werk_expressie.as_str(), operator_positie);
+                let rechts_pos = vind_operand_rechts(werk_expressie.as_str(), operator_positie);
+
+                let links_deel = &werk_expressie[links_pos..operator_positie];
+                let rechts_deel = &werk_expressie[operator_positie + 1..rechts_pos];
+
+                let links_poging = f32::from_str(links_deel);
+                let rechts_poging = f32::from_str(rechts_deel);
+
+                match (links_poging, rechts_poging) {
+                    (Ok(links), Ok(rechts)) => {
+                        let uitkomst = o.bereken(links, rechts)?;
+
+                        werk_expressie.replace_range(
+                            links_pos..rechts_pos,
+                            &format_getal(uitkomst),
+                        );
+                    }
+                    _ => return Err("Ongeldige tekens in numerieke expressie".to_string()),
+                }
+            }
+        }
+
+        *expressie = werk_expressie;
+        Ok(())
+    }
+
+    fn execute_function(&mut self, werk_functie: &FunctieAanroep) -> Result<Waarde, String> {
         let uitkomst = match werk_functie.functie {
             Functie::LinksString => self.execute_function_links(werk_functie.argumenten.as_str()),
             Functie::RechtsString => self.execute_function_rechts(werk_functie.argumenten.as_str()),
             Functie::MiddenString => self.execute_function_midden(werk_functie.argumenten.as_str()),
-            _ => return Err(format!("Functie {:?} niet ondersteund", werk_functie.functie)),
+            Functie::INT => self.execute_function_int(werk_functie.argumenten.as_str()),
         };
 
         uitkomst.map_err(|e| format!("Fout bij uitvoeren van functie: {:?}: {}", werk_functie.functie, e))
@@ -311,9 +472,14 @@ impl EcolMachine {
         Ok(tekst_resultaat)
     }
 
+    fn execute_function_int(&mut self, argumenten: &str) -> Result<Waarde, String> {
+        let arguments = parseer_argumenten(argumenten, 1)?;
+        let getal = self.solve_number_expression(&arguments[0])?;
+        let werk_getal = haal_data(&getal).parse::<f32>().map_err(|_| "Ongeldig getal".to_string())?;
+        let reply = werk_getal.trunc();
 
-
-
+        Ok(Waarde::Getal(reply))
+    }
 
     fn execute_function_links(&mut self, argumenten: &str) -> Result<Waarde, String> {
         let arguments = parseer_argumenten(argumenten, 2)?;
@@ -326,29 +492,6 @@ impl EcolMachine {
 
         Ok(Waarde::Tekst(EcolString::new(reply)))
     }
-
-
-
-
-    fn execute_function_rechts(&mut self, argumenten: &str) -> Result<Waarde, String> {
-        let arguments = parseer_argumenten(argumenten, 2)?;
-        let tekst = self.solve_string_expression(&arguments[0])?;
-        let lengte = self.lees_integer_argument(&arguments[1])?;
-        let mut reply = String::new();
-
-        let werk_tekst = haal_data(&tekst);
-        let totaal = werk_tekst.chars().count();
-        reply = werk_tekst
-            .chars()
-            .skip(totaal.saturating_sub(lengte))
-            .collect::<String>();
-
-        Ok(Waarde::Tekst(EcolString::new(reply)))
-
-    }
-
-
-
 
     fn execute_function_midden(&mut self, argumenten: &str) -> Result<Waarde, String> {
         let arguments = parseer_argumenten(argumenten, 3)?;
@@ -368,16 +511,37 @@ impl EcolMachine {
     }
 
 
+    fn execute_function_rechts(&mut self, argumenten: &str) -> Result<Waarde, String> {
+        let arguments = parseer_argumenten(argumenten, 2)?;
+        let tekst = self.solve_string_expression(&arguments[0])?;
+        let lengte = self.lees_integer_argument(&arguments[1])?;
+        let mut reply = String::new();
 
+        let werk_tekst = haal_data(&tekst);
+        let totaal = werk_tekst.chars().count();
+        reply = werk_tekst
+            .chars()
+            .skip(totaal.saturating_sub(lengte))
+            .collect::<String>();
+
+        Ok(Waarde::Tekst(EcolString::new(reply)))
+
+    }
+
+    fn lees_getal_variabele_argument(&mut self, argument: &str) -> Result<Waarde, String> {
+        if !(self.haal_variabele_type(argument) == Some(VariabeleType::Getal))
+        {
+            return Err("Argument moet een getal zijn".to_string());
+        }
+
+        let idx = self.pak_of_maak_index(argument, Some(VariabeleType::Getal))?;
+
+        Ok(self.data_pool[idx].clone())
+    }
     fn lees_integer_argument(&mut self, argument: &str) -> Result<usize, String> {
         if is_geldige_variabele_naam(argument) {
-            if !(self.haal_variabele_type(argument) == Some(VariabeleType::Float))
-            {
-                return Err("Argument moet een getal zijn".to_string());
-            }
 
-            let idx = self.pak_of_maak_index(argument, Some(VariabeleType::Float))?;
-            let complete_waarde = self.data_pool[idx].clone();
+            let complete_waarde = self.lees_getal_variabele_argument(argument)?;
             Ok(parse_i32(&haal_data(&complete_waarde)) as usize)
         } else {
             argument
@@ -385,6 +549,20 @@ impl EcolMachine {
                 .map_err(|_| "Ongeldige integerwaarde".to_string())
         }
     }
+
+    fn lees_getal_argument(&mut self, argument: &str) -> Result<f32, String> {
+        if is_geldige_variabele_naam(argument) {
+
+            let complete_waarde = self.lees_getal_variabele_argument(argument)?;
+            Ok(parse_f32(&haal_data(&complete_waarde)))
+        } else {
+            argument
+                .parse::<f32>()
+                .map_err(|_| "Ongeldig getal".to_string())
+        }
+    }
+
+
 }
 
 
@@ -427,7 +605,7 @@ fn parseer_functie(expressie: &str) -> Option<FunctieAanroep> {
             continue;
         }
 
-        if c.is_ascii_alphanumeric() || c == '_' || c == '$' || c == '%' {
+        if c.is_ascii_alphanumeric() || c == '_' {
             continue;
         }
 
@@ -436,9 +614,7 @@ fn parseer_functie(expressie: &str) -> Option<FunctieAanroep> {
             if let Some(start) = naam_start {
                 let naam = &expressie[start..i];
                 if let Some(functie) = Functie::from_str(naam) {
-                    if Functie::is_string_functie(naam) {
-                        stack.push((functie, start, i));
-                    }
+                    stack.push((functie, start, i));
                 }
             }
             naam_start = None;
@@ -539,7 +715,25 @@ fn lexer(input: &str) -> Result<Line, String> {
                 },
                 Sleutelwoord::NR => {
                     Ok(Line::new(regelnummer, LineInhoud::NR {}))
-                }
+                },
+                Sleutelwoord::SCHRIJF => {
+                    if tokens.len() < 5 {
+                        return Err("Incomplete syntax voor SCHRIJF".to_string())
+                    } else if tokens[3] != WORDT_TEKEN {
+                        return Err("Onjuist 'wordt'-teken in SCHRIJF-regel".to_string());
+                    }
+
+                    let breedte = tokens[1]
+                        .parse::<usize>()
+                        .map_err(|_| "Onjuist 'breedte'-argument in SCHRIJF-regel".to_string())?;
+
+                    let decimalen = tokens[2]
+                        .parse::<usize>()
+                        .map_err(|_| "Onjuist 'decimalen'-argument in SCHRIJF-regel".to_string())?;
+
+                    let expressie = tokens[4..].join("");
+                    Ok(Line::new(regelnummer, LineInhoud::Schrijf { breedte, decimalen, expressie }))
+                },
                 Sleutelwoord::TEKST => {
                     if tokens.len() < 3 {
                         return Err("Incomplete syntax voor TEKST".to_string())
@@ -549,7 +743,7 @@ fn lexer(input: &str) -> Result<Line, String> {
 
                     let expressie = tokens[2..].join("");
                     Ok(Line::new(regelnummer, LineInhoud::Tekst { expressie }))
-                }
+                },
                 Sleutelwoord::TOEKENNEN => {
                     if tokens.len() < 4 {
                         return Err("Incomplete syntax voor de toekenning".to_string());
@@ -562,7 +756,7 @@ fn lexer(input: &str) -> Result<Line, String> {
                     let expressie = tokens[3..].join("");
                     let variabele_naam = tokens[1].to_string();
                     Ok(Line::new(regelnummer, LineInhoud::Toekennen { variabele_naam, expressie }))
-                }
+                },
 
             }
 
@@ -640,52 +834,80 @@ fn lexer(input: &str) -> Result<Line, String> {
 fn parseer_regel(input: &str) -> Option<Vec<String>> {
     let mut tokens: Vec<String> = Vec::new();
     let mut tussen_quotes = false;
+    let mut tussen_haakjes = 0usize;
     let mut escaped = false;
     let mut werk_string = String::new();
     let mut toekenning_teken = false;
 
     for c in input.chars() {
         if !tussen_quotes {
-            if c == '"' {
-                tussen_quotes = !tussen_quotes;
-                werk_string.push(c);
-                continue;
-            } else if c == ' ' {
-                if !werk_string.is_empty() {
-                    tokens.push(std::mem::take(&mut werk_string));
-                    werk_string.clear();
-                }
-                continue;
-            } else if Operator::is_operator_char(c) {
-                if !werk_string.is_empty() {
-                    tokens.push(std::mem::take(&mut werk_string));
-                    werk_string.clear();
-                }
-                tokens.push(c.to_string());
-                continue;
-            } else if c == ':' {
-                toekenning_teken = true;
+            if tussen_haakjes != 1 {
+                if c == '"' {
+                    tussen_quotes = !tussen_quotes;
+                    werk_string.push(c);
+                    continue;
+                } else if c == ' ' {
+                    if !werk_string.is_empty() {
+                        tokens.push(std::mem::take(&mut werk_string));
+                        werk_string.clear();
+                    }
+                    continue;
+                } else if Operator::is_operator_char(c) {
+                    if !werk_string.is_empty() {
+                        tokens.push(std::mem::take(&mut werk_string));
+                        werk_string.clear();
+                    }
+                    tokens.push(c.to_string());
+                    continue;
+                } else if c == ':' {
+                    toekenning_teken = true;
 
-                if !werk_string.is_empty() {
-                    return None;
+                    if !werk_string.is_empty() {
+                        return None;
+                    }
+                    werk_string.push(c);
+                    continue
+                } else if toekenning_teken {
+                    toekenning_teken = false;
+                    if c != '=' {
+                        return None;
+                    }
+                    werk_string.push(c);
+                    if werk_string.to_string() == WORDT_TEKEN {
+                        tokens.push(std::mem::take(&mut werk_string));
+                    } else {
+                        return None
+                    }
+                    continue;
+                } else if c == '(' && tussen_haakjes == 0 {
+                    tussen_haakjes += 1;
+                    if !werk_string.is_empty() {
+                        tokens.push(std::mem::take(&mut werk_string));
+                        werk_string.clear();
+                    }
+                    continue
                 }
                 werk_string.push(c);
-                continue
-            } else if toekenning_teken {
-                toekenning_teken = false;
-                if c != '=' {
-                    return None;
-                }
-                werk_string.push(c);
-                if werk_string.to_string() == WORDT_TEKEN {
-                    tokens.push(std::mem::take(&mut werk_string));
-                } else {
-                    return None
-                }
                 continue;
+            } else {
+                if c == ',' {
+                    if !werk_string.is_empty() {
+                        tokens.push(std::mem::take(&mut werk_string));
+                        werk_string.clear();
+                    }
+                    continue;
+                } else if c == ')' {
+                    if !werk_string.is_empty() {
+                        tokens.push(std::mem::take(&mut werk_string));
+                        werk_string.clear();
+                    }
+                    tussen_haakjes += 1;
+                    continue;
+                } else {
+                    werk_string.push(c);
+                }
             }
-            werk_string.push(c);
-            continue;
+
         } else {
             if c == '\\' {
                 escaped = true;
@@ -709,7 +931,7 @@ fn parseer_regel(input: &str) -> Option<Vec<String>> {
         }
     }
 
-    if tussen_quotes || escaped || toekenning_teken {
+    if tussen_quotes || escaped || toekenning_teken  {
         return None;
     }
 
@@ -724,49 +946,7 @@ fn parseer_regel(input: &str) -> Option<Vec<String>> {
     Some(tokens)
 }
 
-/// ```rust
-/// Parses a comma-separated string into a vector of arguments with support for quoted and escaped values.
-///
-/// # Parameters
-/// - `argumenten`: A string slice containing the comma-separated arguments. Quoted arguments are supported, and quotes must be properly closed.
-/// - `aantal_argumenten`: The expected number of arguments to be parsed. If the actual number of parsed arguments does not match, an error will be returned.
-///
-/// # Returns
-/// - `Ok(Vec<String>)`: A vector containing the parsed arguments as strings if parsing is successful and the number of arguments matches `aantal_argumenten`.
-/// - `Err(String)`: An error describing why parsing failed (e.g., invalid quotes, wrong number of arguments).
-///
-/// # Behavior
-/// - Values surrounded by quotes (`"`) are treated as single arguments, even if they contain commas.
-/// - Escaped characters (using `\`) within quoted arguments are ignored when determining argument boundaries.
-/// - Trailing and leading whitespace around arguments is trimmed.
-/// - The function ensures proper quotes and escapes are used and verifies the exact number of parsed arguments.
-///
-/// # Errors
-/// - If the quotes in the input string are not properly closed, returns an error with the message:
-///   `"Ongeldige argumentlijst: quotes zijn niet correct afgesloten"`.
-/// - If the number of parsed arguments does not match `aantal_argumenten`, returns an error stating:
-///   `"Verkeerd aantal argumenten: verwacht X, kreeg Y"` where `X` is the expected count, and `Y` is the actual count.
-///
-/// # Examples
-/// ```rust
-/// // Parsing with valid arguments
-/// let input = "arg1, \"arg, 2\", arg3";
-/// let parsed = parseer_argumenten(input, 3);
-/// assert_eq!(parsed.unwrap(), vec!["arg1", "arg, 2", "arg3"]);
-///
-/// // Parsing with mismatched argument count
-/// let result = parseer_argumenten("arg1, arg2", 3);
-/// assert!(result.is_err());
-///
-/// // Parsing with unclosed quotes
-/// let result = parseer_argumenten("\"arg1, arg2", 2);
-/// assert!(result.is_err());
-///
-/// // Empty input with expected zero arguments
-/// let result = parseer_argumenten("", 0);
-/// assert_eq!(result.unwrap(), vec![]);
-/// ```
-/// ```
+
 fn parseer_argumenten(argumenten: &str, aantal_argumenten: usize) -> Result<Vec<String>, String> {
     let mut result = Vec::new();
     let mut tussen_quotes = false;
