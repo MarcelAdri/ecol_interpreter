@@ -686,266 +686,196 @@ fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
 
 
 fn lexer(input: &str) -> Result<Line, String> {
-    let mut regelnummer = 0usize;
-    let Some(mut tokens) = parseer_regel(input) else {
-        return Err("Syntax fout: regel wordt niet herkend".to_string());
-    };
-
+    let line = parseer_regel(input)?;
 
     //Programma?
-    if tokens.len() > 0 {
-        if tokens[0].parse::<usize>().is_ok() {
-            //TODO: hele programma's
-            return Err("Programma's worden nog niet ondersteund".to_string());
-
-        }
+    if line.regelnummer != 0 {
+        //TODO: hele programma's
+        return Err("Programma's worden nog niet ondersteund".to_string());
     }
 
-    //Toekenning heeft geen sleutelwoord
-    if tokens[0].chars().next().is_some_and(|c| c.is_ascii_lowercase())  {
-        tokens.insert(0, "TOEKENNEN".to_string());
-    }
-
-    //Sleutelwoord?
-    match Sleutelwoord::from_string(tokens[0].as_str()) {
-        Some(sleutelwoord)=> {
-            match sleutelwoord {
-                Sleutelwoord::HELP => {
-                    Ok(Line::new(regelnummer, LineInhoud::Help {}))
-                },
-                Sleutelwoord::NR => {
-                    Ok(Line::new(regelnummer, LineInhoud::NR {}))
-                },
-                Sleutelwoord::SCHRIJF => {
-                    if tokens.len() < 5 {
-                        return Err("Incomplete syntax voor SCHRIJF".to_string())
-                    } else if tokens[3] != WORDT_TEKEN {
-                        return Err("Onjuist 'wordt'-teken in SCHRIJF-regel".to_string());
-                    }
-
-                    let breedte = tokens[1]
-                        .parse::<usize>()
-                        .map_err(|_| "Onjuist 'breedte'-argument in SCHRIJF-regel".to_string())?;
-
-                    let decimalen = tokens[2]
-                        .parse::<usize>()
-                        .map_err(|_| "Onjuist 'decimalen'-argument in SCHRIJF-regel".to_string())?;
-
-                    let expressie = tokens[4..].join("");
-                    Ok(Line::new(regelnummer, LineInhoud::Schrijf { breedte, decimalen, expressie }))
-                },
-                Sleutelwoord::TEKST => {
-                    if tokens.len() < 3 {
-                        return Err("Incomplete syntax voor TEKST".to_string())
-                    } else if tokens[1] != WORDT_TEKEN {
-                        return Err("Onjuist 'wordt'-teken in TEKST-regel".to_string());
-                    }
-
-                    let expressie = tokens[2..].join("");
-                    Ok(Line::new(regelnummer, LineInhoud::Tekst { expressie }))
-                },
-                Sleutelwoord::TOEKENNEN => {
-                    if tokens.len() < 4 {
-                        return Err("Incomplete syntax voor de toekenning".to_string());
-                    } else if !is_geldige_variabele_naam(&tokens[1]) {
-                        return Err("Ongeldige naam voor de variabele".to_string());
-                    } else if tokens[2] != WORDT_TEKEN {
-                        return Err("Onjuist 'wordt'-teken bij toekenning".to_string());
-                    }
-
-                    let expressie = tokens[3..].join("");
-                    let variabele_naam = tokens[1].to_string();
-                    Ok(Line::new(regelnummer, LineInhoud::Toekennen { variabele_naam, expressie }))
-                },
-
-            }
-
-        }
-        None => { Err(format!("Onbekend sleutelwoord: {}", tokens[0])) }
-
-    }
-
-
+    Ok(line)
 }
 
-/// ```rust
-/// Parses the input string into a vector of tokens based on specific rules.
-///
-/// This function processes a given string and tries to tokenize it by analyzing
-/// characters, handling special cases such as quoted text, escaped characters,
-/// operators, and assignment symbols. The rules for parsing are as follows:
-///
-/// 1. Text enclosed in double quotes (`"`) is considered a single token, including spaces inside.
-///    Escaped quotes (`\"`) are treated as part of the token and disregard the quote-ending semantics.
-/// 2. Operators (determined by `Operator::is_operator_char`) are treated as individual tokens.
-/// 3. The assignment operator is detected as `:=`. It must be placed explicitly in the input. Any
-///    mismatch in syntax results in a failure to parse (returning `None`).
-/// 4. Spaces (` `) serve as token delimiters when outside of quotes.
-/// 5. Escaped characters (preceded by `\`) appear as-is in the resulting tokens.
-///
-/// # Parameters:
-///
-/// - `input`: A string slice (`&str`) that represents the input to be tokenized.
-///
-/// # Returns:
-///
-/// - `Some(Vec<String>)`: A vector of tokens if the input was successfully parsed.
-/// - `None`: If the input fails to be parsed due to syntax errors (e.g., unclosed quotes,
-///   incomplete escape sequences, improperly placed assignment symbols).
-///
-/// # Example:
-///
-/// ```rust
-/// let input = r#"hello "world with spaces" := operator_example \\"#;
-/// let tokens = parseer_regel(input);
-/// assert_eq!(
-///     tokens,
-///     Some(vec![
-///         "hello".to_string(),
-///         "\"world with spaces\"".to_string(),
-///         ":=".to_string(),
-///         "operator_example".to_string(),
-///         "\\".to_string()
-///     ])
-/// );
-///
-/// let invalid_input = r#"hello "unterminated quote"#;
-/// assert_eq!(parseer_regel(invalid_input), None);
-/// ```
-///
-/// # Notes:
-///
-/// - The `Operator::is_operator_char` function is used to determine if a character is part of an operator.
-///   Ensure this function is implemented and adheres to the expected rules for operators.
-/// - The assignment operator `:=` is validated against a predefined constant `WORDT_TEKEN`. Ensure
-///   that `WORDT_TEKEN` is defined elsewhere in the code as `":="`.
-/// - Specific edge cases such as consecutive operators, malformed input, and unexpected assignment symbols
-///   are handled explicitly to prevent invalid parsing.
-///
-/// # Errors:
-///
-/// - Returns `None` if:
-///   - A quoted string is left unclosed.
-///   - Invalid escape sequences are found.
-///   - The assignment operator syntax is violated.
-///   - Input fails to form valid tokens.
-///
-/// fn
-fn parseer_regel(input: &str) -> Option<Vec<String>> {
-    let mut tokens: Vec<String> = Vec::new();
-    let mut tussen_quotes = false;
-    let mut tussen_haakjes = 0usize;
-    let mut escaped = false;
-    let mut werk_string = String::new();
-    let mut toekenning_teken = false;
-
-    for c in input.chars() {
-        if !tussen_quotes {
-            if tussen_haakjes != 1 {
-                if c == '"' {
-                    tussen_quotes = !tussen_quotes;
-                    werk_string.push(c);
-                    continue;
-                } else if c == ' ' {
-                    if !werk_string.is_empty() {
-                        tokens.push(std::mem::take(&mut werk_string));
-                        werk_string.clear();
-                    }
-                    continue;
-                } else if Operator::is_operator_char(c) {
-                    if !werk_string.is_empty() {
-                        tokens.push(std::mem::take(&mut werk_string));
-                        werk_string.clear();
-                    }
-                    tokens.push(c.to_string());
-                    continue;
-                } else if c == ':' {
-                    toekenning_teken = true;
-
-                    if !werk_string.is_empty() {
-                        return None;
-                    }
-                    werk_string.push(c);
-                    continue
-                } else if toekenning_teken {
-                    toekenning_teken = false;
-                    if c != '=' {
-                        return None;
-                    }
-                    werk_string.push(c);
-                    if werk_string.to_string() == WORDT_TEKEN {
-                        tokens.push(std::mem::take(&mut werk_string));
-                    } else {
-                        return None
-                    }
-                    continue;
-                } else if c == '(' && tussen_haakjes == 0 {
-                    tussen_haakjes += 1;
-                    if !werk_string.is_empty() {
-                        tokens.push(std::mem::take(&mut werk_string));
-                        werk_string.clear();
-                    }
-                    continue
-                }
-                werk_string.push(c);
-                continue;
-            } else {
-                if c == ',' {
-                    if !werk_string.is_empty() {
-                        tokens.push(std::mem::take(&mut werk_string));
-                        werk_string.clear();
-                    }
-                    continue;
-                } else if c == ')' {
-                    if !werk_string.is_empty() {
-                        tokens.push(std::mem::take(&mut werk_string));
-                        werk_string.clear();
-                    }
-                    tussen_haakjes += 1;
-                    continue;
-                } else {
-                    werk_string.push(c);
-                }
-            }
-
+fn parseer_regel(input: &str) -> Result<Line, String> {
+    fn syntaxis_foutmelding(input: &str) -> String {
+        format!("Onjuiste syntax voor sleutelwoord {}.", input)
+    }
+    fn is_alleen_keyword(input: &str, regelnummer: usize, keyword: Sleutelwoord) -> Result<Line, String> {
+        if input.trim() == keyword.to_string() {
+            Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)))
         } else {
-            if c == '\\' {
-                escaped = true;
-                werk_string.push(c);
-                continue;
-            }
-            if escaped {
-                werk_string.push(c);
-                escaped = false;
-                continue;
-            }
-            if c == '"' {
-                tussen_quotes = !tussen_quotes;
-                werk_string.push(c);
-                tokens.push(std::mem::take(&mut werk_string));
-                werk_string.clear();
-                continue;
-            }
-            werk_string.push(c);
-            continue;
+            Err(syntaxis_foutmelding(keyword.to_string()))
         }
     }
+    fn extract_regelnummer(input: &str) -> (Option<usize>, usize) {
+        let mut positie = 0usize;
+        let bytes = input.as_bytes();
+        while positie < input.len() && bytes[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+        let start_regelnummer = positie;
+        while positie < input.len() && bytes[positie].is_ascii_digit() {
+            positie += 1;
+        }
+        let einde_regelnummer = positie;
+        while positie < input.len() && bytes[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+        (input[start_regelnummer..einde_regelnummer].parse::<usize>().ok(), positie)
+    }
+    fn extract_keyword(input: &str, begin_positie: usize) -> (Option<Sleutelwoord>, usize) {
+        let werkstring = input[begin_positie..].to_string();
 
-    if tussen_quotes || escaped || toekenning_teken  {
-        return None;
+        if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+            return (Some(Sleutelwoord::TOEKENNEN), begin_positie);
+        }
+        let mut positie = 0;
+        while positie < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_uppercase() {
+            positie += 1;
+        }
+        let resultaat = Sleutelwoord::from_string(&werkstring[0..positie]);
+        while positie < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+        let volgende_begin_positie = begin_positie + positie;
+
+        (resultaat, volgende_begin_positie)
+    }
+    fn extract_variabele_naam(input: &str) -> (Option<String>, usize) {
+        let mut positie = 0usize;
+
+        while positie < input.len() && input.as_bytes()[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+        let start_variabele_naam = positie;
+        while positie < input.len() {
+            let c = input.as_bytes()[positie];
+            if c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' {
+                positie += 1;
+            } else {
+                break;
+            }
+        }
+
+        let einde_variabele_naam = positie;
+
+        let woord = input[start_variabele_naam..einde_variabele_naam].to_string();
+        while positie < input.len() && input.as_bytes()[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+        let positie_volgend_element = positie;
+
+        if is_geldige_variabele_naam(&woord) {
+            (Some(woord), positie_volgend_element)
+        } else {
+            (None, 0)
+        }
+
+    }
+    fn extract_argumenten(input: &str, begin_positie: usize) -> (Option<Vec<usize>>, usize) {
+        let werkstring = &input[begin_positie..];
+
+        let Some(open_idx) = werkstring.find('(') else {
+            return (None, begin_positie);
+        };
+
+        let Some(close_idx) = werkstring.find(')') else {
+            return (None, begin_positie);
+        };
+
+        if close_idx <= open_idx {
+            return (None, begin_positie);
+        }
+
+        let inhoud = &werkstring[open_idx + 1..close_idx];
+
+        let mut reply = Vec::new();
+
+        for part in inhoud.split(',') {
+            let token = part.trim();
+            if token.is_empty() {
+                return (None, begin_positie);
+            }
+
+            match token.parse::<usize>() {
+                Ok(n) => reply.push(n),
+                Err(_) => return (None, begin_positie),
+            }
+        }
+
+        let mut positie = close_idx + 1;
+        while positie < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+
+        let positie_volgend_element = begin_positie + positie;
+        (Some(reply), positie_volgend_element)
     }
 
-    if !werk_string.is_empty() {
-        tokens.push(werk_string);
+    fn is_geldig_wordt_teken(input: &str, start_positie: usize) -> (bool, usize) {
+        let werkstring = input[start_positie..].to_string();
+        let lengte = WORDT_TEKEN.len();
+        let mut reply = false;
+
+        if werkstring.len() > lengte {
+            if werkstring.chars().take(lengte).collect::<String>() == WORDT_TEKEN {
+                reply = true;
+            }
+        }
+        let mut positie = 0usize;
+        while positie + lengte < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_whitespace() {
+            positie += 1;
+        }
+        let positie_volgende_element = start_positie + positie;
+        (reply, positie_volgende_element)
     }
 
-    if tokens.len() == 0 {
-        return None;
+    let (regelnummer_opt, positie_keyword) = extract_regelnummer(input);
+    let regelnummer = regelnummer_opt.unwrap_or(0);
+    let (Some(keyword), positie_na_keyword) = extract_keyword(input, positie_keyword) else { return Err("Onbekend of geen keyword.".to_string()) };
+
+    match keyword {
+        Sleutelwoord::HELP => {
+            is_alleen_keyword(input, regelnummer, keyword)
+        },
+        Sleutelwoord::NR => {
+            is_alleen_keyword(input, regelnummer, keyword)
+        },
+        Sleutelwoord::TOEKENNEN => {
+            let (Some(variabele_naam), positie_wordt_teken) = extract_variabele_naam(input) else { return Err("Variabele naam ontbreekt.".to_string()) };
+            let (wordt_teken, positie_expressie) = is_geldig_wordt_teken(input, positie_wordt_teken);
+            if !wordt_teken {
+                return Err("Onjuist 'wordt'-teken.".to_string());
+            }
+            let expressie = input[positie_expressie..].to_string();
+            Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam, expressie }))
+        },
+        Sleutelwoord::TEKST => {
+            let (wordt_teken, positie_expressie) = is_geldig_wordt_teken(input, positie_na_keyword);
+            if !wordt_teken {
+                return Err("Onjuist 'wordt'-teken.".to_string());
+            }
+            let expressie = input[positie_expressie..].to_string();
+            Ok(Line::new(regelnummer, LineInhoud::Tekst{ expressie }))
+        },
+        Sleutelwoord::SCHRIJF => {
+            let (Some(argumenten), positie_wordt_teken) = extract_argumenten(input, positie_na_keyword) else { return Err("Ongeldige argumenten bij SCHRIJF.".to_string()) };
+            if argumenten.len() != 2 { return Err("SCHRIJF verwacht precies twee argumenten.".to_string()) }
+            let breedte = argumenten[0];
+            let decimalen = argumenten[1];
+
+            let (wordt_teken, positie_expressie) = is_geldig_wordt_teken(input, positie_wordt_teken);
+            if !wordt_teken {
+                return Err("Onjuist 'wordt'-teken.".to_string());
+            }
+
+            let expressie = input[positie_expressie..].to_string();
+            Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie }))
+        },
     }
 
-    Some(tokens)
 }
-
 
 fn parseer_argumenten(argumenten: &str, aantal_argumenten: usize) -> Result<Vec<String>, String> {
     let mut result = Vec::new();
@@ -1149,32 +1079,6 @@ pub fn is_geldige_variabele_naam(naam: &str) -> bool {
 
 }
 
-
-/// ```rust
-/// Checks whether a given string is a valid variable name according to specific syntax rules.
-///
-/// # Syntax Rules:
-/// 1. The first character must be a lowercase ASCII letter.
-/// 2. Subsequent characters (if any) must either be lowercase ASCII letters,
-///    digits, or underscores (`_`), except the last character, which must be
-///    either a lowercase ASCII letter or a digit.
-///
-/// # Arguments:
-/// * `naam` - A string slice containing the variable name to validate.
-///
-/// # Returns:
-/// * `true` if the string conforms to the syntax rules for a valid variable name.
-/// * `false` otherwise.
-///
-/// # Examples:
-/// ```
-/// assert_eq!(heeft_geldige_variabele_syntax("var_1"), true);  // Valid: starts with lowercase letter and follows rules.
-/// assert_eq!(heeft_geldige_variabele_syntax("9variable"), false); // Invalid: starts with digit.
-/// assert_eq!(heeft_geldige_variabele_syntax("variable_"), false); // Invalid: ends with an underscore.
-/// assert_eq!(heeft_geldige_variabele_syntax("a"), true);        // Valid: single lowercase letter.
-/// assert_eq!(heeft_geldige_variabele_syntax(""), false);        // Invalid: empty string.
-/// ```
-/// ```
 fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     let mut chars = naam.chars();
 

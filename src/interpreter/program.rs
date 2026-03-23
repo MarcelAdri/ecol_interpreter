@@ -24,6 +24,16 @@ impl Sleutelwoord {
         Self::from_string(woord).is_some()
     }
 
+    pub(super) fn to_string(&self) -> &str {
+        match self {
+            Sleutelwoord::HELP => "HELP",
+            Sleutelwoord::NR => "NR",
+            Sleutelwoord::SCHRIJF => "SCHRIJF",
+            Sleutelwoord::TEKST => "TEKST",
+            Sleutelwoord::TOEKENNEN => "TOEKENNEN",
+        }
+    }
+
 }
 
 
@@ -58,6 +68,18 @@ pub(super) enum LineInhoud {
 
 }
 
+impl LineInhoud {
+    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Self {
+        match sleutelwoord {
+            Sleutelwoord::HELP => Self::Help {},
+            Sleutelwoord::NR => Self::NR {},
+            Sleutelwoord::TEKST => Self::Tekst { expressie: String::new() },
+            Sleutelwoord::SCHRIJF => Self::Schrijf { breedte: 0, decimalen: 0, expressie: String::new() },
+            Sleutelwoord::TOEKENNEN => Self::Toekennen { variabele_naam: String::new(), expressie: String::new() },
+        }
+    }
+}
+
 impl Line {
     pub(super) fn new(
         regelnummer: usize,
@@ -66,6 +88,16 @@ impl Line {
         Line {
             regelnummer,
             inhoud,
+        }
+    }
+
+    pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
+        match &self.inhoud {
+            LineInhoud::Help {} => Some(Sleutelwoord::HELP),
+            LineInhoud::NR {} => Some(Sleutelwoord::NR),
+            LineInhoud::Tekst { .. } => Some(Sleutelwoord::TEKST),
+            LineInhoud::Schrijf { .. } => Some(Sleutelwoord::SCHRIJF),
+            LineInhoud::Toekennen { .. } => Some(Sleutelwoord::TOEKENNEN),
         }
     }
     

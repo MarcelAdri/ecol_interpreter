@@ -20,6 +20,11 @@ pub fn start() -> Result<(), JsValue> {
     let history = document.get_element_by_id("history").unwrap();
     let cursor_line = document.get_element_by_id("cursor-line").unwrap().dyn_into::<web_sys::HtmlElement>()?;
 
+    history.set_inner_html(&format!(
+        "ECOL INTERPRETER v{}<br/>Typ 'HELP' voor instructies.",
+        env!("CARGO_PKG_VERSION")
+    ));
+
     // --- CLOSURE 1: ENTER TOETS ---
     let m = machine.clone();
     let hist = history.clone();
