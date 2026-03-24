@@ -1,0 +1,35 @@
+begin integerarrayrelpos [1:63, 1:4J,stuknr [1:63],bezet [1:77],
+magazijn [1:12],plakstapel [1:12], gatstapel [1:12];
+integer etage, plaknr, eerstegat, i,k,j;
+for k:=1 step 1 until 63 do
+begin for i :1 step 1 until 4 do relpos [k,i] := read;
+stuknr [k] := read
+end;
+forj: 3,9,10,16,17,23,24 do
+begin for k := 1 step 1 until 70 do bezet [k] := 0;
+fork:7step7until 70 do bezet [kJ := 1;
+for k:= 71 step 1 until 77 do bezet [k] := 1;
+fork:=0,6,7,8,l4dobezet [j+k] 1;
+for k:=2step 1 until 12 do magazijn [k] := 1;
+etage : = 1; eerstegat : = 0;
+nieuwgat: eerstegat := eerstegat + 1;
+if bezet [eerstegat] = 1 then goto nieuwgat;
+plaknr := 2;
+vulpoging: if magazijn [stuknr [plaknr] 1 = 0 then goto volgendpiakje;
+for i := step 1 until 4 do
+if bezet [eerstegat + relpos [plaknr, ij] = 1 then
+goto volgendplakje;
+magazijn [stuknr [plaknr]] := 0; bezet [eerste gat] l;
+for i:= step 1 until 4 do
+bezet [eerstegat + relpos [plaknr, i]] : 1;
+gatstapel [etage] := eerstegat; plakstapel [etage] : plaknr;
+etage := etage + 1; if etage <12 then goto nieuwgat;
+drukoplossinggaf; goto poets;
+volgendplakje: plaknr := plaknr + 1 if plaknr <63 then goto vulpoging;
+poets: if etage >1 then
+begin etage := etage - 1;eerstegat : gatstapel[etage]
+plaknr := plakstapel [etage]
+bezet [eerstegat] := 0;
+for i := 1 step 1 until 4 do
+bezet [eerstegat + relpos [plaknr,i]] : = 0;
+magazijn [stuknr [plaknr]] := 1; gotovolgendplakje

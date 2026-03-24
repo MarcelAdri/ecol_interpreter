@@ -1,0 +1,120 @@
+START
+1 RIJ (1:63) relposeen
+2 RIJ (1:63) relpostwee
+3 RIJ (1:63) relposdrie
+4 RIJ (1:63) relposvier
+5 RIJ(1:63)stuknr
+6 RIJ (l:77) bezet
+7 RIJ (1:12) magazijn
+8 RIJ (1:11) plakstapel
+9 RIJ(l:1l)gatstapel
+10 RIJ (1:7) kruisplaats
+11 k := 1
+12 relposeen (k):=LEES
+13 relpostwee (k):=LEES
+14 relposdrie (k) :=LEES
+15 relposvier (k) :=LEES
+16 stuknr (k) :LEES
+17 k : k+ 1
+18 ALSk>63 DAN 19 ANDERS 12
+19 kruisplaats (1):3
+20 'kruisplaats (2):9
+21 kruisplaats (3):10
+22 kruisplaats (4):= 16
+23 kruisplaats (5):1 7
+24 kruisplaats (6): =23
+25 kruisplaats (7):=24
+26 opinr :0
+27 i:= 1
+28 j : = kruisplaats (i)
+29 k:1
+30 bezet(k):0
+31 k := k-t-1
+32 ALS k> 70 DAN 33 ANDERS 30
+33 k := 7
+34 bezet(k) : 1
+35 k := k+7
+36 ALS k >70 DAN 37 ANDERS 34
+37 k:= 71
+38 bezet (k) := 1
+39 k : k-I-1
+40 ALS k>77 DAN 41 ANDERS 38
+41 bezet (j) := 1
+42 x
+43 bezet (x) : 1
+44 x
+45 bezet(x) : 1
+46 x :=j+8
+47 bezet (x) : 1
+48 x :j+14
+49 bezet (x) : 1
+50 k =2
+.51 magazijn (k) := 1
+52 k : = k+ 1
+53 ALS k> 12 DAN 54 ANDERS 51
+54 etage := 1
+55 eerstegat : = 0
+56 eerstegat : eerstegat+1
+57 x bezet (eerstegat)
+58 ALSx=ODAN59ANDERS56
+59 plaknr:=2
+60 x: = stuknr (plaknr)
+61 y: = magazijn (x)
+62 ALS y =0 DAN 94 ANDERS 63
+63 x := relposeen (plaknr)
+64 bewaareen eerstegat + x
+65 ALS bezet (bewaareen) = 1 DAN 94 ANDERS 66
+66 x := relpostwee (plaknr)
+67 bewaartwee := eerstegat + x
+68 ALS bezet (bewaartwee) = 1 DAN 94 ANDERS 69
+69 x relposdrie (plaknr)
+70 bewaardrie := eerstegat + x
+71 ALS bezet (bewaardrie) = 1 DAN 94 ANDERS 72
+72 x := relposvier (plaknr)
+73 bewaarvier := eerstegat + x
+74 ALS bezet (bewaarvier) = 1 DAN 94 ANDERS 75
+75 magazijn (stuknr(plaknr):= 0
+76 bezet (eerstegat) 1
+77 bezet (bewaareen) := 1
+78 bezet (bewaartwee) : 1
+79 bezet (bewaardrië) : 1
+80 bezet (bewaarvier) : 1
+81 gatstapel (etage) := eerstegat
+82 plakstapel (etage) := plaknr
+83 etage := etage + 1
+84 ALS etage < 12 DAN 56 ANDERS 85
+85 NR
+86 opinr:opinr+1
+87 SCHRIJF (4,0) : opinr
+88 TEKST :
+89 k:1
+90 x := plakstapel (k)
+91 SCHRIJF(2,0) :=x
+92 k:k+1
+93 ALS k> 11 DAN 96 ANDERS 90.
+94 plaknr : = plaknr + 1
+95 ALS plaknr < 63 DAN 60 ANDERS 96
+96 ALS etage> 1 DAN 97 ANDERS 116
+97 etage := etage - 1
+98 eerstegat := gatstapel (etage)
+99 plaknr := plakstapel (etage)
+100 bezet (eerstegat) 0
+101 x := relposeen (plaknr)
+102 y : eerstegat + x
+103 bezet (y) := 0
+104 x : relpostwee (plaknr)
+105 y : eerstegat + x
+106 bezet(y) :0
+107 x : relposdrie (plaknr)
+108 y eerstegat + x
+109 bezet(y) :0
+110 x : relposvier (plaknr)
+111 y:=eerstegat+x
+112 bezet(y) :0
+113 x := stuknr (p!aknr)
+114 magazijn(x) := 1
+115 NAAR94
+116 i:i+1
+117 ALSi>7 DAN 118 ANDERS 28
+118 TEKST : "klaar"
+119 KLAAR

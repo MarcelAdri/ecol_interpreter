@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::f32;
 use std::str::FromStr;
 use super::waarden::{haal_data, waarde_naar_expressie, format_getal, VariabeleType, Waarde, EcolString};
-use super::program::{Line, LineInhoud, Sleutelwoord, Operator, WORDT_TEKEN, Functie};
+use super::program::{Line, LineInhoud, Sleutelwoord, Operator, WORDT_TEKEN, Functie, Programma};
 
 struct FunctieAanroep {
     functie: Functie,
@@ -43,6 +43,7 @@ pub struct EcolMachine {
     symbolen: HashMap<String, usize>,
     data_pool: Vec<Waarde>,
     regel_buffer: String,
+    programma: Programma,
 }
 
 impl EcolMachine {
@@ -51,6 +52,7 @@ impl EcolMachine {
             symbolen: HashMap::new(),
             data_pool: Vec::with_capacity(100),
             regel_buffer: String::new(),
+            programma: Programma::new(),
         }
     }
 
@@ -87,29 +89,32 @@ impl EcolMachine {
     pub fn execute(&mut self, input: &str) -> String {
         let reply: String;
 
-        match lexer(&input){
+        match parseer_regel(&input){
             Ok(regel) => {
-                match &regel.inhoud {
-                    LineInhoud::Help { } => {
-                        reply = self.execute_help();
-                    },
-                    LineInhoud::NR { } => {
-                        reply = self.execute_nr();
-                    },
-                    LineInhoud::Schrijf { breedte, decimalen, expressie } => {
-                        reply = self.execute_schrijf(*breedte, *decimalen, expressie);
-                    },
-                    LineInhoud::Tekst { expressie } => {
-                        reply = self.execute_tekst(expressie);
-                    },
-                    LineInhoud::Toekennen {variabele_naam, expressie} => {
-                        reply = self.execute_toekennen(variabele_naam, expressie);
-                    },
-
+                if regel.regelnummer == 0 {
+                    match &regel.inhoud {
+                        LineInhoud::Help { } => {
+                            reply = self.execute_help();
+                        },
+                        LineInhoud::NR { } => {
+                            reply = self.execute_nr();
+                        },
+                        LineInhoud::Schrijf { breedte, decimalen, expressie } => {
+                            reply = self.execute_schrijf(*breedte, *decimalen, expressie);
+                        },
+                        LineInhoud::Tekst { expressie } => {
+                            reply = self.execute_tekst(expressie);
+                        },
+                        LineInhoud::Toekennen {variabele_naam, expressie} => {
+                            reply = self.execute_toekennen(variabele_naam, expressie);
+                        },
+                    }
+                } else {
+                    reply = self.programma.regel_toevoegen(regel);
                 }
             }
             Err(e) => {
-                return format!("Fout in execute: {}" ,e);
+                return format!("Ongeldige invoer: {}" ,e);
             }
         }
        
@@ -684,193 +689,39 @@ fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
     None
 }
 
-
-fn lexer(input: &str) -> Result<Line, String> {
-    let line = parseer_regel(input)?;
-
-    //Programma?
-    if line.regelnummer != 0 {
-        //TODO: hele programma's
-        return Err("Programma's worden nog niet ondersteund".to_string());
-    }
-
-    Ok(line)
-}
-
 fn parseer_regel(input: &str) -> Result<Line, String> {
-    fn syntaxis_foutmelding(input: &str) -> String {
-        format!("Onjuiste syntax voor sleutelwoord {}.", input)
-    }
-    fn is_alleen_keyword(input: &str, regelnummer: usize, keyword: Sleutelwoord) -> Result<Line, String> {
-        if input.trim() == keyword.to_string() {
-            Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)))
-        } else {
-            Err(syntaxis_foutmelding(keyword.to_string()))
-        }
-    }
-    fn extract_regelnummer(input: &str) -> (Option<usize>, usize) {
-        let mut positie = 0usize;
-        let bytes = input.as_bytes();
-        while positie < input.len() && bytes[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-        let start_regelnummer = positie;
-        while positie < input.len() && bytes[positie].is_ascii_digit() {
-            positie += 1;
-        }
-        let einde_regelnummer = positie;
-        while positie < input.len() && bytes[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-        (input[start_regelnummer..einde_regelnummer].parse::<usize>().ok(), positie)
-    }
-    fn extract_keyword(input: &str, begin_positie: usize) -> (Option<Sleutelwoord>, usize) {
-        let werkstring = input[begin_positie..].to_string();
+    let (regelnummer, rest_na_regelnummer) = extract_regelnummer(input)?;
 
-        if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
-            return (Some(Sleutelwoord::TOEKENNEN), begin_positie);
-        }
-        let mut positie = 0;
-        while positie < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_uppercase() {
-            positie += 1;
-        }
-        let resultaat = Sleutelwoord::from_string(&werkstring[0..positie]);
-        while positie < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-        let volgende_begin_positie = begin_positie + positie;
-
-        (resultaat, volgende_begin_positie)
-    }
-    fn extract_variabele_naam(input: &str) -> (Option<String>, usize) {
-        let mut positie = 0usize;
-
-        while positie < input.len() && input.as_bytes()[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-        let start_variabele_naam = positie;
-        while positie < input.len() {
-            let c = input.as_bytes()[positie];
-            if c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' {
-                positie += 1;
-            } else {
-                break;
-            }
-        }
-
-        let einde_variabele_naam = positie;
-
-        let woord = input[start_variabele_naam..einde_variabele_naam].to_string();
-        while positie < input.len() && input.as_bytes()[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-        let positie_volgend_element = positie;
-
-        if is_geldige_variabele_naam(&woord) {
-            (Some(woord), positie_volgend_element)
-        } else {
-            (None, 0)
-        }
-
-    }
-    fn extract_argumenten(input: &str, begin_positie: usize) -> (Option<Vec<usize>>, usize) {
-        let werkstring = &input[begin_positie..];
-
-        let Some(open_idx) = werkstring.find('(') else {
-            return (None, begin_positie);
-        };
-
-        let Some(close_idx) = werkstring.find(')') else {
-            return (None, begin_positie);
-        };
-
-        if close_idx <= open_idx {
-            return (None, begin_positie);
-        }
-
-        let inhoud = &werkstring[open_idx + 1..close_idx];
-
-        let mut reply = Vec::new();
-
-        for part in inhoud.split(',') {
-            let token = part.trim();
-            if token.is_empty() {
-                return (None, begin_positie);
-            }
-
-            match token.parse::<usize>() {
-                Ok(n) => reply.push(n),
-                Err(_) => return (None, begin_positie),
-            }
-        }
-
-        let mut positie = close_idx + 1;
-        while positie < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-
-        let positie_volgend_element = begin_positie + positie;
-        (Some(reply), positie_volgend_element)
-    }
-
-    fn is_geldig_wordt_teken(input: &str, start_positie: usize) -> (bool, usize) {
-        let werkstring = input[start_positie..].to_string();
-        let lengte = WORDT_TEKEN.len();
-        let mut reply = false;
-
-        if werkstring.len() > lengte {
-            if werkstring.chars().take(lengte).collect::<String>() == WORDT_TEKEN {
-                reply = true;
-            }
-        }
-        let mut positie = 0usize;
-        while positie + lengte < werkstring.len() && werkstring.as_bytes()[positie].is_ascii_whitespace() {
-            positie += 1;
-        }
-        let positie_volgende_element = start_positie + positie;
-        (reply, positie_volgende_element)
-    }
-
-    let (regelnummer_opt, positie_keyword) = extract_regelnummer(input);
-    let regelnummer = regelnummer_opt.unwrap_or(0);
-    let (Some(keyword), positie_na_keyword) = extract_keyword(input, positie_keyword) else { return Err("Onbekend of geen keyword.".to_string()) };
+    let Some((keyword, rest_na_keyword)) = extract_keyword(rest_na_regelnummer) else { return Err("Onbekend of geen keyword.".to_string()) };
 
     match keyword {
         Sleutelwoord::HELP => {
-            is_alleen_keyword(input, regelnummer, keyword)
+            is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
         },
         Sleutelwoord::NR => {
-            is_alleen_keyword(input, regelnummer, keyword)
+            is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
         },
         Sleutelwoord::TOEKENNEN => {
-            let (Some(variabele_naam), positie_wordt_teken) = extract_variabele_naam(input) else { return Err("Variabele naam ontbreekt.".to_string()) };
-            let (wordt_teken, positie_expressie) = is_geldig_wordt_teken(input, positie_wordt_teken);
-            if !wordt_teken {
-                return Err("Onjuist 'wordt'-teken.".to_string());
-            }
-            let expressie = input[positie_expressie..].to_string();
+            let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else { return Err("Variabele naam ontbreekt.".to_string()) };
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
+            let expressie = rest_na_wordt_teken.to_string();
+            let variabele_naam = variabele_naam.to_string();
             Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam, expressie }))
         },
         Sleutelwoord::TEKST => {
-            let (wordt_teken, positie_expressie) = is_geldig_wordt_teken(input, positie_na_keyword);
-            if !wordt_teken {
-                return Err("Onjuist 'wordt'-teken.".to_string());
-            }
-            let expressie = input[positie_expressie..].to_string();
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
+            let expressie = rest_na_wordt_teken.to_string();
             Ok(Line::new(regelnummer, LineInhoud::Tekst{ expressie }))
         },
         Sleutelwoord::SCHRIJF => {
-            let (Some(argumenten), positie_wordt_teken) = extract_argumenten(input, positie_na_keyword) else { return Err("Ongeldige argumenten bij SCHRIJF.".to_string()) };
+            let Some((argumenten, rest_na_argumenten)) = extract_argumenten(rest_na_keyword) else { return Err("Ongeldige argumenten bij SCHRIJF.".to_string()) };
             if argumenten.len() != 2 { return Err("SCHRIJF verwacht precies twee argumenten.".to_string()) }
             let breedte = argumenten[0];
             let decimalen = argumenten[1];
 
-            let (wordt_teken, positie_expressie) = is_geldig_wordt_teken(input, positie_wordt_teken);
-            if !wordt_teken {
-                return Err("Onjuist 'wordt'-teken.".to_string());
-            }
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
 
-            let expressie = input[positie_expressie..].to_string();
+            let expressie = rest_na_wordt_teken.to_string();
             Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie }))
         },
     }
@@ -1230,6 +1081,81 @@ fn geen_spaties_buiten_literals(input: &str) -> String {
         }
     }
     result
+}
+
+fn syntaxis_foutmelding(input: &str) -> String {
+    format!("Onjuiste syntax voor sleutelwoord {}.", input)
+}
+fn is_alleen_keyword(input: &str, regelnummer: u16, keyword: Sleutelwoord) -> Result<Line, String> {
+    if input.trim() == keyword.to_string() {
+        Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)))
+    } else {
+        Err(syntaxis_foutmelding(keyword.to_string()))
+    }
+}
+fn extract_regelnummer(input: &str) -> Result<(u16, &str), String> {
+    let restregel: &str;
+    let regelnummer: u16;
+
+    if let Some(positie) = input.find(|c: char| c.is_ascii_alphabetic()) {
+        let (nummer, rest) = input.split_at(positie);
+        restregel = rest.trim_start();
+        let Some(rnummer) = nummer.trim().parse::<u16>().ok() else { return Ok((0u16, input.trim_start())) };
+        regelnummer = rnummer;
+        if regelnummer > 999u16 { return Err("Regelnummer mag niet groter zijn dan 999".to_string()) };
+    } else {
+        regelnummer = 0u16;
+        restregel = input.trim_start();
+    }
+
+    Ok((regelnummer, restregel))
+}
+fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
+    let mut werkstring = input.trim_start();
+    if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+        return Some((Sleutelwoord::TOEKENNEN, werkstring));
+    }
+    let position = werkstring.find(|c: char| !c.is_ascii_uppercase()).unwrap_or(werkstring.len());
+    let (keyword_string, rest) = werkstring.split_at(position);
+
+    let Some(resultaat) = Sleutelwoord::from_string(keyword_string.trim_start()) else { return None };
+
+    Some((resultaat, rest.trim_start()))
+}
+fn extract_variabele_naam(input: &str) -> Option<(&str, &str)> {
+    let mut werkstring = input.trim_start();
+    let position = werkstring.find(|c: char| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_').unwrap_or(werkstring.len());
+    let (variabele_naam, rest) = werkstring.split_at(position);
+
+
+    if is_geldige_variabele_naam(variabele_naam.trim()) {
+        Some((variabele_naam.trim(), rest.trim_start()))
+    } else {
+        None
+    }
+
+}
+fn extract_argumenten(input: &str) -> Option<(Vec<usize>, &str)> {
+    let werkstring = input.trim_start();
+
+    let (mut inhoud, rest) = werkstring.split_once(')')?;
+    inhoud = inhoud.strip_prefix('(')?;
+
+    let reply = inhoud
+        .trim_start()
+        .split(',')
+        .map(|part| part.trim())
+        .filter(|part| !part.is_empty())
+        .map(|token| token
+            .parse::<usize>().ok()).collect::<Option<Vec<usize>>>()?;
+
+
+    Some((reply, rest.trim_start()))
+}
+
+fn is_geldig_wordt_teken(input: &str) -> Option<&str> {
+    let rest = input.strip_prefix(WORDT_TEKEN)?;
+    Some(rest.trim_start())
 }
 
 

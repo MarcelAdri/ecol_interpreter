@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     HELP,
@@ -42,7 +44,7 @@ impl Sleutelwoord {
 pub(super) const WORDT_TEKEN: &str = ":=";
 
 pub(super) struct Line {
-    pub(super) regelnummer: usize,
+    pub(super) regelnummer: u16,
     pub(super) inhoud: LineInhoud,
 }
 
@@ -82,7 +84,7 @@ impl LineInhoud {
 
 impl Line {
     pub(super) fn new(
-        regelnummer: usize,
+        regelnummer: u16,
         inhoud: LineInhoud,
     ) -> Self {
         Line {
@@ -100,8 +102,78 @@ impl Line {
             LineInhoud::Toekennen { .. } => Some(Sleutelwoord::TOEKENNEN),
         }
     }
+
+    pub(super) fn genereer_regel(&self) -> String {
+        let regelnummer:String;
+        if self.regelnummer == 0 {
+            regelnummer = "".to_string();
+        } else {
+            regelnummer = format!("{:>4} ", self.regelnummer);
+        }
+        match &self.inhoud {
+            LineInhoud::Help {} => format!("{}HELP", regelnummer)
+                .trim_start()
+                .to_string(),
+            LineInhoud::NR {} => format!("{}NR", regelnummer)
+                .trim_start()
+                .to_string(),
+            LineInhoud::Tekst { expressie } => format!("{}TEKST := {}"
+                                                            ,regelnummer
+                                                            ,expressie)
+                .trim_start()
+                .to_string(),
+            LineInhoud::Schrijf { breedte, decimalen, expressie } =>
+                format!("{}SCHRIJF({}, {}) := {}"
+                             ,regelnummer
+                             ,breedte
+                             ,decimalen
+                             ,expressie)
+                    .trim_start()
+                    .to_string(),
+            LineInhoud::Toekennen { variabele_naam, expressie } =>
+                format!("{}{} := {}"
+                        ,regelnummer
+                        ,variabele_naam
+                        ,expressie)
+                    .trim_start()
+                    .to_string(),
+        }
+    }
     
 }
+
+pub(super) struct Programma {
+    programma: BTreeMap<u16, LineInhoud>
+}
+
+impl Programma {
+    pub(super) fn new() -> Self {
+        Self {
+            programma: BTreeMap::new(),
+        }
+    }
+
+    pub(super) fn regel_toevoegen(&mut self, regel: Line) -> String {
+        let regelnummer = regel.regelnummer;
+        let regel_inhoud = regel.inhoud;
+
+        let Some(oude_regel) = self.programma.insert(regelnummer, regel_inhoud) else {
+            return "".to_string();
+        };
+
+        format!("{} // vervangen", Line::new(regelnummer, oude_regel).genereer_regel())
+    }
+
+    pub(super) fn regel_verwijderen(&mut self, regelnummer: u16) -> Option<String> {
+        let regel_inhoud = self.programma.remove(&regelnummer)?;
+        let regel=Line::new(regelnummer, regel_inhoud);
+        let reply = format!("{} // verwijderd", regel.genereer_regel());
+
+        Some(reply)
+
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Operator {
     Plus,

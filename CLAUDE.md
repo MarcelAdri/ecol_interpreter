@@ -34,11 +34,14 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 **`EcolMachine`** (`src/interpreter/interpreter.rs`) — The interpreter struct. Holds:
 - `symbolen: HashMap<String, usize>` — symbol table mapping variable name → index in data pool
 - `data: Vec<Waarde>` — data pool of all stored values
+- `programma: Programma` — stored program lines (see below)
 - `execute(&mut self, command: &str) -> String` — main entry point called from JS per line
 
 **`Waarde`** (`src/interpreter/waarden.rs`) — The value enum: `Float(f32)`, `Tekst(EcolString)`. Variable type is inferred from the expression, not declared by keyword.
 
-**`program.rs`** — Tokenization structs/enums (`Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures.
+**`program.rs`** — Tokenization structs/enums (`Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures. Also holds:
+- `Programma` — wraps `BTreeMap<u16, LineInhoud>` for ordered storage of numbered program lines (1–999, matching the schrapkaart). Methods: `regel_toevoegen()` (insert/replace, returns feedback if replaced), `regel_verwijderen()` (remove, returns feedback).
+- `extract_regelnummer()` — returns `Result<(u16, &str), String>`; errors if line number > 999.
 
 ### Execution Flow
 
@@ -80,8 +83,11 @@ Verified ECOL syntax (not yet implemented):
 - `NAAR regelnr` — unconditional jump
 - `MET stap, var := begin, einde` ... `HERHAAL var` — counted loop
 
+Partially implemented:
+- Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented
+
 Not yet implemented:
-- Flow control, line numbers, arrays
+- Flow control (`NAAR`, `ALS`, `MET`/`HERHAAL`), arrays
 
 ### Variable Naming Rules
 
