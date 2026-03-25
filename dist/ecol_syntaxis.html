@@ -82,12 +82,49 @@
 <body>
 
 <h1>ECOL — Educational Computer Language</h1>
-<p style="color:#888; font-size:0.85em;">Interpreter versie 0.2.0</p>
+<p style="color:#888; font-size:0.85em;">Interpreter versie 0.2.1</p>
 <p>Syntaxisreferentie voor de <em>ecol_interpreter</em> — een WebAssembly-reconstructie van de ECOL-taal van het IOWO (1970s–1980s).</p>
 
 <div class="notice">
   <strong>Opmerking:</strong> De originele ECOL-syntaxisdocumentatie is nooit gedigitaliseerd. Deze referentie combineert wat historisch aantoonbaar is (gemarkeerd <span class="tag hist">historisch</span>) met de keuzes in de huidige interpreter (gemarkeerd <span class="tag ok">geïmpl.</span>), nog te implementeren onderdelen (<span class="tag todo">gepland</span>) en gereconstrueerde syntax waarover nog onzekerheid bestaat (<span class="tag onzeker">onzeker</span>).
 </div>
+
+<h2>De interpreter bedienen</h2>
+
+<p>De volgende opdrachten zijn geen onderdeel van de ECOL-taal zelf, maar sturen de interpreter aan. Ze worden altijd direct uitgevoerd en worden niet opgeslagen als programmaregel.</p>
+
+<table>
+  <tr>
+    <th>Invoer</th>
+    <th>Effect</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><code>&lt;regelnr&gt; &lt;opdracht&gt;</code></td>
+    <td>Sla de regel op in het programma onder het opgegeven nummer (1–999). Bestaat het nummer al, dan wordt de bestaande regel vervangen — de verdrongen regel wordt ter bevestiging getoond.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>&lt;regelnr&gt;</code></td>
+    <td>Alleen een regelnummer (zonder opdracht): wis de regel met dat nummer uit het programma.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>LIJST</code></td>
+    <td>Toon alle opgeslagen programmaregels in volgorde van regelnummer.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>HELP</code></td>
+    <td>Open deze syntaxisreferentie in een nieuw tabblad.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>START</code></td>
+    <td>Voer het opgeslagen programma uit.</td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+</table>
 
 <h2>Historische context</h2>
 

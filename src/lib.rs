@@ -1,5 +1,4 @@
 use wasm_bindgen::prelude::*;
-//use web_sys::{HtmlElement, KeyboardEvent, InputEvent, Range, Selection}; // HtmlInputElement mag weg als je die niet meer gebruikt
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -7,7 +6,6 @@ mod interpreter;
 mod utils;
 
 pub use interpreter::EcolMachine;
-pub use interpreter::Waarde;
 
 #[wasm_bindgen(start)]
 pub fn start() -> Result<(), JsValue> {
@@ -38,8 +36,9 @@ pub fn start() -> Result<(), JsValue> {
             if command.trim().is_empty() { return; }
 
             let resultaat = m.borrow_mut().execute(&command);
+            let resultaat_html = resultaat.replace('\n', "<br/>");
             let oude_hist = hist.inner_html();
-            hist.set_inner_html(&format!("{}<br/>ECOL > {}<br/>{}", oude_hist, command, resultaat));
+            hist.set_inner_html(&format!("{}<br/>ECOL > {}<br/>{}", oude_hist, command, resultaat_html));
             cur_keydown.set_inner_text("");
             win_keydown.scroll_to_with_x_and_y(0.0, 1000000.0);
         }

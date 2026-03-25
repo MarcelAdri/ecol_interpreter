@@ -29,36 +29,51 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 ### Entry Point
 `src/lib.rs` — Rust `start()` function (marked `#[wasm_bindgen(start)]`) sets up the web UI: grabs DOM elements (`#history`, `#cursor-line`), attaches keyboard event listeners, and instantiates the interpreter.
 
+### Module Layout
+
+`src/interpreter/` is a module directory; `mod.rs` declares the submodules and re-exports `EcolMachine`.
+
+| Bestand | Inhoud |
+|---|---|
+| `interpreter.rs` | `EcolMachine` struct + `execute()` + `VariabelenOpslag` + `RegelBuffer` |
+| `opdrachten.rs` | `impl EcolMachine` — `execute_help/lijst/nr/schrijf/tekst/toekennen` |
+| `expressies.rs` | `impl EcolMachine` — `solve_expression`, `solve_number/string_expression`, `bereken_expressie`, `vervang_variabelen/functies_in_expressie`, `samenstellen_tekst_resultaat` |
+| `functions.rs` | `impl EcolMachine` — `execute_function`, `execute_function_int/links/midden/rechts` |
+| `parsers.rs` | Vrije functies: `parseer_regel`, `parseer_argumenten`, `parseer_functie`, `parseer_variabele`, `parse_f32/i32/string` |
+| `helpers.rs` | Vrije functies: `extract_regelnummer/keyword/variabele_naam/argumenten`, `geen_spaties_buiten_literals`, `is_alleen_keyword`, `is_geldig_wordt_teken`, `is_geldige_variabele_naam`, `syntaxis_foutmelding`, `verbijzonder_argumenten`, `first_word`, `heeft_geldige_variabele_syntax` |
+| `program.rs` | `Programma` (BTreeMap), `Line`, `LineInhoud`, `Sleutelwoord`, `Operator`, `Functie` |
+| `waarden.rs` | `Waarde` (Float/Tekst), `EcolString`, `VariabeleType` |
+
 ### Core Components
 
-**`EcolMachine`** (`src/interpreter/interpreter.rs`) — The interpreter struct. Holds:
-- `symbolen: HashMap<String, usize>` — symbol table mapping variable name → index in data pool
-- `data: Vec<Waarde>` — data pool of all stored values
-- `programma: Programma` — stored program lines (see below)
-- `execute(&mut self, command: &str) -> String` — main entry point called from JS per line
+**`EcolMachine`** (`interpreter.rs`) — The interpreter struct. Holds:
+- `variabelen_opslag: VariabelenOpslag` — symbol table + data pool (HashMap → Vec<Waarde>)
+- `regel_buffer: RegelBuffer` — output line buffer (flushed by `NR`)
+- `programma: Programma` — stored program lines (BTreeMap<u16, LineInhoud>, max 999)
+- `pub fn execute(&mut self, input: &str) -> String` — main entry point called from JS per line
 
-**`Waarde`** (`src/interpreter/waarden.rs`) — The value enum: `Float(f32)`, `Tekst(EcolString)`. Variable type is inferred from the expression, not declared by keyword.
+**`Programma`** (`program.rs`) — wraps `BTreeMap<u16, LineInhoud>`. Methods: `regel_toevoegen()` (insert/replace, returns feedback if replaced), `regel_verwijderen()` (remove, returns feedback).
 
-**`program.rs`** — Tokenization structs/enums (`Operator`, `Sleutelwoord`). Contains `lexer()` and `parseer_regel()` which convert raw input strings into parsed command structures. Also holds:
-- `Programma` — wraps `BTreeMap<u16, LineInhoud>` for ordered storage of numbered program lines (1–999, matching the schrapkaart). Methods: `regel_toevoegen()` (insert/replace, returns feedback if replaced), `regel_verwijderen()` (remove, returns feedback).
-- `extract_regelnummer()` — returns `Result<(u16, &str), String>`; errors if line number > 999.
+**`Waarde`** (`waarden.rs`) — The value enum: `Float(f32)`, `Tekst(EcolString)`. Variable type is inferred from the expression, not declared by keyword.
 
 ### Execution Flow
 
 ```
 User types input → keydown Enter → JS calls machine.execute(line)
-  → lexer() tokenizes
-  → parseer_regel() parses into command type
+  → parseer_regel() (parsers.rs) parses into Line { regelnummer, inhoud }
+  → if regelnummer == 0: execute immediately (opdrachten.rs)
+  → if regelnummer > 0:  store in programma (Programma::regel_toevoegen)
+  → execute_tekst / execute_schrijf / execute_toekennen call solve_expression (expressies.rs)
   → solve_expression() dispatches to string or numeric evaluator
   → solve_string_expression()
-      → vervang_variabelen_in_expressie(Tekst)   (substitute variable values)
-      → vervang_functies_in_expressie(Tekst)     (run string functions)
-      → samenstellen_tekst_resultaat()           (assemble quoted segments)
+      → vervang_variabelen_in_expressie(Tekst)
+      → vervang_functies_in_expressie(Tekst)    → execute_function (functions.rs)
+      → samenstellen_tekst_resultaat()
   → solve_number_expression()
-      → geen_spaties_buiten_literals()           (strip whitespace)
-      → vervang_variabelen_in_expressie(Getal)   (substitute variable values)
-      → vervang_functies_in_expressie(Getal)     (run numeric functions e.g. INT)
-      → bereken_expressie()                      (evaluate arithmetic, respects precedence + parentheses)
+      → geen_spaties_buiten_literals()           (helpers.rs)
+      → vervang_variabelen_in_expressie(Getal)
+      → vervang_functies_in_expressie(Getal)    → execute_function (functions.rs)
+      → bereken_expressie()
   → result appended to #history div
 ```
 

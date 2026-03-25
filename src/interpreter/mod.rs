@@ -1,5 +1,10 @@
 mod interpreter;
 mod waarden;
 mod program;
-pub use interpreter::EcolMachine;
-pub use waarden::Waarde;
+mod parsers;
+mod helpers;
+mod opdrachten;
+mod expressies;
+mod functions;
+
+pub use interpreter::{EcolMachine};

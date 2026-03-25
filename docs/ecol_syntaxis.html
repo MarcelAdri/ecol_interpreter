@@ -89,6 +89,43 @@
   <strong>Opmerking:</strong> De originele ECOL-syntaxisdocumentatie is nooit gedigitaliseerd. Deze referentie combineert wat historisch aantoonbaar is (gemarkeerd <span class="tag hist">historisch</span>) met de keuzes in de huidige interpreter (gemarkeerd <span class="tag ok">geïmpl.</span>), nog te implementeren onderdelen (<span class="tag todo">gepland</span>) en gereconstrueerde syntax waarover nog onzekerheid bestaat (<span class="tag onzeker">onzeker</span>).
 </div>
 
+<h2>De interpreter bedienen</h2>
+
+<p>De volgende opdrachten zijn geen onderdeel van de ECOL-taal zelf, maar sturen de interpreter aan. Ze worden altijd direct uitgevoerd en worden niet opgeslagen als programmaregel.</p>
+
+<table>
+  <tr>
+    <th>Invoer</th>
+    <th>Effect</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td><code>&lt;regelnr&gt; &lt;opdracht&gt;</code></td>
+    <td>Sla de regel op in het programma onder het opgegeven nummer (1–999). Bestaat het nummer al, dan wordt de bestaande regel vervangen — de verdrongen regel wordt ter bevestiging getoond.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>&lt;regelnr&gt;</code></td>
+    <td>Alleen een regelnummer (zonder opdracht): wis de regel met dat nummer uit het programma.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>LIJST</code></td>
+    <td>Toon alle opgeslagen programmaregels in volgorde van regelnummer.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>HELP</code></td>
+    <td>Open deze syntaxisreferentie in een nieuw tabblad.</td>
+    <td><span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>START</code></td>
+    <td>Voer het opgeslagen programma uit.</td>
+    <td><span class="tag todo">gepland</span></td>
+  </tr>
+</table>
+
 <h2>Historische context</h2>
 
 <p><strong>ECOL</strong> stond voor <em>Educational Computer Language</em>, een Nederlandse programmeertaal voor het wiskundeonderwijs, ontwikkeld aan het <strong>IOWO</strong> (Instituut voor de Ontwikkeling van het Wiskunde Onderwijs) aan de Universiteit Utrecht, opgericht in 1971 door prof. dr. <strong>Hans Freudenthal</strong>.</p>
