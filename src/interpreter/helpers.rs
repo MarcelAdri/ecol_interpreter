@@ -161,6 +161,12 @@ pub(super) fn is_geldige_variabele_naam(naam: &str) -> bool {
 
 
 }
+pub(super) fn result_to_string (result: Result<String, String>) -> String {
+    match result {
+        Ok(value) => format!("{}", value),
+        Err(err) => format!("{}", err),
+    }
+}
 pub(super) fn syntaxis_foutmelding(input: &str) -> String {
     format!("Onjuiste syntax voor sleutelwoord {}.", input)
 }

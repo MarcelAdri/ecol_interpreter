@@ -138,10 +138,25 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
 
     match keyword {
         Sleutelwoord::HELP => {
-            is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            } else {
+                Err("HELP kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
+            }
+        },
+        Sleutelwoord::KLAAR => {
+            if regelnummer != 0 {
+                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            } else {
+                Err("KLAAR kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
         },
         Sleutelwoord::LIJST => {
-            is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            } else {
+                Err("LIJST kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
+            }
         },
         Sleutelwoord::NR => {
             is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
@@ -169,6 +184,13 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             let expressie = rest_na_wordt_teken.to_string();
             Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie }))
         },
+        Sleutelwoord::START => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            } else {
+                Err("START kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
+            }
+        }
     }
 
 }

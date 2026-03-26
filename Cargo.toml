@@ -1,6 +1,6 @@
 [package]
 name = "ecol_interpreter"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["marcel"]
 edition = "2018"
 

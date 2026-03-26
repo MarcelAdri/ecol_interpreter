@@ -89,10 +89,12 @@ impl Line {
     pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
         match &self.inhoud {
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
+            LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
             LineInhoud::NR {} => Some(Sleutelwoord::NR),
             LineInhoud::Tekst { .. } => Some(Sleutelwoord::TEKST),
             LineInhoud::Schrijf { .. } => Some(Sleutelwoord::SCHRIJF),
+            LineInhoud::Start { } => Some(Sleutelwoord::START),
             LineInhoud::Toekennen { .. } => Some(Sleutelwoord::TOEKENNEN),
             LineInhoud::Verwijderen { } => None,
         }
@@ -106,6 +108,9 @@ impl Line {
         }
         match &self.inhoud {
             LineInhoud::Help {} => format!("{}HELP", regelnummer)
+                .trim_start()
+                .to_string(),
+            LineInhoud::Klaar {} => format!("{}KLAAR", regelnummer)
                 .trim_start()
                 .to_string(),
             LineInhoud::Lijst {} => format!("{}LIJST", regelnummer)
@@ -127,6 +132,7 @@ impl Line {
                         ,expressie)
                     .trim_start()
                     .to_string(),
+            LineInhoud::Start { } => "".to_string(),
             LineInhoud::Toekennen { variabele_naam, expressie } =>
                 format!("{}{} := {}"
                         ,regelnummer
@@ -147,6 +153,7 @@ impl Line {
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
     Help {},
+    Klaar {},
     Lijst {},
     NR {},
     Tekst {
@@ -157,6 +164,7 @@ pub(super) enum LineInhoud {
         decimalen: usize,
         expressie: String,
     },
+    Start {},
     Toekennen {
         variabele_naam: String,
         expressie: String,
@@ -167,20 +175,24 @@ impl LineInhoud {
     pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Self {
         match sleutelwoord {
             Sleutelwoord::HELP => Self::Help {},
+            Sleutelwoord::KLAAR => Self::Klaar {},
             Sleutelwoord::LIJST => Self::Lijst {},
             Sleutelwoord::NR => Self::NR {},
             Sleutelwoord::TEKST => Self::Tekst { expressie: String::new() },
             Sleutelwoord::SCHRIJF => Self::Schrijf { breedte: 0, decimalen: 0, expressie: String::new() },
+            Sleutelwoord::START => Self::Start {},
             Sleutelwoord::TOEKENNEN => Self::Toekennen { variabele_naam: String::new(), expressie: String::new() },
         }
     }
     pub(super) fn as_str(&self) -> &str {
         match self {
             LineInhoud::Help { } => "Help",
+            LineInhoud::Klaar { } => "Klaar",
             LineInhoud::Lijst { } => "Lijst",
             LineInhoud::NR { } => "NR",
             LineInhoud::Tekst { .. } => "Tekst",
             LineInhoud::Schrijf { .. } => "Schrijf",
+            LineInhoud::Start { } => "Start",
             LineInhoud::Toekennen { .. } => "Toekennen",
             LineInhoud::Verwijderen { } => "Verwijderen",
         }
@@ -249,10 +261,12 @@ impl Programma {
             programma: BTreeMap::new(),
         }
     }
+    pub(super) fn laad(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
+        self.programma = bron.clone();
+    }
     pub(super) fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
         &self.programma
     }
-
     pub(super) fn regel_toevoegen(&mut self, regel: Line) -> String {
         let regelnummer = regel.regelnummer;
         let regel_inhoud = regel.inhoud;
@@ -277,9 +291,11 @@ impl Programma {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     HELP,
+    KLAAR,
     LIJST,
     NR,
     SCHRIJF,
+    START,
     TEKST,
     TOEKENNEN,
 }
@@ -288,9 +304,11 @@ impl Sleutelwoord {
     pub(super) fn from_string(input: &str) -> Option<Self> {
         match input {
             "HELP" => Some(Sleutelwoord::HELP),
+            "KLAAR" => Some(Sleutelwoord::KLAAR),
             "LIJST" => Some(Sleutelwoord::LIJST),
             "NR" => Some(Sleutelwoord::NR),
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
+            "START" => Some(Sleutelwoord::START),
             "TEKST" => Some(Sleutelwoord::TEKST),
             "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
             _ => None
@@ -304,9 +322,11 @@ impl Sleutelwoord {
     pub(super) fn to_string(&self) -> &str {
         match self {
             Sleutelwoord::HELP => "HELP",
+            Sleutelwoord::KLAAR => "KLAAR",
             Sleutelwoord::LIJST => "LIJST",
             Sleutelwoord::NR => "NR",
             Sleutelwoord::SCHRIJF => "SCHRIJF",
+            Sleutelwoord::START => "START",
             Sleutelwoord::TEKST => "TEKST",
             Sleutelwoord::TOEKENNEN => "TOEKENNEN",
         }

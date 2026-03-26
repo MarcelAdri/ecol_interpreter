@@ -1,8 +1,8 @@
-pub(super) const HELP_PAGINA: &str = "ecol_syntaxis.html";
+pub(super) const HELP_PAGINA: &str = concat!("ecol_syntaxis.html?v=", env!("CARGO_PKG_VERSION"));
 
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
-use crate::interpreter::helpers::is_geldige_variabele_naam;
+use crate::interpreter::helpers::{is_geldige_variabele_naam, result_to_string};
 use crate::interpreter::parsers::{parse_f32, parse_i32, parseer_regel};
 use super::waarden::{haal_data, VariabeleType, Waarde};
 use super::program::{LineInhoud, Programma};
@@ -113,8 +113,11 @@ impl EcolMachine {
     pub(super) fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
         &self.programma.programma()
     }
+    pub(super) fn laad_programma(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
+        self.programma.laad(bron);
+    }
 
-    pub fn execute(&mut self, input: &str) -> String {
+    pub fn execute(&mut self, input: &str, output: &mut dyn FnMut(&str)) -> String {
         let reply: String;
 
         match parseer_regel(&input){
@@ -122,22 +125,29 @@ impl EcolMachine {
                 if regel.regelnummer() == 0 {
                     match &regel.inhoud() {
                         LineInhoud::Help { } => {
-                            reply = self.execute_help();
+                            reply = result_to_string(self.execute_help());
+                        },
+                        LineInhoud::Klaar { } => {
+                            //No action needed, just return an empty string.
+                            reply = "".to_string();
                         },
                         LineInhoud::Lijst { } => {
-                            reply = self.execute_lijst();
+                            reply = result_to_string(self.execute_lijst());
                         },
                         LineInhoud::NR { } => {
-                            reply = self.execute_nr();
+                            reply =  result_to_string(self.execute_nr());
                         },
                         LineInhoud::Schrijf { breedte, decimalen, expressie } => {
-                            reply = self.execute_schrijf(*breedte, *decimalen, expressie);
+                            reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));
                         },
+                        LineInhoud::Start { } => {
+                            reply = result_to_string(self.execute_start(output));
+                        }
                         LineInhoud::Tekst { expressie } => {
-                            reply = self.execute_tekst(expressie);
+                            reply = result_to_string(self.execute_tekst(expressie));
                         },
                         LineInhoud::Toekennen {variabele_naam, expressie} => {
-                            reply = self.execute_toekennen(variabele_naam, expressie);
+                            reply = result_to_string(self.execute_toekennen(variabele_naam, expressie));
                         },
                         LineInhoud::Verwijderen { } => {
                             reply = "Verwijderen van een ongenummerde regel is niet mogelijk.".to_string();

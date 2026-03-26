@@ -29,16 +29,31 @@ pub fn start() -> Result<(), JsValue> {
     let cur_keydown = cursor_line.clone();
     let win_keydown = window.clone();
 
+    let hist_cb = hist.clone();          // ← extra clone voor de output-callback
+    let win_cb = win_keydown.clone();
+
     let keydown_closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
         if event.key() == "Enter" {
             event.prevent_default();
             let command = cur_keydown.inner_text();
             if command.trim().is_empty() { return; }
 
-            let resultaat = m.borrow_mut().execute(&command);
-            let resultaat_html = resultaat.replace('\n', "<br/>");
+            // Prompt-echo eerst tonen, zodat callback-output daaronder verschijnt
             let oude_hist = hist.inner_html();
-            hist.set_inner_html(&format!("{}<br/>ECOL > {}<br/>{}", oude_hist, command, resultaat_html));
+            hist.set_inner_html(&format!("{}<br/>ECOL > {}<br/>", oude_hist, command));
+
+            let resultaat = m.borrow_mut().execute(&command, &mut |regel| {
+                let regel_html = regel.replace('\n', "<br/>");
+                let oude = hist_cb.inner_html();
+                hist_cb.set_inner_html(&format!("{}{}", oude, regel_html));
+                win_cb.scroll_to_with_x_and_y(0.0, 1_000_000.0);
+            });
+
+            if !resultaat.is_empty() {
+                let resultaat_html = resultaat.replace('\n', "<br/>");
+                let oude = hist.inner_html();
+                hist.set_inner_html(&format!("{}{}<br/>", oude, resultaat_html));
+            }
             cur_keydown.set_inner_text("");
             win_keydown.scroll_to_with_x_and_y(0.0, 1000000.0);
         }
