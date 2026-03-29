@@ -37,12 +37,12 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 |---|---|
 | `interpreter.rs` | `EcolMachine` struct + `execute()` + `VariabelenOpslag` + `RegelBuffer` |
 | `opdrachten.rs` | `impl EcolMachine` — `execute_help/lijst/nr/schrijf/tekst/toekennen` |
-| `expressies.rs` | `impl EcolMachine` — `solve_expression`, `solve_number/string_expression`, `bereken_expressie`, `vervang_variabelen/functies_in_expressie`, `samenstellen_tekst_resultaat` |
-| `functions.rs` | `impl EcolMachine` — `execute_function`, `execute_function_int/links/midden/rechts` |
+| `expressies.rs` | `impl EcolMachine` — `solve_expression`, `bereken_expressie`, `bereken_operatoren`, `bereken_tussen_haakjes`, `vervang_variabelen/functies_in_expressie` |
+| `functions.rs` | `impl EcolMachine` — `execute_function`, `execute_function_g/abs/wrtl/sin/cos/arctan/ln/log/exp/gok/gokc/ps` |
 | `parsers.rs` | Vrije functies: `parseer_regel`, `parseer_argumenten`, `parseer_functie`, `parseer_variabele`, `parse_f32/i32/string` |
 | `helpers.rs` | Vrije functies: `extract_regelnummer/keyword/variabele_naam/argumenten`, `geen_spaties_buiten_literals`, `is_alleen_keyword`, `is_geldig_wordt_teken`, `is_geldige_variabele_naam`, `syntaxis_foutmelding`, `verbijzonder_argumenten`, `first_word`, `heeft_geldige_variabele_syntax` |
 | `program.rs` | `Programma` (BTreeMap), `Line`, `LineInhoud`, `Sleutelwoord`, `Operator`, `Functie` |
-| `waarden.rs` | `Waarde` (Float/Tekst), `EcolString`, `VariabeleType` |
+| `waarden.rs` | `Waarde` (Getal/f32), `VariabeleType`, `format_getal`, `haal_data`, `waarde_naar_expressie` |
 
 ### Core Components
 
@@ -54,7 +54,7 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 
 **`Programma`** (`program.rs`) — wraps `BTreeMap<u16, LineInhoud>`. Methods: `regel_toevoegen()` (insert/replace, returns feedback if replaced), `regel_verwijderen()` (remove, returns feedback).
 
-**`Waarde`** (`waarden.rs`) — The value enum: `Float(f32)`, `Tekst(EcolString)`. Variable type is inferred from the expression, not declared by keyword.
+**`Waarde`** (`waarden.rs`) — The value enum: `Getal(f32)`. Only numeric variables exist; no string type.
 
 ### Execution Flow
 
@@ -64,15 +64,10 @@ User types input → keydown Enter → JS calls machine.execute(line)
   → if regelnummer == 0: execute immediately (opdrachten.rs)
   → if regelnummer > 0:  store in programma (Programma::regel_toevoegen)
   → execute_tekst / execute_schrijf / execute_toekennen call solve_expression (expressies.rs)
-  → solve_expression() dispatches to string or numeric evaluator
-  → solve_string_expression()
-      → vervang_variabelen_in_expressie(Tekst)
-      → vervang_functies_in_expressie(Tekst)    → execute_function (functions.rs)
-      → samenstellen_tekst_resultaat()
-  → solve_number_expression()
+  → solve_expression()
       → geen_spaties_buiten_literals()           (helpers.rs)
       → vervang_variabelen_in_expressie(Getal)
-      → vervang_functies_in_expressie(Getal)    → execute_function (functions.rs)
+      → vervang_functies_in_expressie()         → execute_function (functions.rs)
       → bereken_expressie()
   → result appended to #history div
 ```
@@ -80,32 +75,26 @@ User types input → keydown Enter → JS calls machine.execute(line)
 ### Language Features (verified against real ECOL program + ALGOL translation)
 
 Currently implemented:
-- `variabele := expressie` — keyword-less assignment
-- `TEKST := expressie` — voeg tekst toe aan de regelbuffer
+- `variabele := expressie` — keyword-less numeric assignment
+- `TEKST := "..."` — voeg string-literal toe aan de regelbuffer
 - `NR` — dump de regelbuffer naar het scherm en maak hem leeg
 - `SCHRIJF (breedte, decimalen) := expressie` — numeric output to line buffer (formatting parameters currently ignored)
-- String concatenation with `+`
-- String functions: `LINKS$(str, n)`, `RECHTS$(str, n)`, `MIDDEN$(str, start, len)` (1-indexed)
 - Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
-- Numeric function: `INT(x)` — truncate to integer
-
-Verified ECOL syntax (not yet implemented):
-- `SCHRIJF` formatting — breedte/decimalen parameters are parsed but ignored
-- `variabele := LEES` — read input as a value (LEES appears on the right-hand side)
-- `RIJ (start:einde) naam` — 1D array declaration; no 2D arrays
-- `array(index) := expressie` — array element assignment
-- `ALS voorwaarde DAN regelnr ANDERS regelnr` — jumps to line numbers
-- `NAAR regelnr` — unconditional jump
-- `MET stap, var := begin, einde` ... `HERHAAL var` — counted loop
-
-Partially implemented:
-- Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented
+- Numeric functions: `G`, `ABS`, `WRTL`, `SIN`, `COS`, `ARCTAN`, `LN`, `LOG`, `EXP`, `GOK`, `GOKC`, `PS`
+- Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
 
 Not yet implemented:
-- Flow control (`NAAR`, `ALS`, `MET`/`HERHAAL`), arrays
+- `SCHRIJF` formatting — breedte/decimalen parameters are parsed but ignored
+- `variabele := LEES` — read input as a value
+- Flow control: `NAAR`, `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
+- Arrays: `RIJ`, `ONDIN`, `BOVIN`
+- Output: `SCHRIJM`, `SCHRIJFSYM`, `SPATIE`, `NR(n)`, `NP`
+- `STOP` — runtime early-exit (differs from `KLAAR`: may appear in expressions/conditions)
+
+Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented.
 
 ### Variable Naming Rules
 
+- Only numeric variables exist (`Waarde::Getal(f32)`); no string type
 - Assignment is keyword-less: `variabele := expressie`
 - Variable names: lowercase ASCII letters, digits, underscores; must not start with a digit
-- Type is inferred from the expression (no suffixes, no type keywords)

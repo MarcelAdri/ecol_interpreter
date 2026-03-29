@@ -1,6 +1,36 @@
 use crate::interpreter::helpers::{extract_argumenten, extract_keyword, extract_regelnummer, extract_variabele_naam, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
-use crate::interpreter::program::{Functie, FunctieAanroep, Line, LineInhoud, Sleutelwoord};
-use crate::interpreter::waarden::{EcolString, VariabeleAanroep};
+use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord};
+use crate::interpreter::functions::{Functie, FunctieNaam};
+use crate::interpreter::waarden::{VariabeleAanroep};
+
+pub(super) struct FunctieAanroep {
+    functie: FunctieNaam,
+    start: usize,
+    einde: usize,
+    argumenten: Vec<String>,
+}
+impl FunctieAanroep {
+    pub(super) fn new(functie: FunctieNaam, start: usize, einde: usize, argumenten: Vec<String>) -> Self {
+        FunctieAanroep {
+            functie,
+            start,
+            einde,
+            argumenten
+        }
+    }
+    pub(super) fn functie(&self) -> &FunctieNaam {
+        &self.functie
+    }
+    pub(super) fn start(&self) -> usize {
+        self.start
+    }
+    pub(super) fn einde(&self) -> usize {
+        self.einde
+    }
+    pub(super) fn argumenten(&self) -> &Vec<String> {
+        &self.argumenten
+    }
+}
 
 pub(super) fn parseer_argumenten(argumenten: &str, aantal_argumenten: usize) -> Result<Vec<String>, String> {
     let mut result = Vec::new();
@@ -65,59 +95,98 @@ pub(super) fn parse_f32(token: &str) -> f32 {
         0.0
     }
 }
-pub(super) fn parseer_functie(expressie: &str) -> Option<FunctieAanroep> {
-    let mut stack: Vec<(Functie, usize, usize)> = Vec::new();
-    let mut naam_start: Option<usize> = None;
-    let mut tussen_quotes = false;
 
-    for (i, c) in expressie.char_indices() {
-        if c == '"' {
-            tussen_quotes = !tussen_quotes;
-            naam_start = None;
-            continue;
-        }
+pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>, String> {
+    // 1. Zoek begin van functienaam (eerste hoofdletter)
+    let start_naam = match expressie.find(|c: char| c.is_ascii_uppercase()) {
+        Some(pos) => pos,
+        None => return Ok(None),
+    };
 
-        if tussen_quotes {
-            continue;
-        }
+    // 2. Zoek einde van functienaam
+    let einde_naam = expressie[start_naam..]
+        .find(|c: char| !c.is_ascii_uppercase())
+        .map(|p| start_naam + p)
+        .unwrap_or(expressie.len());
 
-        if c.is_ascii_alphabetic() {
-            if naam_start.is_none() {
-                naam_start = Some(i);
-            }
-            continue;
-        }
+    let functienaam = &expressie[start_naam..einde_naam];
+    let Some(functie) = FunctieNaam::from_str(functienaam) else {
+        return Err(format!("Ongeldige functienaam: '{}'", functienaam));
+    };
 
-        if c.is_ascii_alphanumeric() || c == '_' {
-            continue;
-        }
-
-        if c == '(' {
-
-            if let Some(start) = naam_start {
-                let naam = &expressie[start..i];
-                if let Some(functie) = Functie::from_str(naam) {
-                    stack.push((functie, start, i));
-                }
-            }
-            naam_start = None;
-            continue;
-        }
-
-        if c == ')' {
-            if let Some((functie, start, _open_index)) = stack.pop() {
-                let volledige_aanroep = &expressie[start..=i];
-                let argumenten = verbijzonder_argumenten(volledige_aanroep);
-                return Some(FunctieAanroep::new(functie, start, i + 1, argumenten));
-            }
-            naam_start = None;
-            continue;
-        }
-
-        naam_start = None;
+    // 3. Geen argumenten: direct klaar
+    if functie.verwacht_argumenten() == 0 {
+        return Ok(Some(FunctieAanroep::new(functie, start_naam, einde_naam, vec![])));
     }
 
-    None
+    // 4. Zoek openingshaakje
+    if !expressie[einde_naam..].trim_start().starts_with('(') {
+        return Err(format!("'(' verwacht na '{}'", functienaam));
+    }
+    let abs_open = einde_naam + expressie[einde_naam..].find('(').unwrap();
+
+    // 5. Zoek bijbehorend sluithaakje (haakjesdiepte meettellen)
+    let abs_sluit = vind_sluitende_haak(expressie, abs_open)?;
+
+    // 6. Parseer argumenten
+    let argumenten_str = &expressie[abs_open + 1..abs_sluit];
+    let argumenten = splits_argumenten(argumenten_str);
+
+    if argumenten.len() != functie.verwacht_argumenten() {
+        return Err(format!(
+            "'{}' verwacht {} argumenten, maar {} zijn gegeven",
+            functienaam,
+            functie.verwacht_argumenten(),
+            argumenten.len()
+        ));
+    }
+
+    Ok(Some(FunctieAanroep::new(functie, start_naam, abs_sluit + 1, argumenten)))
+}
+
+/// Zoekt de `)` die hoort bij de `(` op `open`-positie in `s`.
+fn vind_sluitende_haak(s: &str, open: usize) -> Result<usize, String> {
+    let mut diepte = 0usize;
+
+    for (i, c) in s[open..].char_indices() {
+        match c {
+            '(' => diepte += 1,
+            ')' => {
+                diepte -= 1;
+                if diepte == 0 {
+                    return Ok(open + i);
+                }
+            }
+            _ => {}
+        }
+    }
+    Err("Haakjespaar is niet gesloten".to_string())
+}
+
+/// Splitst argumentenstring op komma's, waarbij haakjesdiepte wordt gerespecteerd.
+fn splits_argumenten(s: &str) -> Vec<String> {
+    if s.trim().is_empty() {
+        return vec![];
+    }
+
+    let mut argumenten = Vec::new();
+    let mut diepte = 0usize;
+    let mut start = 0;
+
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => diepte += 1,
+            ')' => diepte -= 1,
+            ',' if diepte == 0 => {
+                argumenten.push(s[start..i].trim().to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+
+    argumenten.push(s[start..].trim().to_string());
+    argumenten
 }
 pub(super) fn parse_i32(token: &str) -> i32 {
     if let Ok(value) = token.parse::<i32>() {
@@ -194,8 +263,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
     }
 
 }
-pub(super) fn parse_string(token: &str) -> Result<EcolString, String> {
-    EcolString::from_literal(token)
+pub(super) fn parse_string(token: &str) -> Result<String, String> {
+    Ok(token.to_string())
 
 }
 pub(super) fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {

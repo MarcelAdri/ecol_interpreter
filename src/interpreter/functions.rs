@@ -1,68 +1,212 @@
 use crate::interpreter::EcolMachine;
-use crate::interpreter::parsers::parseer_argumenten;
-use crate::interpreter::program::{Functie, FunctieAanroep};
-use crate::interpreter::waarden::{haal_data, EcolString, Waarde};
+use crate::interpreter::helpers::grens_bewaking;
+use crate::interpreter::waarden::{Waarde};
+
+pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
+pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
+
+#[derive(Debug, Clone)]
+pub(super) enum FunctieNaam {
+    ABS,
+    ARCTAN,
+    COS,
+    EXP,
+    G,
+    GOK,
+    GOKC,
+    LN,
+    LOG,
+    PS,
+    SIN,
+    WRTL,
+}
+
+impl FunctieNaam {
+    pub(super) fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "ABS" => Some(Self::ABS),
+            "ARCTAN" => Some(Self::ARCTAN),
+            "COS" => Some(Self::COS),
+            "EXP" => Some(Self::EXP),
+            "G" => Some(Self::G),
+            "GOK" => Some(Self::GOK),
+            "GOKC" => Some(Self::GOKC),
+            "LN" => Some(Self::LN),
+            "LOG" => Some(Self::LOG),
+            "PS" => Some(Self::PS),
+            "SIN" => Some(Self::SIN),
+            "WRTL" => Some(Self::WRTL),
+            _ => None,
+        }
+    }
+
+    pub(super) fn to_string(&self) -> String {
+        match self {
+            Self::ABS => "ABS".to_string(),
+            Self::ARCTAN => "ARCTAN".to_string(),
+            Self::COS => "COS".to_string(),
+            Self::EXP => "EXP".to_string(),
+            Self::G => "G".to_string(),
+            Self::GOK => "GOK".to_string(),
+            Self::GOKC => "GOKC".to_string(),
+            Self::LN => "LN".to_string(),
+            Self::LOG => "LOG".to_string(),
+            Self::PS => "PS".to_string(),
+            Self::SIN => "SIN".to_string(),
+            Self::WRTL => "WRTL".to_string(),
+        }
+    }
+
+    pub(super) fn verwacht_argumenten(&self) -> usize {
+        match self {
+            Self::ABS => 1,
+            Self::ARCTAN => 1,
+            Self::COS => 1,
+            Self::EXP => 1,
+            Self::G => 1,
+            Self::GOK => 2,
+            Self::GOKC => 0,
+            Self::LN => 1,
+            Self::LOG => 1,
+            Self::PS => 0,
+            Self::SIN => 1,
+            Self::WRTL => 1,
+        }
+    }
+}
+pub(super) enum Functie {
+    ABS { getal: f32 },
+    ARCTAN { getal: f32 },
+    COS { getal: f32 },
+    EXP { getal: f32 },
+    G { getal: f32 },
+    GOK { laag: f32, hoog: f32 },
+    GOKC { },
+    LN { getal: f32 },
+    LOG { getal: f32 },
+    PS { },
+    SIN { getal: f32 },
+    WRTL { getal: f32 },
+}
+impl Functie {
+    pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, _rij_naam: &str) -> Result<Self, String> {
+        if argumenten.len() != functienaam.verwacht_argumenten() {
+            return Err(format!("Verkeerd aantal argumenten voor '{}'", functienaam.to_string()));
+        }
+        match functienaam {
+            FunctieNaam::ABS => Ok(Functie::ABS { getal: argumenten[0] }),
+            FunctieNaam::ARCTAN => Ok(Functie::ARCTAN { getal: argumenten[0] }),
+            FunctieNaam::COS => Ok(Functie::COS { getal: argumenten[0] }),
+            FunctieNaam::EXP => Ok(Functie::EXP { getal: argumenten[0] }),
+            FunctieNaam::G => Ok(Functie::G { getal: argumenten[0] }),
+            FunctieNaam::GOK => Ok(Functie::GOK { laag: argumenten[0], hoog: argumenten[1] }),
+            FunctieNaam::GOKC => Ok(Functie::GOKC { }),
+            FunctieNaam::LN => Ok(Functie::LN { getal: argumenten[0] }),
+            FunctieNaam::LOG => Ok(Functie::LOG { getal: argumenten[0] }),
+            FunctieNaam::PS => Ok(Functie::PS { }),
+            FunctieNaam::SIN => Ok(Functie::SIN { getal: argumenten[0] }),
+            FunctieNaam::WRTL => Ok(Functie::WRTL { getal: argumenten[0] }),
+        }
+    }
+
+    pub(super) fn haal_naam(&self) -> Option<FunctieNaam> {
+        match self {
+            Functie::ABS { .. } => Some(FunctieNaam::ABS),
+            Functie::ARCTAN { .. } => Some(FunctieNaam::ARCTAN),
+            Functie::COS { .. } => Some(FunctieNaam::COS),
+            Functie::EXP { .. } => Some(FunctieNaam::EXP),
+            Functie::G { .. } => Some(FunctieNaam::G),
+            Functie::GOK { .. } => Some(FunctieNaam::GOK),
+            Functie::GOKC { .. } => Some(FunctieNaam::GOKC),
+            Functie::LN { .. } => Some(FunctieNaam::LN),
+            Functie::LOG { .. } => Some(FunctieNaam::LOG),
+            Functie::PS { .. } => Some(FunctieNaam::PS),
+            Functie::SIN { .. } => Some(FunctieNaam::SIN),
+            Functie::WRTL { .. } => Some(FunctieNaam::WRTL),
+        }
+    }
+}
 
 impl EcolMachine {
-    pub(super) fn execute_function(&mut self, werk_functie: &FunctieAanroep) -> Result<Waarde, String> {
-        let uitkomst = match werk_functie.functie() {
-            Functie::LinksString => self.execute_function_links(werk_functie.argumenten().as_str()),
-            Functie::RechtsString => self.execute_function_rechts(werk_functie.argumenten().as_str()),
-            Functie::MiddenString => self.execute_function_midden(werk_functie.argumenten().as_str()),
-            Functie::INT => self.execute_function_int(werk_functie.argumenten().as_str()),
+    pub(super) fn execute_function(&mut self, functie: &Functie) -> Result<Waarde, String> {
+
+        let result = match functie {
+            Functie::ABS { getal } => { let uitkomst = self.execute_function_abs(getal)?; Ok(uitkomst) },
+            Functie::ARCTAN { getal } => { let uitkomst = self.execute_function_arctan(getal)?; Ok(uitkomst) },
+            Functie::COS { getal } => { let uitkomst = self.execute_function_cos(getal)?; Ok(uitkomst) },
+            Functie::EXP { getal } => { let uitkomst = self.execute_function_exp(getal)?; Ok(uitkomst) },
+            Functie::G { getal } => { let uitkomst = self.execute_function_g(getal)?; Ok(uitkomst) },
+            Functie::GOK { laag, hoog } => { let uitkomst = self.execute_function_gok(laag, hoog)?; Ok(uitkomst) },
+            Functie::GOKC { } => { let uitkomst = self.execute_function_gokc()?; Ok(uitkomst) },
+            Functie::LN { getal } => { let uitkomst = self.execute_function_ln(getal)?; Ok(uitkomst) },
+            Functie::LOG { getal } => { let uitkomst = self.execute_function_log(getal)?; Ok(uitkomst) },
+            Functie::PS { } => { let uitkomst = self.execute_function_ps()?; Ok(uitkomst) },
+            Functie::SIN { getal } => { let uitkomst = self.execute_function_sin(getal)?; Ok(uitkomst) },
+            Functie::WRTL { getal} => { let uitkomst = self.execute_function_wrtl(getal)?; Ok(uitkomst) },
         };
 
-        uitkomst.map_err(|e| format!("Fout bij uitvoeren van functie: {:?}: {}", werk_functie.functie(), e))
+        result
     }
-    pub(super) fn execute_function_int(&mut self, argumenten: &str) -> Result<Waarde, String> {
-        let arguments = parseer_argumenten(argumenten, 1)?;
-        let getal = self.solve_number_expression(&arguments[0])?;
-        let werk_getal = haal_data(&getal).parse::<f32>().map_err(|_| "Ongeldig getal".to_string())?;
-        let reply = werk_getal.trunc();
+    fn execute_function_abs(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(reply))
+        Ok(Waarde::Getal(getal.abs()))
     }
-    pub(super) fn execute_function_links(&mut self, argumenten: &str) -> Result<Waarde, String> {
-        let arguments = parseer_argumenten(argumenten, 2)?;
-        let tekst = self.solve_string_expression(&arguments[0])?;
-        let lengte = self.lees_integer_argument(&arguments[1])?;
-        let reply:String;
+    fn execute_function_arctan(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        let werk_tekst = haal_data(&tekst);
-        reply = werk_tekst.chars().take(lengte).collect::<String>();
-
-        Ok(Waarde::Tekst(EcolString::new(reply)))
+        Ok(Waarde::Getal(getal.atan()))
     }
-    pub(super) fn execute_function_midden(&mut self, argumenten: &str) -> Result<Waarde, String> {
-        let arguments = parseer_argumenten(argumenten, 3)?;
-        let tekst = self.solve_string_expression(&arguments[0])?;
-        let start = self.lees_integer_argument(&arguments[1])?;
-        let lengte = self.lees_integer_argument(&arguments[2])?;
-        let reply: String;
-        let werk_tekst = haal_data(&tekst);
+    fn execute_function_cos(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        reply = werk_tekst
-            .chars()
-            .skip(start.saturating_sub(1))
-            .take(lengte)
-            .collect::<String>();
-
-        Ok(Waarde::Tekst(EcolString::new(reply)))
+        Ok(Waarde::Getal(getal.cos()))
     }
-    pub(super) fn execute_function_rechts(&mut self, argumenten: &str) -> Result<Waarde, String> {
-        let arguments = parseer_argumenten(argumenten, 2)?;
-        let tekst = self.solve_string_expression(&arguments[0])?;
-        let lengte = self.lees_integer_argument(&arguments[1])?;
-        let reply: String;
+    fn execute_function_exp(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        let werk_tekst = haal_data(&tekst);
-        let totaal = werk_tekst.chars().count();
-        reply = werk_tekst
-            .chars()
-            .skip(totaal.saturating_sub(lengte))
-            .collect::<String>();
+        Ok(Waarde::Getal(getal.exp()))
+    }
+    fn execute_function_g(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Tekst(EcolString::new(reply)))
+        Ok(Waarde::Getal(getal.floor()))
+    }
+    fn execute_function_gok(&mut self, laag: &f32, hoog: &f32) -> Result<Waarde, String> {
+        let laag = grens_bewaking(laag, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
+        let hoog = grens_bewaking(hoog, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
+        if laag >= hoog {
+            return Err(format!("De lage waarde van de GOK ({}) mag niet groter zijn dan de hoge waarde ({})", laag, hoog));
+        }
 
+        Ok(Waarde::Getal(self.volgende_willekeurig(laag, hoog).round()))
+    }
+    fn execute_function_gokc(&mut self) -> Result<Waarde, String> {
+        Ok(Waarde::Getal(self.volgende_willekeurig(0.0, 1.0)))
+    }
+
+    fn execute_function_ln(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
+
+        Ok(Waarde::Getal(getal.ln()))
+    }
+    fn execute_function_log(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
+
+        Ok(Waarde::Getal(getal.log10()))
+    }
+    fn execute_function_ps(&self) -> Result<Waarde, String> {
+        let werk = self.lees_regel();
+        Ok(Waarde::Getal(werk.len() as f32))
+    }
+    fn execute_function_sin(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
+
+        Ok(Waarde::Getal(getal.sin()))
+    }
+    fn execute_function_wrtl(&self, getal: &f32) -> Result<Waarde, String> {
+        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
+
+        Ok(Waarde::Getal(getal.sqrt()))
     }
 }

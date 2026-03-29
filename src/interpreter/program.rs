@@ -1,77 +1,7 @@
 use std::collections::BTreeMap;
 
 pub(super) const WORDT_TEKEN: &str = ":=";
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Functie {
-    LinksString,
-    RechtsString,
-    MiddenString,
-    INT,
-}
 
-impl Functie {
-    pub(super) fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "LINKS$" => Some(Self::LinksString),
-            "RECHTS$" => Some(Self::RechtsString),
-            "MIDDEN$" => Some(Self::MiddenString),
-            "INT" => Some(Self::INT),
-            _ => None,
-        }
-    }
-
-    pub(super) fn as_str(self) -> &'static str {
-        match self {
-            Self::LinksString => "LINKS$",
-            Self::RechtsString => "RECHTS$",
-            Self::MiddenString => "MIDDEN$",
-            Self::INT => "INT",
-        }
-    }
-
-
-    pub(super) fn is_functie(s: &str) -> bool {
-        Self::from_str(s).is_some()
-    }
-
-
-    pub(super) fn is_string_functie (s: &str) -> bool {
-        Self::is_functie(s) && s.ends_with('$')
-    }
-
-
-    pub(super) fn is_nummer_functie (s: &str) -> bool {
-        Self::is_functie(s) && !s.ends_with('$')
-    }
-}
-pub(super) struct FunctieAanroep {
-    functie: Functie,
-    start: usize,
-    einde: usize,
-    argumenten: String,
-}
-impl FunctieAanroep {
-    pub(super) fn new(functie: Functie, start: usize, einde: usize, argumenten: String) -> Self {
-        FunctieAanroep {
-            functie,
-            start,
-            einde,
-            argumenten,
-        }
-    }
-    pub(super) fn functie(&self) -> &Functie {
-        &self.functie
-    }
-    pub(super) fn start(&self) -> usize {
-        self.start
-    }
-    pub(super) fn einde(&self) -> usize {
-        self.einde
-    }
-    pub(super) fn argumenten(&self) -> &String {
-        &self.argumenten
-    }
-}
 pub(super) struct Line {
     regelnummer: u16,
     inhoud: LineInhoud,

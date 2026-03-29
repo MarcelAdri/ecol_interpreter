@@ -2,6 +2,7 @@ pub(super) const HELP_PAGINA: &str = concat!("ecol_syntaxis.html?v=", env!("CARG
 
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
+use web_sys::js_sys;
 use crate::interpreter::helpers::{is_geldige_variabele_naam, result_to_string};
 use crate::interpreter::parsers::{parse_f32, parse_i32, parseer_regel};
 use super::waarden::{haal_data, VariabeleType, Waarde};
@@ -82,6 +83,7 @@ pub struct EcolMachine {
     variabelen_opslag: VariabelenOpslag,
     regel_buffer: RegelBuffer,
     programma: Programma,
+    seed: u64,
 }
 impl EcolMachine {
     pub fn new() -> Self {
@@ -89,6 +91,7 @@ impl EcolMachine {
             variabelen_opslag: VariabelenOpslag::new(),
             regel_buffer: RegelBuffer::new(),
             programma: Programma::new(),
+            seed: js_sys::Date::now() as u64,
         }
     }
 
@@ -115,6 +118,13 @@ impl EcolMachine {
     }
     pub(super) fn laad_programma(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
         self.programma.laad(bron);
+    }
+    pub(super) fn volgende_willekeurig(&mut self, laag: f32, hoog: f32) -> f32 {
+        self.seed ^= self.seed << 13;
+        self.seed ^= self.seed >> 7;
+        self.seed ^= self.seed << 17;
+        let basis = (self.seed as f32) / (u64::MAX as f32);  // getal tussen 0.0 en 1.0
+        basis * (hoog - laag) + laag
     }
 
     pub fn execute(&mut self, input: &str, output: &mut dyn FnMut(&str)) -> String {

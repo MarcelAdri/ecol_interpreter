@@ -1,5 +1,5 @@
 use crate::interpreter::EcolMachine;
-use crate::interpreter::helpers::result_to_string;
+use crate::interpreter::helpers::{literal_to_string, result_to_string};
 use crate::interpreter::program::{Line, LineInhoud};
 use crate::interpreter::waarden::{haal_data, VariabeleType};
 
@@ -95,8 +95,7 @@ impl EcolMachine {
         Ok("Programma heeft succesvol gelopen.".to_string())
     }
     pub(super) fn execute_tekst(&mut self, expressie: &str) -> Result<String, String> {
-        let value = self.solve_expression(expressie)?;
-        self.naar_regel_buffer(&haal_data(&value));
+        self.naar_regel_buffer(&literal_to_string(expressie)?);
         Ok("".to_string())
     }
     pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, expressie: &str) -> Result<String, String> {

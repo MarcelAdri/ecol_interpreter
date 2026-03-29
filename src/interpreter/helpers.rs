@@ -114,6 +114,16 @@ pub(super) fn geen_spaties_buiten_literals(input: &str) -> String {
     }
     result
 }
+pub(super) fn grens_bewaking (getal: &f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, String> {
+    if getal.fract() != 0.0 && alleen_hele_getallen {
+        return Err("LN functie kan alleen hele getallen accepteren.".to_string());
+    }
+    if *getal <= 0f32 && alleen_positieve_getallen {
+        return Err(format!("Getal moet positief zijn, maar is {}", getal));
+    }
+
+    Ok(*getal)
+}
 pub(super) fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     let mut chars = naam.chars();
 
@@ -159,6 +169,26 @@ pub(super) fn is_geldig_wordt_teken(input: &str) -> Option<&str> {
 pub(super) fn is_geldige_variabele_naam(naam: &str) -> bool {
     heeft_geldige_variabele_syntax(naam)
 
+
+}
+pub(super) fn literal_to_string (literal: &str) -> Result<String, String> {
+    let werk_string = literal.trim();
+
+    if !werk_string.starts_with('"') {
+        return Err("Tekstblok moet beginnen met een aanhalingsteken.".to_string());
+    }
+
+    if !werk_string.ends_with('"') {
+        return Err("Tekstblok moet eindigen met een aanhalingsteken.".to_string());
+    }
+
+    let inhoud = &werk_string[1..werk_string.len() - 1];
+
+    if inhoud.contains('"') {
+        return Err("Slechts één aaneengesloten tekstblok toegestaan.".to_string());
+    }
+
+    Ok(inhoud.to_string())
 
 }
 pub(super) fn result_to_string (result: Result<String, String>) -> String {
