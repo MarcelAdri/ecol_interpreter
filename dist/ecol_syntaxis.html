@@ -206,7 +206,7 @@ a := naam(index)</pre>
 <h2>Uitvoer — het regelbuffer-model</h2>
 
 <div class="notice">
-  <strong>Regelbuffer:</strong> ECOL werkt met de logica van een regelprinter. <code>TEKST</code>, <code>SCHRIJF</code> e.d. schrijven naar een interne regelbuffer — nog geen zichtbare uitvoer. Pas bij <code>NR</code> (nieuwe regel) wordt de buffer doorgestuurd en gewist. Zo bouw je met meerdere opdrachten samen één uitvoerregel op.
+  <strong>Regelbuffer:</strong> ECOL werkt met de logica van een regelprinter. <code>TEKST</code>, <code>SCHRIJF</code> e.d. schrijven naar een interne regelbuffer — nog geen zichtbare uitvoer. Pas bij <code>NR</code> (nieuwe regel) wordt de buffer doorgestuurd en gewist. Zo bouw je met meerdere opdrachten samen één uitvoerregel op. De buffer is maximaal <strong>80 tekens</strong> breed; overschrijding geeft een foutmelding.
 </div>
 
 <table>
@@ -219,12 +219,12 @@ a := naam(index)</pre>
   <tr>
     <td><code>SCHRIJF(m,n) := &lt;uitdr&gt;</code></td>
     <td>Geformatteerd getal naar de regelbuffer: m cijfers voor de decimale punt, n erna (totaal m+n+2 posities). Bij n=0 geen punt afgedrukt.</td>
-    <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span> <span class="tag todo">opmaak gepland</span></td>
+    <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
     <td><code>SCHRIJF := &lt;uitdr&gt;</code></td>
     <td>Auto-formaat: als geheel getal dan SCHRIJF(6,0), anders SCHRIJF(6,4).</td>
-    <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
+    <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
     <td><code>SCHRIJM := &lt;uitdr&gt;</code></td>
