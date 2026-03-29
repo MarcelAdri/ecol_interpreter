@@ -1,5 +1,6 @@
 use crate::interpreter::EcolMachine;
 use crate::interpreter::helpers::{literal_to_string};
+use crate::interpreter::interpreter::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud};
 
 impl EcolMachine {
@@ -34,6 +35,47 @@ impl EcolMachine {
         self.naar_regel_buffer(&value.format_getal(breedte, decimalen)?)?;
         Ok("".to_string())
     }
+    pub(super) fn execute_schrijfsym(&mut self, expressie: &str) -> Result<String, String> {
+        let value = self.solve_expression(expressie)?.haal_getal();
+
+        if value < 0f32 || value > 99f32 {
+            return Err("Symboolwaarde moet tussen 0 en 99 liggen.".to_string());
+        }
+
+        let symbool_nummer  = value as usize;
+        let Some(symbool) = SYMBOLEN[symbool_nummer] else {
+            return Err(format!("Symboolwaarde {} is niet gedefinieerd.", symbool_nummer));
+        };
+
+
+        self.naar_regel_buffer(symbool.to_string().as_str())?;
+        Ok("".to_string())
+    }
+    pub(super) fn execute_schrijm(&mut self, expressie: &str) -> Result<String, String> {
+        let value = self.solve_expression(expressie)?.haal_getal();
+
+        if value.is_nan() {
+            return Err("FOUTMELDING: Expressie levert ongeldige waarde op.".to_string());
+        }
+        let s = format!("{:+E}", value);
+
+        let (mantisse_deel, exp_deel) = s.split_once('E').unwrap();
+        let exp: i32 = exp_deel.parse::<i32>().unwrap() + 1;
+
+        let (teken, cijfers) = if mantisse_deel.starts_with('-') {
+            ("-", &mantisse_deel[1..])
+        } else {
+            ("+", &mantisse_deel[1..])
+        };
+
+        let ecol_mantisse = format!("0.{}", cijfers.replace('.', ""));
+
+        let exp_teken = if exp >= 0 { "+" } else { "-" };
+
+        self.naar_regel_buffer(&format!("{}{}E{}{}", teken, ecol_mantisse, exp_teken, exp.unsigned_abs()))?;
+
+        Ok("".to_string())
+    }
     pub(super) fn execute_start(&self, output: &mut dyn FnMut(&str)) -> Result<String, String> {
         let mut running_program = EcolMachine::new();
         let mut current = 0;
@@ -63,6 +105,20 @@ impl EcolMachine {
                 },
                 LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                     let regel = running_program.execute_schrijf(*breedte, *decimalen, expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
+                },
+                LineInhoud::Schrijfsym { expressie } => {
+                    let regel = running_program.execute_schrijfsym(expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
+                },
+                LineInhoud::Schrijm { expressie } => {
+                    let regel = running_program.execute_schrijm(expressie)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
                     if !regel.is_empty() {
                         output(&regel);

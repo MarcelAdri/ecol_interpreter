@@ -1,4 +1,78 @@
 pub(super) const HELP_PAGINA: &str = concat!("ecol_syntaxis.html?v=", env!("CARGO_PKG_VERSION"));
+pub(super) const SYMBOLEN: [Option<char>; 100] = {
+    let mut t = [None; 100];
+    let mut teller = 0u8;
+    loop {
+        t[teller as usize] = Some((b'0' + teller) as char);
+        teller += 1;
+        if teller > 9 {
+            break;
+        }
+    }
+    loop {
+        t[teller as usize] = Some((b'a' + (teller - 10)) as char);
+        teller += 1;
+        if teller > 35 {
+            break;
+        }
+    }
+    loop {
+        t[teller as usize] = None;
+        teller += 1;
+        if teller > 39 {
+            break;
+        }
+    }
+    loop {
+        t[teller as usize] = Some((b'A' + (teller - 40)) as char);
+        teller += 1;
+        if teller > 65 {
+            break;
+        }
+    }
+    loop {
+        t[teller as usize] = None;
+        teller += 1;
+        if teller > 69 {
+            break;
+        }
+    }
+    t[70] = Some('.');
+    t[71] = Some(',');
+    t[72] = Some(':');
+    t[73] = Some(';');
+    t[74] = Some('?');
+    t[75] = Some('!');
+    t[76] = Some('\'');
+    t[77] = Some('"');
+    t[78] = Some('(');
+    t[79] = Some(')');
+    t[80] = Some('+');
+    t[81] = Some('-');
+    t[82] = Some('*');
+    t[83] = Some('/');
+    t[84] = Some('=');
+    t[85] = Some('<');
+    t[86] = Some('>');
+    t[87] = Some('≤');
+    t[88] = Some('≥');
+    t[89] = Some('≠');
+    t[90] = Some(' ');
+    t[91] = Some('\n');
+
+    teller = 92;
+    loop {
+        t[teller as usize] = None;
+        teller += 1;
+        if teller > 98 {
+            break;
+        }
+    }
+    t[99] = Some(']');
+
+
+    t
+};
 
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
@@ -157,6 +231,12 @@ impl EcolMachine {
                         },
                         LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                             reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));
+                        },
+                        LineInhoud::Schrijfsym { expressie } => {
+                            reply = result_to_string(self.execute_schrijfsym(expressie));
+                        },
+                        LineInhoud::Schrijm { expressie } => {
+                            reply = result_to_string(self.execute_schrijm(expressie));
                         },
                         LineInhoud::Start { } => {
                             reply = result_to_string(self.execute_start(output));

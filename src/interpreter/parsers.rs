@@ -264,6 +264,16 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             let expressie = rest_na_wordt_teken.to_string();
             Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie }))
         },
+        Sleutelwoord::SCHRIJFSYM => {
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
+            let expressie = rest_na_wordt_teken.to_string();
+            Ok(Line::new(regelnummer, LineInhoud::Schrijfsym{ expressie }))
+        },
+        Sleutelwoord::SCHRIJM => {
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
+            let expressie = rest_na_wordt_teken.to_string();
+            Ok(Line::new(regelnummer, LineInhoud::Schrijm{ expressie }))
+        },
         Sleutelwoord::START => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
