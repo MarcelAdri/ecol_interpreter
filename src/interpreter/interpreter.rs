@@ -15,10 +15,16 @@ impl RegelBuffer {
     fn new() -> Self {
         RegelBuffer::Regel(String::new())
     }
-    fn naar_regel_buffer(&mut self, regel: &str) {
+    fn naar_regel_buffer(&mut self, regel: &str) -> Result<(), String> {
         match self {
-            RegelBuffer::Regel(r) => r.push_str(regel),
+            RegelBuffer::Regel(r) => {
+                if r.len() + regel.len() > 80 {
+                    return Err("Regelbuffer overschrijdt het maximum van 80 tekens. Vergeet NR niet.".to_string());
+                }
+                r.push_str(regel)
+            },
         }
+        Ok(())
     }
 
     fn lees_regel(&self) -> String {
@@ -104,8 +110,10 @@ impl EcolMachine {
     pub(super) fn zet_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
         self.variabelen_opslag.zet_waarde(naam, waarde)
     }
-    pub(super) fn naar_regel_buffer(&mut self, regel: &str) {
-        self.regel_buffer.naar_regel_buffer(regel)
+    pub(super) fn naar_regel_buffer(&mut self, regel: &str) -> Result<(), String>{
+        self.regel_buffer.naar_regel_buffer(regel)?;
+
+        Ok(())
     }
     pub(super) fn lees_regel(&self) -> String {
         self.regel_buffer.lees_regel()

@@ -9,11 +9,12 @@
             input { background: #000; color: #00ff00; border: none; width: 100%; font-size: 1.2rem; outline: none; }
             body { background: #0c0c0c; color: #33ff33; font-family: 'Courier New', monospace; padding: 20px; line-height: 1.4; }
             #terminal { display: flex; flex-direction: column; }
+            #history { white-space: pre-wrap; }
             #cursor-line { outline: none; display: inline-block; min-width: 5px; caret-color: #33ff33; }
             .prompt { font-weight: bold; }
         </style>
         
-    <link rel="modulepreload" href="/ecol_interpreter-f0717baea978bcb0.js" crossorigin="anonymous" integrity="sha384-h54ulstu+qmbjivNFLFdp4Gguz5VeBwuPPVk9Jei0HWZP9TYCo3s8EYgiDGcc5IU"><link rel="preload" href="/ecol_interpreter-f0717baea978bcb0_bg.wasm" crossorigin="anonymous" integrity="sha384-rXtMRmlsT3ckxkgYvJnDJSy/5Rs7Zv4ItEhKVZm4dn7wqEkSei9AWq8KYwsM8ZNX" as="fetch" type="application/wasm"></head>
+    <link rel="modulepreload" href="/ecol_interpreter-ff784e5f02ac2091.js" crossorigin="anonymous" integrity="sha384-CpmFo7ac3g12Y3QhJe2jK/bBd1Ye0t6WA9o19uh3raDjHI4ymV+kiY+TAVs7eTD7"><link rel="preload" href="/ecol_interpreter-ff784e5f02ac2091_bg.wasm" crossorigin="anonymous" integrity="sha384-vov0f2TG/Qt96DkFTpw/3NhXupMtOSk8W5/Hzreitdg6xGL5dKud/IUoGFtt3Rp5" as="fetch" type="application/wasm"></head>
     <body>
     <div id="terminal">
         <div id="history"></div>
@@ -23,8 +24,8 @@
     </div>
 
 <script type="module">
-import init, * as bindings from '/ecol_interpreter-f0717baea978bcb0.js';
-const wasm = await init({ module_or_path: '/ecol_interpreter-f0717baea978bcb0_bg.wasm' });
+import init, * as bindings from '/ecol_interpreter-ff784e5f02ac2091.js';
+const wasm = await init({ module_or_path: '/ecol_interpreter-ff784e5f02ac2091_bg.wasm' });
 
 
 window.wasmBindings = bindings;

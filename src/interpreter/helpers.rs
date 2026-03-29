@@ -76,6 +76,20 @@ pub(super) fn first_word(input: &str) -> &str {
     }
     input
 }
+pub(super) fn format_getal(x: f32) -> String {
+    let mut s = format!("{:.6}", x);
+
+    while s.contains('.') && s.ends_with('0') {
+        s.pop();
+    }
+
+    if s.ends_with('.') {
+        s.push('0');
+    }
+
+    s
+}
+
 pub(super) fn geen_spaties_buiten_literals(input: &str) -> String {
     let mut result = String::new();
     let mut in_string = false;

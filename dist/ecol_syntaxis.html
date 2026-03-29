@@ -85,6 +85,7 @@
     .tag.todo    { background: #3a2a1a; color: #ccaa66; border: 1px solid #886633; }
     .tag.hist    { background: #1a2a3a; color: #7fb3cc; border: 1px solid #335566; }
     .tag.ext     { background: #1a1a3a; color: #8899cc; border: 1px solid #334488; }
+    .tag.nee     { background: #2a1a1a; color: #cc7f7f; border: 1px solid #663333; }
   </style>
 </head>
 <body>
@@ -102,6 +103,7 @@
   <span class="tag hist">historisch</span> — bevestigd uit het originele ECOL-rapport (IOWO, 1973) &nbsp;
   <span class="tag ok">geïmpl.</span> — geïmplementeerd in deze interpreter &nbsp;
   <span class="tag todo">gepland</span> — nog te implementeren &nbsp;
+  <span class="tag nee">niet gepland</span> — bewuste keuze: wordt niet geïmplementeerd &nbsp;
   <span class="tag ext">extensie</span> — toegevoegd aan de taal, niet in het origineel
 </div>
 
@@ -160,7 +162,9 @@
   [opdrachten, RIJ-reserveringen, SUB-beschrijvingen]
 KLAAR</pre>
 
-<p><strong>Labels</strong> — elk geheel getal, optioneel gevolgd door <code>:</code> — mogen voor elke regel staan. Labels in het hoofdprogramma moeten onderling verschillen.</p>
+<p><strong>Startpunt</strong> — in het originele ECOL kan <code>START</code> als programmaregel met een regelnummer dienen als koptekst. In deze interpreter wordt <code>START</code> altijd direct uitgevoerd (niet als programmaregel opgeslagen); uitvoering begint altijd bij het laagste aanwezige regelnummer. <span class="tag nee">niet gepland</span></p>
+
+<p><strong>Labels</strong> — elk geheel getal — mogen voor elke regel staan. De <code>:</code> na een regelnummer wordt uitsluitend ondersteund voor <em>lege</em> regels (als sprongdoel zonder opdracht); niet na een regelnummer met een opdracht. Labels in het hoofdprogramma moeten onderling verschillen.</p>
 
 <p><strong>Commentaar</strong> — alles na een <code>;</code> op een regel wordt genegeerd bij uitvoering, maar afgedrukt bij <code>LIJST</code>.</p>
 
@@ -244,7 +248,7 @@ a := naam(index)</pre>
   </tr>
   <tr>
     <td><code>NR(n)</code></td>
-    <td>Stuurt de regelbuffer naar de uitvoer en schuift n regels op. NR(0) gaat terug naar het begin van de regel.</td>
+    <td>Stuurt de regelbuffer naar de uitvoer en voegt n regelovergangen in. <code>NR(0)</code> wist de regelbuffer zonder uitvoer (afwijking van het origineel, waar NR(0) terugsprong naar het begin van de regel).</td>
     <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
   </tr>
   <tr>
@@ -254,7 +258,7 @@ a := naam(index)</pre>
   </tr>
   <tr>
     <td><code>NP</code></td>
-    <td>Nieuwe pagina.</td>
+    <td>Wist het scherm en begint bovenaan opnieuw (in deze interpreter: schermwissing; in het origineel: nieuwe pagina op de printer).</td>
     <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
   </tr>
 </table>
@@ -288,16 +292,19 @@ a := naam(index)</pre>
 <p>Operators in volgorde van hoogste naar laagste prioriteit (gelijke prioriteit = links naar rechts):</p>
 
 <table>
-  <tr><th>Operator</th><th>Betekenis</th><th>Voorbeeld</th></tr>
-  <tr><td><code>M</code></td><td>Machtsverheffing (ook: <code>xx</code> voor kwadraat)</td><td><code>2 M 10</code> = 1024</td></tr>
-  <tr><td><code>×</code> of <code>*</code></td><td>Vermenigvuldigen</td><td><code>a × b</code></td></tr>
-  <tr><td><code>/</code></td><td>Delen</td><td><code>a / b</code></td></tr>
-  <tr><td><code>+</code></td><td>Optellen</td><td></td></tr>
-  <tr><td><code>-</code></td><td>Aftrekken</td><td></td></tr>
-  <tr><td><code>(</code> <code>)</code></td><td>Haakjes doorbreken de prioriteit</td><td><code>a × (b + c)</code></td></tr>
+  <tr><th>Operator</th><th>Betekenis</th><th>Status</th><th>Voorbeeld</th></tr>
+  <tr><td><code>M</code></td><td>Machtsverheffing (ook: <code>xx</code> voor kwadraat)</td><td><span class="tag nee">niet gepland</span></td><td>gebruik <code>EXP(u)</code></td></tr>
+  <tr><td><code>×</code></td><td>Vermenigvuldigen (originele ECOL-notatie)</td><td><span class="tag nee">niet gepland</span></td><td>gebruik <code>*</code></td></tr>
+  <tr><td><code>*</code></td><td>Vermenigvuldigen</td><td><span class="tag ok">geïmpl.</span></td><td><code>a * b</code></td></tr>
+  <tr><td><code>/</code></td><td>Delen</td><td><span class="tag ok">geïmpl.</span></td><td><code>a / b</code></td></tr>
+  <tr><td><code>+</code></td><td>Optellen</td><td><span class="tag ok">geïmpl.</span></td><td></td></tr>
+  <tr><td><code>-</code></td><td>Aftrekken / unairy min</td><td><span class="tag ok">geïmpl.</span></td><td></td></tr>
+  <tr><td><code>(</code> <code>)</code></td><td>Haakjes doorbreken de prioriteit</td><td><span class="tag ok">geïmpl.</span></td><td><code>a * (b + c)</code></td></tr>
 </table>
 
-<p><strong>Let op:</strong> twee operatoren mogen nooit direct naast elkaar staan. Dus niet <code>a × -b</code>, maar wel <code>a × (-b)</code>.</p>
+<p><strong>Prioriteit:</strong> huidige volgorde is <code>* /</code> boven <code>+ -</code>. Dit wordt in een toekomstige versie aangepast naar de originele ECOL-prioriteit, waarbij <code>*</code> en <code>/</code> onderling gelijke prioriteit hebben, en <code>+</code> en <code>-</code> ook (alles links-naar-rechts).</p>
+
+<p><strong>Unaire min:</strong> <code>a * -b</code> werkt in deze interpreter.</p>
 
 <h2>Vergelijkingen en logische operatoren</h2>
 

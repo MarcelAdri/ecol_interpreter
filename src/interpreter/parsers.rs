@@ -243,10 +243,21 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             Ok(Line::new(regelnummer, LineInhoud::Tekst{ expressie }))
         },
         Sleutelwoord::SCHRIJF => {
-            let Some((argumenten, rest_na_argumenten)) = extract_argumenten(rest_na_keyword) else { return Err("Ongeldige argumenten bij SCHRIJF.".to_string()) };
-            if argumenten.len() != 2 { return Err("SCHRIJF verwacht precies twee argumenten.".to_string()) }
-            let breedte = argumenten[0];
-            let decimalen = argumenten[1];
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 2 && argumenten.len() != 0 { return Err(format!("SCHRIJF verwacht geen of twee argumenten. {} argumenten aangetroffen", argumenten.len())) }
+            let breedte: usize;
+            let decimalen: usize;
+            if argumenten.len() == 0 {
+                breedte = 0;
+                decimalen = 0;
+            } else {
+                if argumenten[0] == 0 {
+                    return Err("SCHRIJF verwacht een breedte groter dan 0 als eerste argument.".to_string());
+                } else {
+                    breedte = argumenten[0];
+                    decimalen = argumenten[1];
+                }
+            }
 
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
 

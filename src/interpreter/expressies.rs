@@ -1,10 +1,10 @@
 use std::str::FromStr;
 use crate::interpreter::EcolMachine;
-use crate::interpreter::helpers::{first_word, geen_spaties_buiten_literals, is_geldige_variabele_naam};
+use crate::interpreter::helpers::{first_word, format_getal, geen_spaties_buiten_literals, is_geldige_variabele_naam};
 use crate::interpreter::parsers::{parseer_functie, parseer_variabele};
 use crate::interpreter::program::{Operator};
 use crate::interpreter::functions::{Functie};
-use crate::interpreter::waarden::{format_getal, haal_data, waarde_naar_expressie, VariabeleType, Waarde};
+use crate::interpreter::waarden::{haal_data, waarde_naar_expressie, VariabeleType, Waarde};
 
 impl EcolMachine {
     pub(super) fn bereken_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
