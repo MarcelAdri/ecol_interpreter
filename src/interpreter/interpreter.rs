@@ -226,8 +226,11 @@ impl EcolMachine {
                         LineInhoud::Lijst { } => {
                             reply = result_to_string(self.execute_lijst());
                         },
-                        LineInhoud::NR { } => {
-                            reply =  result_to_string(self.execute_nr());
+                        LineInhoud::NP { } => {
+                            reply = result_to_string(self.execute_np( output));
+                        },
+                        LineInhoud::NR { aantal } => {
+                            reply =  result_to_string(self.execute_nr( *aantal ));
                         },
                         LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                             reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));
@@ -237,6 +240,9 @@ impl EcolMachine {
                         },
                         LineInhoud::Schrijm { expressie } => {
                             reply = result_to_string(self.execute_schrijm(expressie));
+                        },
+                        LineInhoud::Spatie { aantal } => {
+                            reply = result_to_string(self.execute_spatie(*aantal));
                         },
                         LineInhoud::Start { } => {
                             reply = result_to_string(self.execute_start(output));

@@ -21,11 +21,13 @@ impl Line {
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
             LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
-            LineInhoud::NR {} => Some(Sleutelwoord::NR),
+            LineInhoud::NP {} => Some(Sleutelwoord::NP),
+            LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
             LineInhoud::Tekst { .. } => Some(Sleutelwoord::TEKST),
             LineInhoud::Schrijf { .. } => Some(Sleutelwoord::SCHRIJF),
             LineInhoud::Schrijfsym { .. } => Some(Sleutelwoord::SCHRIJFSYM),
             LineInhoud::Schrijm { .. } => Some(Sleutelwoord::SCHRIJM),
+            LineInhoud::Spatie { .. } => Some(Sleutelwoord::SPATIE),
             LineInhoud::Start { } => Some(Sleutelwoord::START),
             LineInhoud::Toekennen { .. } => Some(Sleutelwoord::TOEKENNEN),
             LineInhoud::Verwijderen { } => None,
@@ -48,7 +50,13 @@ impl Line {
             LineInhoud::Lijst {} => format!("{}LIJST", regelnummer)
                 .trim_start()
                 .to_string(),
-            LineInhoud::NR {} => format!("{}NR", regelnummer)
+            LineInhoud::NP {} => format!("{}NP", regelnummer)
+                .trim_start()
+                .to_string(),
+            LineInhoud::NR { aantal } =>
+                format!("{}NR({})"
+                        ,regelnummer
+                        ,aantal)
                 .trim_start()
                 .to_string(),
             LineInhoud::Schrijf { breedte, decimalen, expressie } =>
@@ -71,12 +79,19 @@ impl Line {
                         ,expressie)
                     .trim_start()
                     .to_string(),
+            LineInhoud::Spatie { aantal } =>
+                format!("{}SPATIE({})"
+                        ,regelnummer
+                        ,aantal)
+                    .trim_start()
+                    .to_string(),
             LineInhoud::Start { } => "".to_string(),
-            LineInhoud::Tekst { expressie } => format!("{}TEKST := {}"
-                                                       ,regelnummer
-                                                       ,expressie)
-                .trim_start()
-                .to_string(),
+            LineInhoud::Tekst { expressie } =>
+                format!("{}TEKST := {}"
+                        ,regelnummer
+                        ,expressie)
+                    .trim_start()
+                    .to_string(),
             LineInhoud::Toekennen { variabele_naam, expressie } =>
                 format!("{}{} := {}"
                         ,regelnummer
@@ -99,7 +114,10 @@ pub(super) enum LineInhoud {
     Help {},
     Klaar {},
     Lijst {},
-    NR {},
+    NP {},
+    NR {
+        aantal: usize
+    },
     Schrijf {
         breedte: usize,
         decimalen: usize,
@@ -110,6 +128,9 @@ pub(super) enum LineInhoud {
     },
     Schrijm {
         expressie: String,
+    },
+    Spatie {
+        aantal: usize,
     },
     Start {},
     Tekst {
@@ -127,10 +148,12 @@ impl LineInhoud {
             Sleutelwoord::HELP => Self::Help {},
             Sleutelwoord::KLAAR => Self::Klaar {},
             Sleutelwoord::LIJST => Self::Lijst {},
-            Sleutelwoord::NR => Self::NR {},
+            Sleutelwoord::NP => Self::NP {},
+            Sleutelwoord::NR => Self::NR { aantal: 0 },
             Sleutelwoord::SCHRIJF => Self::Schrijf { breedte: 0, decimalen: 0, expressie: String::new() },
             Sleutelwoord::SCHRIJFSYM => Self::Schrijfsym { expressie: String::new() },
             Sleutelwoord::SCHRIJM => Self::Schrijm { expressie: String::new() },
+            Sleutelwoord::SPATIE => Self::Spatie { aantal: 0 },
             Sleutelwoord::START => Self::Start {},
             Sleutelwoord::TEKST => Self::Tekst { expressie: String::new() },
             Sleutelwoord::TOEKENNEN => Self::Toekennen { variabele_naam: String::new(), expressie: String::new() },
@@ -141,10 +164,12 @@ impl LineInhoud {
             LineInhoud::Help { } => "Help",
             LineInhoud::Klaar { } => "Klaar",
             LineInhoud::Lijst { } => "Lijst",
-            LineInhoud::NR { } => "NR",
+            LineInhoud::NP { } => "NP",
+            LineInhoud::NR { .. } => "NR",
             LineInhoud::Schrijf { .. } => "Schrijf",
             LineInhoud::Schrijfsym { .. } => "Schrijfsym",
             LineInhoud::Schrijm { .. } => "Schrijm",
+            LineInhoud::Spatie { .. } => "Spatie",
             LineInhoud::Start { } => "Start",
             LineInhoud::Tekst { .. } => "Tekst",
             LineInhoud::Toekennen { .. } => "Toekennen",
@@ -247,10 +272,12 @@ pub(super) enum Sleutelwoord {
     HELP,
     KLAAR,
     LIJST,
+    NP,
     NR,
     SCHRIJF,
     SCHRIJFSYM,
     SCHRIJM,
+    SPATIE,
     START,
     TEKST,
     TOEKENNEN,
@@ -262,10 +289,12 @@ impl Sleutelwoord {
             "HELP" => Some(Sleutelwoord::HELP),
             "KLAAR" => Some(Sleutelwoord::KLAAR),
             "LIJST" => Some(Sleutelwoord::LIJST),
+            "NP" => Some(Sleutelwoord::NP),
             "NR" => Some(Sleutelwoord::NR),
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
             "SCHRIJFSYM" => Some(Sleutelwoord::SCHRIJFSYM),
             "SCHRIJM" => Some(Sleutelwoord::SCHRIJM),
+            "SPATIE" => Some(Sleutelwoord::SPATIE),
             "START" => Some(Sleutelwoord::START),
             "TEKST" => Some(Sleutelwoord::TEKST),
             "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
@@ -282,10 +311,12 @@ impl Sleutelwoord {
             Sleutelwoord::HELP => "HELP",
             Sleutelwoord::KLAAR => "KLAAR",
             Sleutelwoord::LIJST => "LIJST",
+            Sleutelwoord::NP => "NP",
             Sleutelwoord::NR => "NR",
             Sleutelwoord::SCHRIJF => "SCHRIJF",
             Sleutelwoord::SCHRIJFSYM => "SCHRIJFSYM",
             Sleutelwoord::SCHRIJM => "SCHRIJM",
+            Sleutelwoord::SPATIE => "SPATIE",
             Sleutelwoord::START => "START",
             Sleutelwoord::TEKST => "TEKST",
             Sleutelwoord::TOEKENNEN => "TOEKENNEN",

@@ -50,7 +50,7 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 - `variabelen_opslag: VariabelenOpslag` — symbol table + data pool (HashMap → Vec<Waarde>)
 - `regel_buffer: RegelBuffer` — output line buffer (flushed by `NR`)
 - `programma: Programma` — stored program lines (BTreeMap<u16, LineInhoud>, max 999)
-- `pub fn execute(&mut self, input: &str) -> String` — main entry point called from JS per line
+- `pub fn execute(&mut self, input: &str, output: &mut dyn FnMut(&str)) -> String` — main entry point called from JS per line; streaming output via callback
 
 **`Programma`** (`program.rs`) — wraps `BTreeMap<u16, LineInhoud>`. Methods: `regel_toevoegen()` (insert/replace, returns feedback if replaced), `regel_verwijderen()` (remove, returns feedback).
 
@@ -78,17 +78,20 @@ Currently implemented:
 - `variabele := expressie` — keyword-less numeric assignment
 - `TEKST := "..."` — voeg string-literal toe aan de regelbuffer
 - `NR` — dump de regelbuffer naar het scherm en maak hem leeg
-- `SCHRIJF (breedte, decimalen) := expressie` — numeric output to line buffer (formatting parameters currently ignored)
+- `SCHRIJF (breedte, decimalen) := expressie` — numeric output to line buffer met opmaak (breedte en decimalen)
+- `SCHRIJM := expressie` — wetenschappelijke notatie naar regelbuffer (bijv. `+0.12345E+4`)
+- `SCHRIJFSYM (n)` — symbool nr. n (0–99) naar regelbuffer
+- `SPATIE (n)` — n spaties naar regelbuffer
+- `NR(n)` — regelbuffer dumpen + n regeleindes (standaard 1)
+- `NP` — scherm wissen
 - Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
 - Numeric functions: `G`, `ABS`, `WRTL`, `SIN`, `COS`, `ARCTAN`, `LN`, `LOG`, `EXP`, `GOK`, `GOKC`, `PS`
 - Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
 
 Not yet implemented:
-- `SCHRIJF` formatting — breedte/decimalen parameters are parsed but ignored
 - `variabele := LEES` — read input as a value
 - Flow control: `NAAR`, `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
 - Arrays: `RIJ`, `ONDIN`, `BOVIN`
-- Output: `SCHRIJM`, `SCHRIJFSYM`, `SPATIE`, `NR(n)`, `NP`
 - `STOP` — runtime early-exit (differs from `KLAAR`: may appear in expressions/conditions)
 
 Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented.

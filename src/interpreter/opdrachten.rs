@@ -24,10 +24,18 @@ impl EcolMachine {
         }
         Ok(reply)
     }
-    pub(super) fn execute_nr(&mut self) -> Result<String, String> {
-        let reply = self.lees_regel();
+    pub(super)  fn execute_np(&self, output: &mut dyn FnMut(&str)) -> Result<String, String> {
+        output("\x0C");
+        Ok("".to_string())
+    }
+    pub(super) fn execute_nr(&mut self, aantal: usize) -> Result<String, String> {
+        let mut reply = String::new();
+
+        if aantal > 0 {
+            reply = format!("{}{}", self.lees_regel(), "\n".repeat(aantal));
+        }
         self.leeg_regel_buffer();
-        Ok(format!("{}\n", reply))
+        Ok(reply)
     }
     pub(super) fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
@@ -76,6 +84,14 @@ impl EcolMachine {
 
         Ok("".to_string())
     }
+    pub(super) fn execute_spatie(&mut self, aantal: usize) -> Result<String, String> {
+        if aantal > 80 {
+            return Err(format!("SPATIE verwacht een aantal kleiner dan 80 (maximale regelgrootte). Aantal: {}", aantal));
+        }
+        let regel = format!("{: <width$}", "", width = aantal);
+        self.naar_regel_buffer(&regel)?;
+        Ok("".to_string())
+    }
     pub(super) fn execute_start(&self, output: &mut dyn FnMut(&str)) -> Result<String, String> {
         let mut running_program = EcolMachine::new();
         let mut current = 0;
@@ -96,8 +112,15 @@ impl EcolMachine {
                 LineInhoud::Lijst { } => {
                     return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", regelnummer));
                 },
-                LineInhoud::NR { } => {
-                    let regel = running_program.execute_nr()
+                LineInhoud::NP { } => {
+                    let regel = running_program.execute_np( output )
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
+                },
+                LineInhoud::NR { aantal } => {
+                    let regel = running_program.execute_nr( *aantal )
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
                     if !regel.is_empty() {
                         output(&regel);
@@ -119,6 +142,13 @@ impl EcolMachine {
                 },
                 LineInhoud::Schrijm { expressie } => {
                     let regel = running_program.execute_schrijm(expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
+                },
+                LineInhoud::Spatie { aantal } => {
+                    let regel = running_program.execute_spatie(*aantal)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
                     if !regel.is_empty() {
                         output(&regel);

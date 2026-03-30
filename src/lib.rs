@@ -43,9 +43,16 @@ pub fn start() -> Result<(), JsValue> {
             hist.set_inner_html(&format!("{}<br/>ECOL > {}<br/>", oude_hist, command));
 
             let resultaat = m.borrow_mut().execute(&command, &mut |regel| {
-                let regel_html = regel.replace('\n', "<br/>");
-                let oude = hist_cb.inner_html();
-                hist_cb.set_inner_html(&format!("{}{}", oude, regel_html));
+                if regel == "\x0C" {
+                    hist_cb.set_inner_html((&format!(
+                        "ECOL INTERPRETER v{}<br/>Typ 'HELP' voor instructies.",
+                        env!("CARGO_PKG_VERSION")
+                    )));   // scherm leegmaken
+                } else {
+                    let regel_html = regel.replace('\n', "<br/>");
+                    let oude = hist_cb.inner_html();
+                    hist_cb.set_inner_html(&format!("{}{}", oude, regel_html));
+                }
                 win_cb.scroll_to_with_x_and_y(0.0, 1_000_000.0);
             });
 

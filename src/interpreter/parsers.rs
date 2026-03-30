@@ -227,8 +227,23 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
                 Err("LIJST kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
             }
         },
-        Sleutelwoord::NR => {
+        Sleutelwoord::NP => {
             is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+        },
+        Sleutelwoord::NR => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 1 && argumenten.len() != 0 { return Err(format!("NR verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())) }
+            let aantal: usize;
+            if argumenten.len() == 0 {
+                aantal = 1;
+            } else {
+                aantal = argumenten[0];
+            }
+            let expressie = rest_na_argumenten.to_string();
+            if !expressie.is_empty() {
+                return Err("NR verwacht geen argumenten na de aantal-aanduiding.".to_string());
+            }
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal }))
         },
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else { return Err("Variabele naam ontbreekt.".to_string()) };
@@ -273,6 +288,28 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
             let expressie = rest_na_wordt_teken.to_string();
             Ok(Line::new(regelnummer, LineInhoud::Schrijm{ expressie }))
+        },
+        Sleutelwoord::SPATIE => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 1 && argumenten.len() != 0 { return Err(format!("SPATIE verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())) }
+            let aantal: usize;
+            if argumenten.len() == 0 {
+                aantal = 1;
+            } else {
+                if argumenten[0] == 0 {
+                    return Err("SPATIE verwacht een aantal groter dan 0 als eerste argument.".to_string());
+                } else {
+                    aantal = argumenten[0];
+                }
+            }
+            if aantal > 80 {
+                return Err(format!("SPATIE verwacht een aantal kleiner dan 80 (maximale regelgrootte). Aantal: {}", aantal));
+            }
+            let expressie = rest_na_argumenten.to_string();
+            if !expressie.is_empty() {
+                return Err("SPATIE verwacht geen argumenten na de aantal-aanduiding.".to_string());
+            }
+            Ok(Line::new(regelnummer, LineInhoud::Spatie{ aantal }))
         },
         Sleutelwoord::START => {
             if regelnummer == 0 {
