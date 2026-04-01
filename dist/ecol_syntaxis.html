@@ -188,23 +188,24 @@ KLAAR</pre>
 teller := teller + 1
 r(i) := LEES        ; array-element</pre>
 
-<h2>Arrays (RIJ)</h2>
+<h2>Arrays (RIJ / RIJSYM)</h2>
 
 <span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
-<p>Een 1D-array wordt gereserveerd met <code>RIJ</code>. Er zijn geen 2D-arrays.</p>
+<p>Een 1D-array wordt gereserveerd met <code>RIJ</code> (floating-point waarden) of <code>RIJSYM</code> (symboolwaarden: gehele getallen 0–99, compacter opgeslagen als bytes). Er zijn geen 2D-arrays.</p>
 
-<pre>RIJ(m,n) naam       ; reserveert elementen naam(m) t/m naam(n)</pre>
+<pre>RIJ(m,n) naam       ; reserveert elementen naam(m) t/m naam(n), elk een f32
+RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99 (opgeslagen als u8)</pre>
 
 <p><strong>Let op:</strong> in het originele ECOL werd de notatie <code>RIJ(m:n)naam</code> gebruikt (dubbele punt als scheidingsteken, geen spatie voor de naam). Deze interpreter gebruikt een komma als scheidingsteken en vereist een spatie vóór de variabelenaam.</p>
 
-<p><strong>Indexering is 1-gebaseerd:</strong> de startindex moet minimaal 1 zijn. <code>RIJ(0,n)</code> is niet toegestaan.</p>
+<p><strong>Indexering is 1-gebaseerd:</strong> de startindex moet minimaal 1 zijn. <code>RIJ(0,n)</code> en <code>RIJSYM(0,n)</code> zijn niet toegestaan.</p>
 
 <p>Een array-element toewijzen of uitlezen:</p>
 <pre>naam(index) := uitdrukking
 a := naam(index)</pre>
 
-<p>De index wordt als geheel getal geïnterpreteerd. Buiten de grenzen gaat het programma met een fout.</p>
+<p>De index wordt als geheel getal geïnterpreteerd. Buiten de grenzen gaat het programma met een fout. Bij <code>RIJSYM</code> geeft een waarde buiten 0–99 eveneens een fout.</p>
 
 <h2>Uitvoer — het regelbuffer-model</h2>
 

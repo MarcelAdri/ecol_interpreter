@@ -81,7 +81,7 @@ impl EcolMachine {
             let Some(complete_waarde) = self.var_lees_waarde(&werk_variabele.variabele_naam())
                 else { return Err("Variabele niet gevonden".to_string());};
             if let Some(var_typ) = complete_waarde.type_van() {
-                if var_typ != VariabeleType::Getal && var_typ != VariabeleType::Rij {
+                if var_typ != VariabeleType::Getal && var_typ != VariabeleType::Rij && var_typ != VariabeleType::Rijsym {
                     return Err(format!("Variabele {:?} is type {:?} en kan niet herleid worden tot een waarde.", werk_variabele.variabele_naam(), var_typ));
                 }
                 let index_expressie = werk_variabele.index().unwrap_or("0");

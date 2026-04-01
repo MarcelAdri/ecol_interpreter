@@ -87,7 +87,8 @@ Currently implemented:
 - Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
 - Numeric functions: `G`, `ABS`, `WRTL`, `SIN`, `COS`, `ARCTAN`, `LN`, `LOG`, `EXP`, `GOK`, `GOKC`, `PS`
 - Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
-- `RIJ(m,n) naam` — 1D numeric array declaration (1-based; start ≥ 1); element access via `naam(index)`
+- `RIJ(m,n) naam` — 1D numeric array (f32, 1-based; start ≥ 1); element access via `naam(index)`
+- `RIJSYM(m,n) naam` — 1D symbol array (u8, 0–99, 1-based); same element syntax; out-of-range write gives error
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value

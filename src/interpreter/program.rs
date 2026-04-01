@@ -24,6 +24,7 @@ impl Line {
             LineInhoud::NP {} => Some(Sleutelwoord::NP),
             LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
             LineInhoud::Rij { .. } => Some(Sleutelwoord::RIJ),
+            LineInhoud::Rijsym { .. } => Some(Sleutelwoord::RIJSYM),
             LineInhoud::Tekst { .. } => Some(Sleutelwoord::TEKST),
             LineInhoud::Schrijf { .. } => Some(Sleutelwoord::SCHRIJF),
             LineInhoud::Schrijfsym { .. } => Some(Sleutelwoord::SCHRIJFSYM),
@@ -62,6 +63,14 @@ impl Line {
                 .to_string(),
             LineInhoud::Rij { start, eind, variabele_naam } =>
                 format!("{}RIJ({}, {}) {}"
+                        ,regelnummer
+                        ,start
+                        ,eind
+                        ,variabele_naam)
+                .trim_start()
+                .to_string(),
+            LineInhoud::Rijsym { start, eind, variabele_naam } =>
+                format!("{}RIJSYM({}, {}) {}"
                         ,regelnummer
                         ,start
                         ,eind
@@ -143,6 +152,11 @@ pub(super) enum LineInhoud {
         eind: usize,
         variabele_naam: String,
     },
+    Rijsym {
+        start: usize,
+        eind: usize,
+        variabele_naam: String,
+    },
     Schrijf {
         breedte: usize,
         decimalen: usize,
@@ -177,6 +191,7 @@ impl LineInhoud {
             Sleutelwoord::NP => Self::NP {},
             Sleutelwoord::NR => Self::NR { aantal: 0 },
             Sleutelwoord::RIJ => Self::Rij { start: 0, eind: 0, variabele_naam: String::new() },
+            Sleutelwoord::RIJSYM => Self::Rijsym { start: 0, eind: 0, variabele_naam: String::new() },
             Sleutelwoord::SCHRIJF => Self::Schrijf { breedte: 0, decimalen: 0, expressie: String::new() },
             Sleutelwoord::SCHRIJFSYM => Self::Schrijfsym { expressie: String::new() },
             Sleutelwoord::SCHRIJM => Self::Schrijm { expressie: String::new() },
@@ -194,6 +209,7 @@ impl LineInhoud {
             LineInhoud::NP { } => "NP",
             LineInhoud::NR { .. } => "NR",
             LineInhoud::Rij { .. } => "Rij",
+            LineInhoud::Rijsym { .. } => "Rijsym",
             LineInhoud::Schrijf { .. } => "Schrijf",
             LineInhoud::Schrijfsym { .. } => "Schrijfsym",
             LineInhoud::Schrijm { .. } => "Schrijm",
@@ -303,6 +319,7 @@ pub(super) enum Sleutelwoord {
     NP,
     NR,
     RIJ,
+    RIJSYM,
     SCHRIJF,
     SCHRIJFSYM,
     SCHRIJM,
@@ -321,6 +338,7 @@ impl Sleutelwoord {
             "NP" => Some(Sleutelwoord::NP),
             "NR" => Some(Sleutelwoord::NR),
             "RIJ" => Some(Sleutelwoord::RIJ),
+            "RIJSYM" => Some(Sleutelwoord::RIJSYM),
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
             "SCHRIJFSYM" => Some(Sleutelwoord::SCHRIJFSYM),
             "SCHRIJM" => Some(Sleutelwoord::SCHRIJM),
@@ -344,6 +362,7 @@ impl Sleutelwoord {
             Sleutelwoord::NP => "NP",
             Sleutelwoord::NR => "NR",
             Sleutelwoord::RIJ => "RIJ",
+            Sleutelwoord::RIJSYM => "RIJSYM",
             Sleutelwoord::SCHRIJF => "SCHRIJF",
             Sleutelwoord::SCHRIJFSYM => "SCHRIJFSYM",
             Sleutelwoord::SCHRIJM => "SCHRIJM",

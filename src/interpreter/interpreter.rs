@@ -138,6 +138,14 @@ impl VariabelenOpslag {
         self.data_pool[index]=Waarde::new_rij(start, eind)?;
         Ok(())
     }
+    fn reserveer_rijsym(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
+        if self.bestaat(variabele_naam) {
+            return Err(format!("Variabele '{}' is al gedefinieerd.", variabele_naam));
+        }
+        let index = self.pak_of_maak_index(variabele_naam);
+        self.data_pool[index]=Waarde::new_rijsym(start, eind)?;
+        Ok(())
+    }
     fn lees_waarde(&mut self, naam: &str) -> Option<Waarde> {
         if let Some(index) = self.symbolen.get(naam) {
             let waarde = self.data_pool[*index].clone();
@@ -155,6 +163,8 @@ impl VariabelenOpslag {
         if !self.bestaat(naam) {
             if waarde.type_van() == Some(VariabeleType::Rij) {
                 return Err(format!("RIJ-variabele '{}' is nog niet gedefinieerd.", naam));
+            } else if waarde.type_van() == Some(VariabeleType::Rijsym) {
+                return Err(format!("RIJSYM-variabele '{}' is nog niet gedefinieerd.", naam));
             }
         } else {
             let Some(doel_waarde) = self.lees_waarde(naam) else {
@@ -219,6 +229,9 @@ impl EcolMachine {
     pub(super) fn var_reserveer_rij(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
         self.variabelen_opslag.reserveer_rij(variabele_naam, start, eind)
     }
+    pub(super) fn var_reserveer_rijsym(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
+        self.variabelen_opslag.reserveer_rijsym(variabele_naam, start, eind)
+    }
     pub(super) fn var_bestaat(&self, naam: &str) -> bool {
         self.variabelen_opslag.bestaat(naam)
     }
@@ -272,6 +285,9 @@ impl EcolMachine {
                         },
                         LineInhoud::Rij { start, eind, variabele_naam } => {
                             reply = result_to_string(self.execute_rij(*start, *eind, variabele_naam));
+                        },
+                        LineInhoud::Rijsym { start, eind, variabele_naam } => {
+                            reply = result_to_string(self.execute_rijsym(*start, *eind, variabele_naam));
                         },
                         LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                             reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));

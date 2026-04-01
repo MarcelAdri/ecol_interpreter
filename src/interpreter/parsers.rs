@@ -261,6 +261,22 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
 
             Ok(Line::new(regelnummer, LineInhoud::Rij{ start, eind, variabele_naam: naam.to_string() }))
         },
+        Sleutelwoord::RIJSYM => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 2 { return Err(format!("RIJSYM verwacht twee argumenten. {} argumenten aangetroffen", argumenten.len())) }
+            let start: usize;
+            let eind: usize;
+
+            start = argumenten[0];
+            eind = argumenten[1];
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else { return Err("Variabele naam ontbreekt.".to_string()) };
+            let expressie = rest_na_variabele.to_string();
+            if !expressie.is_empty() {
+                return Err("RIJSYM verwacht geen argumenten na de naam van de variabele.".to_string());
+            }
+
+            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start, eind, variabele_naam: naam.to_string() }))
+        }
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else { return Err("Variabele naam ontbreekt.".to_string()) };
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));

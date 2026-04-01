@@ -1,5 +1,5 @@
 use crate::interpreter::EcolMachine;
-use crate::interpreter::helpers::{extract_variabele_naam, format_getal, literal_to_string};
+use crate::interpreter::helpers::{extract_variabele_naam, format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
@@ -42,6 +42,11 @@ impl EcolMachine {
         self.var_reserveer_rij(variabele_naam, start, eind)?;
         Ok("".to_string())
     }
+    pub(super) fn execute_rijsym(&mut self, start: usize, eind: usize, variabele_naam: &str) -> Result<String, String> {
+        self.var_reserveer_rijsym(variabele_naam, start, eind)?;
+        Ok("".to_string())
+    }
+
     pub(super) fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
 
@@ -51,11 +56,8 @@ impl EcolMachine {
     pub(super) fn execute_schrijfsym(&mut self, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
 
-        if value < 0f32 || value > 99f32 {
-            return Err("Symboolwaarde moet tussen 0 en 99 liggen.".to_string());
-        }
+        let symbool_nummer = get_sym_value(&value)? as usize;
 
-        let symbool_nummer  = value as usize;
         let Some(symbool) = SYMBOLEN[symbool_nummer] else {
             return Err(format!("Symboolwaarde {} is niet gedefinieerd.", symbool_nummer));
         };
@@ -133,6 +135,13 @@ impl EcolMachine {
                 },
                 LineInhoud::Rij { start, eind, variabele_naam } => {
                     let regel = running_program.execute_rij(*start, *eind, variabele_naam)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
+                },
+                LineInhoud::Rijsym { start, eind, variabele_naam } => {
+                    let regel = running_program.execute_rijsym(*start, *eind, variabele_naam)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
                     if !regel.is_empty() {
                         output(&regel);
@@ -217,6 +226,13 @@ impl EcolMachine {
                         }
                         waarde.rij_set_value(value, argument)?;
                     },
+                    VariabeleType::Rijsym => {
+                        if argument == 0 {
+                            return Err("Geen index verwijzing bij RIJSYM-variabele.".to_string());
+                        }
+
+                        waarde.rijsym_set_value(value, argument)?;
+                    }
                 }
             },
             None => {

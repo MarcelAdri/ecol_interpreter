@@ -112,6 +112,12 @@ pub(super) fn geen_spaties(input: &str) -> String {
     }
     result
 }
+pub(super) fn get_sym_value(getal: &f32) -> Result<u8, String> {
+    if getal.is_nan() || getal < &0.0 || getal > &99.0 {
+        return Err(format!("Waarde {} is ongeldig (xxxSYM verwacht 0–99).", getal));
+    }
+    Ok(*getal as u8)
+}
 pub(super) fn grens_bewaking (getal: &f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, String> {
     if getal.fract() != 0.0 && alleen_hele_getallen {
         return Err("LN functie kan alleen hele getallen accepteren.".to_string());
