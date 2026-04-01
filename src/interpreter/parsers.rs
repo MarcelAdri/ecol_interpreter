@@ -245,12 +245,37 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             }
             Ok(Line::new(regelnummer, LineInhoud::NR{ aantal }))
         },
+        Sleutelwoord::RIJ => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 2 { return Err(format!("RIJ verwacht twee argumenten. {} argumenten aangetroffen", argumenten.len())) }
+            let start: usize;
+            let eind: usize;
+
+            start = argumenten[0];
+            eind = argumenten[1];
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else { return Err("Variabele naam ontbreekt.".to_string()) };
+            let expressie = rest_na_variabele.to_string();
+            if !expressie.is_empty() {
+                return Err("RIJ verwacht geen argumenten na de naam van de variabele.".to_string());
+            }
+
+            Ok(Line::new(regelnummer, LineInhoud::Rij{ start, eind, variabele_naam: naam.to_string() }))
+        },
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else { return Err("Variabele naam ontbreekt.".to_string()) };
-            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));
+            let argument: usize;
+            if argumenten.len() == 0 {
+                argument = 0usize;
+            } else if argumenten.len() == 1 {
+                argument = argumenten[0];
+            } else {
+                return Err("Een RIJ variabele verwacht slechts één argument.".to_string());
+            }
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
             let expressie = rest_na_wordt_teken.to_string();
             let variabele_naam = variabele_naam.to_string();
-            Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam, expressie }))
+            Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam, argument, expressie }))
         },
         Sleutelwoord::TEKST => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
@@ -327,19 +352,8 @@ pub(super) fn parse_string(token: &str) -> Result<String, String> {
 }
 pub(super) fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
     let mut naam_start: Option<usize> = None;
-    let mut tussen_quotes = false;
 
     for (i, c) in expressie.char_indices() {
-        if c == '"' {
-            tussen_quotes = !tussen_quotes;
-            naam_start = None;
-            continue;
-        }
-
-        if tussen_quotes {
-            continue;
-        }
-
 
         match naam_start {
             None => {
@@ -354,7 +368,8 @@ pub(super) fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
 
                 let naam = &expressie[start..i];
                 if is_geldige_variabele_naam(naam) {
-                    return Some(VariabeleAanroep::new(naam.to_string(), start, i));
+                    let (index, einde) = haal_index_expressie(expressie, i);
+                    return Some(VariabeleAanroep::new(naam.to_string(), start, einde, index));
                 }
                 naam_start = None;
             }
@@ -364,9 +379,26 @@ pub(super) fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
     if let Some(start) = naam_start {
         let naam = &expressie[start..];
         if is_geldige_variabele_naam(naam) {
-            return Some(VariabeleAanroep::new(naam.to_string(), start, expressie.len()));
+            return Some(VariabeleAanroep::new(naam.to_string(), start, expressie.len(), None));
         }
     }
 
     None
+}
+
+/// Na de variabelenaam: sla spaties over, en als er een `(...)` volgt neem die mee als index.
+/// Geeft `(Some(index_expressie), einde_na_haakje)` of `(None, naam_einde)` terug.
+fn haal_index_expressie(expressie: &str, naam_einde: usize) -> (Option<String>, usize) {
+    let rest = &expressie[naam_einde..];
+    if !rest.trim_start().starts_with('(') {
+        return (None, naam_einde);
+    }
+    let abs_open = naam_einde + rest.find('(').unwrap();
+    match vind_sluitende_haak(expressie, abs_open) {
+        Ok(abs_sluit) => {
+            let index_str = expressie[abs_open + 1..abs_sluit].trim().to_string();
+            (Some(index_str), abs_sluit + 1)
+        }
+        Err(_) => (None, naam_einde),
+    }
 }

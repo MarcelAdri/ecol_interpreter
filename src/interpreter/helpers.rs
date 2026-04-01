@@ -76,55 +76,39 @@ pub(super) fn first_word(input: &str) -> &str {
     }
     input
 }
-pub(super) fn format_getal(x: f32) -> String {
-    let mut s = format!("{:.6}", x);
+pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Result<String, String> {
+    let mut b = breedte;
+    let mut d = decimalen;
+    let x = getal;
 
-    while s.contains('.') && s.ends_with('0') {
-        s.pop();
+    if breedte == 0 {
+        b = 6;
+        if x != x.trunc() {
+            d = 4;
+        } else {
+            d = 0;
+        }
     }
 
-    if s.ends_with('.') {
-        s.push('0');
+    let ruimte_voor_teken = if x < 0f32 { 1usize } else { 0usize };
+    let b_totaal = if d == 0 { b + ruimte_voor_teken } else { b + d + ruimte_voor_teken + 1 };
+
+    let reply = format!("{:breedte$.decimalen$}", x, breedte = b_totaal, decimalen = d);
+
+    if reply.len() > b_totaal {
+        return Err(format!("De opgegeven waarde {} past niet in de opgegeven breedte {}.", x, breedte))
     }
 
-    s
+    Ok(reply)
+
 }
 
-pub(super) fn geen_spaties_buiten_literals(input: &str) -> String {
+pub(super) fn geen_spaties(input: &str) -> String {
     let mut result = String::new();
-    let mut in_string = false;
-    let mut escape = false;
 
     for c in input.chars() {
-        if !in_string {
-            if c == '"' {
-                in_string = true;
-                result.push(c);
-                continue;
-            }
-            if c.is_whitespace() {
-                continue;
-            }
-            result.push(c);
-        } else {
-            if escape {
-                escape = false;
-                result.push(c);
-                continue;
-            }
-            if c == '\\' {
-                escape = true;
-                result.push(c);
-                continue;
-            }
-            if c == '"' {
-                in_string = false;
-                result.push(c);
-                continue;
-
-            }
-            result.push(c);
-        }
+        if c.is_whitespace() { continue; }
+        result.push(c);
     }
     result
 }

@@ -190,18 +190,21 @@ r(i) := LEES        ; array-element</pre>
 
 <h2>Arrays (RIJ)</h2>
 
-<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
+<span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
 <p>Een 1D-array wordt gereserveerd met <code>RIJ</code>. Er zijn geen 2D-arrays.</p>
 
-<pre>RIJ(m:n)naam        ; reserveert elementen naam(m) t/m naam(n)
-RIJSYM(m:n)naam     ; als RIJ, maar alleen gehele waarden 0–99 (compacter)</pre>
+<pre>RIJ(m,n) naam       ; reserveert elementen naam(m) t/m naam(n)</pre>
+
+<p><strong>Let op:</strong> in het originele ECOL werd de notatie <code>RIJ(m:n)naam</code> gebruikt (dubbele punt als scheidingsteken, geen spatie voor de naam). Deze interpreter gebruikt een komma als scheidingsteken en vereist een spatie vóór de variabelenaam.</p>
+
+<p><strong>Indexering is 1-gebaseerd:</strong> de startindex moet minimaal 1 zijn. <code>RIJ(0,n)</code> is niet toegestaan.</p>
 
 <p>Een array-element toewijzen of uitlezen:</p>
 <pre>naam(index) := uitdrukking
 a := naam(index)</pre>
 
-<p>De index wordt afgerond. Buiten de grenzen gaat het programma met een fout.</p>
+<p>De index wordt als geheel getal geïnterpreteerd. Buiten de grenzen gaat het programma met een fout.</p>
 
 <h2>Uitvoer — het regelbuffer-model</h2>
 
@@ -339,8 +342,8 @@ a := naam(index)</pre>
   <tr><td><code>EXP(u)</code></td><td>e tot de macht u</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>GOK(u1, u2)</code></td><td>Pseudo-aselecte gehele waarde tussen afgerond(u1) en afgerond(u2), grenzen inbegrepen</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>GOKC</code></td><td>Pseudo-aselecte float in [0, 1]</td><td><span class="tag ok">geïmpl.</span></td></tr>
-  <tr><td><code>ONDIN(naam)</code></td><td>Ondergrens van array (wacht op RIJ-implementatie)</td><td><span class="tag todo">gepland</span></td></tr>
-  <tr><td><code>BOVIN(naam)</code></td><td>Bovengrens van array (wacht op RIJ-implementatie)</td><td><span class="tag todo">gepland</span></td></tr>
+  <tr><td><code>ONDIN(naam)</code></td><td>Ondergrens van array</td><td><span class="tag todo">gepland</span></td></tr>
+  <tr><td><code>BOVIN(naam)</code></td><td>Bovengrens van array</td><td><span class="tag todo">gepland</span></td></tr>
   <tr><td><code>PS</code></td><td>Aantal al afgedrukte symbolen op de huidige regel</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>PP</code></td><td>Aantal voltooide regels op de huidige pagina — niet relevant buiten teletype-context, niet gepland voor deze interpreter</td><td><span class="tag hist">historisch</span></td></tr>
   <tr><td><code>STOP</code></td><td>Vroegtijdige runtime-beëindiging; verschilt van <code>KLAAR</code> doordat het ook in uitdrukkingen en voorwaarden mag voorkomen (bijv. <code>ALS fout DAN STOP</code>)</td><td><span class="tag todo">gepland</span></td></tr>

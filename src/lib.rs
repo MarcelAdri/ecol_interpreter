@@ -45,7 +45,7 @@ pub fn start() -> Result<(), JsValue> {
             let resultaat = m.borrow_mut().execute(&command, &mut |regel| {
                 if regel == "\x0C" {
                     hist_cb.set_inner_html((&format!(
-                        "ECOL INTERPRETER v{}<br/>Typ 'HELP' voor instructies.",
+                        "ECOL INTERPRETER v{}<br/>Typ 'HELP' voor instructies.<br/>",
                         env!("CARGO_PKG_VERSION")
                     )));   // scherm leegmaken
                 } else {

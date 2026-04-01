@@ -1,7 +1,8 @@
 use crate::interpreter::EcolMachine;
-use crate::interpreter::helpers::{literal_to_string};
+use crate::interpreter::helpers::{extract_variabele_naam, format_getal, literal_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud};
+use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 impl EcolMachine {
     pub(super) fn execute_help(&self) -> Result<String, String> {
@@ -37,14 +38,18 @@ impl EcolMachine {
         self.leeg_regel_buffer();
         Ok(reply)
     }
+    pub(super) fn execute_rij(&mut self, start: usize, eind: usize, variabele_naam: &str) -> Result<String, String> {
+        self.var_reserveer_rij(variabele_naam, start, eind)?;
+        Ok("".to_string())
+    }
     pub(super) fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
 
-        self.naar_regel_buffer(&value.format_getal(breedte, decimalen)?)?;
+        self.naar_regel_buffer(&format_getal(value, breedte, decimalen)?)?;
         Ok("".to_string())
     }
     pub(super) fn execute_schrijfsym(&mut self, expressie: &str) -> Result<String, String> {
-        let value = self.solve_expression(expressie)?.haal_getal();
+        let value = self.solve_expression(expressie)?;
 
         if value < 0f32 || value > 99f32 {
             return Err("Symboolwaarde moet tussen 0 en 99 liggen.".to_string());
@@ -60,7 +65,7 @@ impl EcolMachine {
         Ok("".to_string())
     }
     pub(super) fn execute_schrijm(&mut self, expressie: &str) -> Result<String, String> {
-        let value = self.solve_expression(expressie)?.haal_getal();
+        let value = self.solve_expression(expressie)?;
 
         if value.is_nan() {
             return Err("FOUTMELDING: Expressie levert ongeldige waarde op.".to_string());
@@ -126,6 +131,13 @@ impl EcolMachine {
                         output(&regel);
                     }
                 },
+                LineInhoud::Rij { start, eind, variabele_naam } => {
+                    let regel = running_program.execute_rij(*start, *eind, variabele_naam)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
+                },
                 LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                     let regel = running_program.execute_schrijf(*breedte, *decimalen, expressie)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
@@ -164,8 +176,8 @@ impl EcolMachine {
                         output(&regel);
                     }
                 },
-                LineInhoud::Toekennen {variabele_naam, expressie} => {
-                    let regel = running_program.execute_toekennen(variabele_naam, expressie)
+                LineInhoud::Toekennen {variabele_naam, argument, expressie} => {
+                    let regel = running_program.execute_toekennen(variabele_naam, *argument, expressie)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
                     if !regel.is_empty() {
                         output(&regel);
@@ -183,9 +195,39 @@ impl EcolMachine {
         self.naar_regel_buffer(&literal_to_string(expressie)?)?;
         Ok("".to_string())
     }
-    pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, expressie: &str) -> Result<String, String> {
+    pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, argument: usize, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
-        let _ = self.zet_waarde(variabele_naam, value)?;
+        let mut waarde = self.var_lees_waarde(variabele_naam).unwrap_or(Waarde::NogNietBepaald).clone();
+        let var_type_compleet = self.var_type_van(variabele_naam);
+        let variabele_type: VariabeleType;
+
+        match var_type_compleet {
+            Some(var_type) => {
+                variabele_type = var_type;
+                match variabele_type {
+                    VariabeleType::Getal => {
+                        if argument != 0 {
+                            return Err("Getalvariabele kan geen index hebben.".to_string());
+                        }
+                        waarde = Waarde::new_getal(value);
+                    },
+                    VariabeleType::Rij => {
+                        if argument == 0 {
+                            return Err("Geen index verwijzing bij RIJ-variabele.".to_string());
+                        }
+                        waarde.rij_set_value(value, argument)?;
+                    },
+                }
+            },
+            None => {
+                if argument != 0 {
+                    return Err(format!("RIJ-Variabele '{}' is niet gedefinieerd.", variabele_naam));
+                }
+                waarde = Waarde::new_getal(value);
+            }
+        }
+
+        let _ = self.var_schrijf_waarde(variabele_naam, waarde)?;
         Ok("".to_string())
     }
 }

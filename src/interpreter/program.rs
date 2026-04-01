@@ -23,6 +23,7 @@ impl Line {
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
             LineInhoud::NP {} => Some(Sleutelwoord::NP),
             LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
+            LineInhoud::Rij { .. } => Some(Sleutelwoord::RIJ),
             LineInhoud::Tekst { .. } => Some(Sleutelwoord::TEKST),
             LineInhoud::Schrijf { .. } => Some(Sleutelwoord::SCHRIJF),
             LineInhoud::Schrijfsym { .. } => Some(Sleutelwoord::SCHRIJFSYM),
@@ -59,6 +60,14 @@ impl Line {
                         ,aantal)
                 .trim_start()
                 .to_string(),
+            LineInhoud::Rij { start, eind, variabele_naam } =>
+                format!("{}RIJ({}, {}) {}"
+                        ,regelnummer
+                        ,start
+                        ,eind
+                        ,variabele_naam)
+                .trim_start()
+                .to_string(),
             LineInhoud::Schrijf { breedte, decimalen, expressie } =>
                 format!("{}SCHRIJF({}, {}) := {}"
                         ,regelnummer
@@ -92,13 +101,24 @@ impl Line {
                         ,expressie)
                     .trim_start()
                     .to_string(),
-            LineInhoud::Toekennen { variabele_naam, expressie } =>
-                format!("{}{} := {}"
-                        ,regelnummer
-                        ,variabele_naam
-                        ,expressie)
-                    .trim_start()
-                    .to_string(),
+            LineInhoud::Toekennen { variabele_naam, argument, expressie } =>
+                if *argument == 0 {
+                    format!("{}{} := {}"
+                            ,regelnummer
+                            ,variabele_naam
+                            ,expressie)
+                        .trim_start()
+                        .to_string()
+                } else {
+                    format!("{}{}({}) := {}"
+                            ,regelnummer
+                            ,variabele_naam
+                            ,argument
+                            ,expressie)
+                        .trim_start()
+                        .to_string()
+                },
+
             LineInhoud::Verwijderen { } => "".to_string(),
         }
     }
@@ -117,6 +137,11 @@ pub(super) enum LineInhoud {
     NP {},
     NR {
         aantal: usize
+    },
+    Rij {
+        start: usize,
+        eind: usize,
+        variabele_naam: String,
     },
     Schrijf {
         breedte: usize,
@@ -138,6 +163,7 @@ pub(super) enum LineInhoud {
     },
     Toekennen {
         variabele_naam: String,
+        argument: usize,
         expressie: String,
     },
     Verwijderen {},
@@ -150,13 +176,14 @@ impl LineInhoud {
             Sleutelwoord::LIJST => Self::Lijst {},
             Sleutelwoord::NP => Self::NP {},
             Sleutelwoord::NR => Self::NR { aantal: 0 },
+            Sleutelwoord::RIJ => Self::Rij { start: 0, eind: 0, variabele_naam: String::new() },
             Sleutelwoord::SCHRIJF => Self::Schrijf { breedte: 0, decimalen: 0, expressie: String::new() },
             Sleutelwoord::SCHRIJFSYM => Self::Schrijfsym { expressie: String::new() },
             Sleutelwoord::SCHRIJM => Self::Schrijm { expressie: String::new() },
             Sleutelwoord::SPATIE => Self::Spatie { aantal: 0 },
             Sleutelwoord::START => Self::Start {},
             Sleutelwoord::TEKST => Self::Tekst { expressie: String::new() },
-            Sleutelwoord::TOEKENNEN => Self::Toekennen { variabele_naam: String::new(), expressie: String::new() },
+            Sleutelwoord::TOEKENNEN => Self::Toekennen { variabele_naam: String::new(), argument: 0, expressie: String::new() },
         }
     }
     pub(super) fn as_str(&self) -> &str {
@@ -166,6 +193,7 @@ impl LineInhoud {
             LineInhoud::Lijst { } => "Lijst",
             LineInhoud::NP { } => "NP",
             LineInhoud::NR { .. } => "NR",
+            LineInhoud::Rij { .. } => "Rij",
             LineInhoud::Schrijf { .. } => "Schrijf",
             LineInhoud::Schrijfsym { .. } => "Schrijfsym",
             LineInhoud::Schrijm { .. } => "Schrijm",
@@ -274,6 +302,7 @@ pub(super) enum Sleutelwoord {
     LIJST,
     NP,
     NR,
+    RIJ,
     SCHRIJF,
     SCHRIJFSYM,
     SCHRIJM,
@@ -291,6 +320,7 @@ impl Sleutelwoord {
             "LIJST" => Some(Sleutelwoord::LIJST),
             "NP" => Some(Sleutelwoord::NP),
             "NR" => Some(Sleutelwoord::NR),
+            "RIJ" => Some(Sleutelwoord::RIJ),
             "SCHRIJF" => Some(Sleutelwoord::SCHRIJF),
             "SCHRIJFSYM" => Some(Sleutelwoord::SCHRIJFSYM),
             "SCHRIJM" => Some(Sleutelwoord::SCHRIJM),
@@ -313,6 +343,7 @@ impl Sleutelwoord {
             Sleutelwoord::LIJST => "LIJST",
             Sleutelwoord::NP => "NP",
             Sleutelwoord::NR => "NR",
+            Sleutelwoord::RIJ => "RIJ",
             Sleutelwoord::SCHRIJF => "SCHRIJF",
             Sleutelwoord::SCHRIJFSYM => "SCHRIJFSYM",
             Sleutelwoord::SCHRIJM => "SCHRIJM",

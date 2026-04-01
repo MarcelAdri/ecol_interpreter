@@ -1,6 +1,5 @@
 use crate::interpreter::EcolMachine;
 use crate::interpreter::helpers::grens_bewaking;
-use crate::interpreter::waarden::{Waarde};
 
 pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
 pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
@@ -128,7 +127,7 @@ impl Functie {
 }
 
 impl EcolMachine {
-    pub(super) fn execute_function(&mut self, functie: &Functie) -> Result<Waarde, String> {
+    pub(super) fn execute_function(&mut self, functie: &Functie) -> Result<f32, String> {
 
         let result = match functie {
             Functie::ABS { getal } => { let uitkomst = self.execute_function_abs(getal)?; Ok(uitkomst) },
@@ -147,66 +146,66 @@ impl EcolMachine {
 
         result
     }
-    fn execute_function_abs(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_abs(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.abs()))
+        Ok(getal.abs())
     }
-    fn execute_function_arctan(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_arctan(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.atan()))
+        Ok(getal.atan())
     }
-    fn execute_function_cos(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_cos(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.cos()))
+        Ok(getal.cos())
     }
-    fn execute_function_exp(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_exp(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.exp()))
+        Ok(getal.exp())
     }
-    fn execute_function_g(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_g(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.floor()))
+        Ok(getal.floor())
     }
-    fn execute_function_gok(&mut self, laag: &f32, hoog: &f32) -> Result<Waarde, String> {
+    fn execute_function_gok(&mut self, laag: &f32, hoog: &f32) -> Result<f32, String> {
         let laag = grens_bewaking(laag, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         let hoog = grens_bewaking(hoog, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         if laag >= hoog {
             return Err(format!("De lage waarde van de GOK ({}) mag niet groter zijn dan de hoge waarde ({})", laag, hoog));
         }
 
-        Ok(Waarde::Getal(self.volgende_willekeurig(laag, hoog).round()))
+        Ok(self.volgende_willekeurig(laag, hoog).round())
     }
-    fn execute_function_gokc(&mut self) -> Result<Waarde, String> {
-        Ok(Waarde::Getal(self.volgende_willekeurig(0.0, 1.0)))
+    fn execute_function_gokc(&mut self) -> Result<f32, String> {
+        Ok(self.volgende_willekeurig(0.0, 1.0))
     }
 
-    fn execute_function_ln(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_ln(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.ln()))
+        Ok(getal.ln())
     }
-    fn execute_function_log(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_log(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.log10()))
+        Ok(getal.log10())
     }
-    fn execute_function_ps(&self) -> Result<Waarde, String> {
+    fn execute_function_ps(&self) -> Result<f32, String> {
         let werk = self.lees_regel();
-        Ok(Waarde::Getal(werk.len() as f32))
+        Ok(werk.len() as f32)
     }
-    fn execute_function_sin(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_sin(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.sin()))
+        Ok(getal.sin())
     }
-    fn execute_function_wrtl(&self, getal: &f32) -> Result<Waarde, String> {
+    fn execute_function_wrtl(&self, getal: &f32) -> Result<f32, String> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
 
-        Ok(Waarde::Getal(getal.sqrt()))
+        Ok(getal.sqrt())
     }
 }

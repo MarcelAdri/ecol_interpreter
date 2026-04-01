@@ -64,9 +64,9 @@ User types input → keydown Enter → JS calls machine.execute(line)
   → if regelnummer == 0: execute immediately (opdrachten.rs)
   → if regelnummer > 0:  store in programma (Programma::regel_toevoegen)
   → execute_tekst / execute_schrijf / execute_toekennen call solve_expression (expressies.rs)
-  → solve_expression()
-      → geen_spaties_buiten_literals()           (helpers.rs)
-      → vervang_variabelen_in_expressie(Getal)
+  → solve_expression() → Result<f32, String>
+      → geen_spaties()                           (helpers.rs)
+      → vervang_variabelen_in_expressie()
       → vervang_functies_in_expressie()         → execute_function (functions.rs)
       → bereken_expressie()
   → result appended to #history div
@@ -87,11 +87,12 @@ Currently implemented:
 - Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
 - Numeric functions: `G`, `ABS`, `WRTL`, `SIN`, `COS`, `ARCTAN`, `LN`, `LOG`, `EXP`, `GOK`, `GOKC`, `PS`
 - Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
+- `RIJ(m,n) naam` — 1D numeric array declaration (1-based; start ≥ 1); element access via `naam(index)`
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
 - Flow control: `NAAR`, `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
-- Arrays: `RIJ`, `ONDIN`, `BOVIN`
+- Array bounds functions: `ONDIN`, `BOVIN`
 - `STOP` — runtime early-exit (differs from `KLAAR`: may appear in expressions/conditions)
 
 Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented.

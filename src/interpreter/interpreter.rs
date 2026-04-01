@@ -77,9 +77,9 @@ pub(super) const SYMBOLEN: [Option<char>; 100] = {
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
-use crate::interpreter::helpers::{is_geldige_variabele_naam, result_to_string};
-use crate::interpreter::parsers::{parse_f32, parse_i32, parseer_regel};
-use super::waarden::{haal_data, VariabeleType, Waarde};
+use crate::interpreter::helpers::{result_to_string};
+use crate::interpreter::parsers::{parseer_regel};
+use super::waarden::{VariabeleType, Waarde};
 use super::program::{LineInhoud, Programma};
 
 enum RegelBuffer {
@@ -123,40 +123,72 @@ impl VariabelenOpslag {
             data_pool: Vec::with_capacity(100),
         }
     }
-    fn haal_variabele_type(&self, naam: &str) -> Option<VariabeleType> {
+    fn type_van(&self, naam: &str) -> Option<VariabeleType> {
         if let Some(index) = self.symbolen.get(naam) {
             self.data_pool[*index].type_van()
         } else {
             None
         }
     }
-    fn pak_of_maak_waarde(&mut self, naam: &str) -> Option<&Waarde> {
-        let variabele_type = self.haal_variabele_type(naam);
-        let index = self.pak_of_maak_index(naam, variabele_type).ok()?;
-
-        Some(&self.data_pool[index])
+    fn reserveer_rij(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
+        if self.bestaat(variabele_naam) {
+            return Err(format!("Variabele '{}' is al gedefinieerd.", variabele_naam));
+        }
+        let index = self.pak_of_maak_index(variabele_naam);
+        self.data_pool[index]=Waarde::new_rij(start, eind)?;
+        Ok(())
     }
-    fn pak_of_maak_index(&mut self, naam: &str, variabele_type: Option<VariabeleType>) -> Result<usize, String> {
-        use std::collections::hash_map::Entry;
-
-        let volgende_vrije_index = self.data_pool.len();
-
-        match self.symbolen.entry(naam.to_string()) {
-            Entry::Vacant(entry) => {
-                let var_type = variabele_type
-                    .ok_or_else(|| format!("Variabele '{}' heeft geen type", naam))?;
-
-                self.data_pool.push(Waarde::standaard_voor_type(var_type));
-                entry.insert(volgende_vrije_index);
-                Ok(volgende_vrije_index)
+    fn lees_waarde(&mut self, naam: &str) -> Option<Waarde> {
+        if let Some(index) = self.symbolen.get(naam) {
+            let waarde = self.data_pool[*index].clone();
+            if waarde.type_van().is_none() {
+                return None;
             }
-            Entry::Occupied(entry) => Ok(*entry.get()),
+            Some(waarde)
+        } else {
+            None
         }
     }
-    fn zet_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
-        let index = self.pak_of_maak_index(naam, waarde.type_van())?;
+
+    fn schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
+        let mut doelwaarde: Waarde;
+        if !self.bestaat(naam) {
+            if waarde.type_van() == Some(VariabeleType::Rij) {
+                return Err(format!("RIJ-variabele '{}' is nog niet gedefinieerd.", naam));
+            }
+        } else {
+            let Some(doel_waarde) = self.lees_waarde(naam) else {
+                return Err(format!("INTERNE FOUT: variabele '{}' niet opgeslagen.", naam));
+            };
+            doelwaarde = doel_waarde;
+            if doelwaarde.type_van() != None {
+                if doelwaarde.type_van() != waarde.type_van() {
+                    return Err(format!("Variabele '{}' is gedefinieerd als een {}, en de waarde om op te slaan is een {}."
+                                       ,naam
+                                       ,doelwaarde.type_van().unwrap().to_string()
+                                       ,waarde.type_van().unwrap().to_string()));
+                }
+            }
+        }
+
+        let index = self.pak_of_maak_index(naam);
         self.data_pool[index] = waarde;
         Ok(())
+    }
+    fn pak_of_maak_index(&mut self, naam: &str) -> usize {
+        use std::collections::hash_map::Entry;
+        let volgende_vrije_index = self.data_pool.len();
+        match self.symbolen.entry(naam.to_string()) {
+            Entry::Vacant(entry) => {
+                self.data_pool.push(Waarde::NogNietBepaald); // placeholder
+                entry.insert(volgende_vrije_index);
+                volgende_vrije_index
+            }
+            Entry::Occupied(entry) => *entry.get(),
+        }
+    }
+    fn bestaat(&self, naam: &str) -> bool {
+        self.symbolen.contains_key(naam)
     }
 }
 pub struct EcolMachine {
@@ -175,14 +207,20 @@ impl EcolMachine {
         }
     }
 
-    pub(super) fn haal_variabele_type(&self, naam: &str) -> Option<VariabeleType> {
-        self.variabelen_opslag.haal_variabele_type(naam)
+    pub(super) fn var_type_van(&self, naam: &str) -> Option<VariabeleType> {
+        self.variabelen_opslag.type_van(naam)
     }
-    pub(super) fn pak_of_maak_waarde(&mut self, naam: &str) -> Option<&Waarde> {
-        self.variabelen_opslag.pak_of_maak_waarde(naam)
+    pub(super) fn var_lees_waarde(&mut self, naam: &str) -> Option<Waarde> {
+        self.variabelen_opslag.lees_waarde(naam)
     }
-    pub(super) fn zet_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
-        self.variabelen_opslag.zet_waarde(naam, waarde)
+    pub(super) fn var_schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
+        self.variabelen_opslag.schrijf_waarde(naam, waarde)
+    }
+    pub(super) fn var_reserveer_rij(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
+        self.variabelen_opslag.reserveer_rij(variabele_naam, start, eind)
+    }
+    pub(super) fn var_bestaat(&self, naam: &str) -> bool {
+        self.variabelen_opslag.bestaat(naam)
     }
     pub(super) fn naar_regel_buffer(&mut self, regel: &str) -> Result<(), String>{
         self.regel_buffer.naar_regel_buffer(regel)?;
@@ -232,6 +270,9 @@ impl EcolMachine {
                         LineInhoud::NR { aantal } => {
                             reply =  result_to_string(self.execute_nr( *aantal ));
                         },
+                        LineInhoud::Rij { start, eind, variabele_naam } => {
+                            reply = result_to_string(self.execute_rij(*start, *eind, variabele_naam));
+                        },
                         LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                             reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));
                         },
@@ -250,8 +291,8 @@ impl EcolMachine {
                         LineInhoud::Tekst { expressie } => {
                             reply = result_to_string(self.execute_tekst(expressie));
                         },
-                        LineInhoud::Toekennen {variabele_naam, expressie} => {
-                            reply = result_to_string(self.execute_toekennen(variabele_naam, expressie));
+                        LineInhoud::Toekennen {variabele_naam, argument,  expressie} => {
+                            reply = result_to_string(self.execute_toekennen(variabele_naam, *argument, expressie));
                         },
                         LineInhoud::Verwijderen { } => {
                             reply = "Verwijderen van een ongenummerde regel is niet mogelijk.".to_string();
@@ -277,39 +318,39 @@ impl EcolMachine {
         reply
     }
 
-    fn lees_getal_variabele_argument(&mut self, naam: &str) -> Result<&Waarde, String> {
-        if !(self.variabelen_opslag.haal_variabele_type(naam) == Some(VariabeleType::Getal))
-        {
-            return Err("Argument moet een getal zijn".to_string());
-        }
-        let Some(waarde) = self.variabelen_opslag.pak_of_maak_waarde(naam) else {
-            return Err("Fout bij ophalen variabele".to_string());
-        };
-        Ok(waarde)
-    }
-    pub(super) fn lees_integer_argument(&mut self, argument: &str) -> Result<usize, String> {
-        if is_geldige_variabele_naam(argument) {
+    // fn lees_getal_variabele_argument(&mut self, naam: &str) -> Result<&Waarde, String> {
+    //     if !(self.var_type_van(naam) == Some(VariabeleType::Getal)) && !(self.var_type_van(naam) == Some(VariabeleType::Rij))
+    //     {
+    //         return Err("Argument moet een getal of een Rij zijn".to_string());
+    //     }
+    //     let Some(waarde) = self.var_lees_waarde(naam) else {
+    //         return Err("Fout bij ophalen variabele".to_string());
+    //     };
+    //     Ok(waarde)
+    // }
+    // pub(super) fn lees_integer_argument(&mut self, argument: &str) -> Result<usize, String> {
+    //     if is_geldige_variabele_naam(argument) {
+    //
+    //         let complete_waarde = self.lees_getal_variabele_argument(argument)?;
+    //         Ok(parse_i32(&haal_data(&complete_waarde)?) as usize)
+    //     } else {
+    //         argument
+    //             .parse::<usize>()
+    //             .map_err(|_| "Ongeldige integer-waarde".to_string())
+    //     }
+    // }
 
-            let complete_waarde = self.lees_getal_variabele_argument(argument)?;
-            Ok(parse_i32(&haal_data(&complete_waarde)) as usize)
-        } else {
-            argument
-                .parse::<usize>()
-                .map_err(|_| "Ongeldige integer-waarde".to_string())
-        }
-    }
-
-    fn lees_getal_argument(&mut self, argument: &str) -> Result<f32, String> {
-        if is_geldige_variabele_naam(argument) {
-
-            let complete_waarde = self.lees_getal_variabele_argument(argument)?;
-            Ok(parse_f32(&haal_data(&complete_waarde)))
-        } else {
-            argument
-                .parse::<f32>()
-                .map_err(|_| "Ongeldig getal".to_string())
-        }
-    }
+    // fn lees_getal_argument(&mut self, argument: &str) -> Result<f32, String> {
+    //     if is_geldige_variabele_naam(argument) {
+    //
+    //         let complete_waarde = self.lees_getal_variabele_argument(argument)?;
+    //         Ok(parse_f32(&haal_data(&complete_waarde)))
+    //     } else {
+    //         argument
+    //             .parse::<f32>()
+    //             .map_err(|_| "Ongeldig getal".to_string())
+    //     }
+    // }
 
 
 }
