@@ -115,7 +115,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
     };
 
     // 3. Geen argumenten: direct klaar
-    if functie.verwacht_argumenten() == 0 {
+    if functie.verwacht_argumenten() == 0 && !functie.verwacht_string_argument() {
         return Ok(Some(FunctieAanroep::new(functie, start_naam, einde_naam, vec![])));
     }
 
@@ -125,18 +125,24 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
     }
     let abs_open = einde_naam + expressie[einde_naam..].find('(').unwrap();
 
-    // 5. Zoek bijbehorend sluithaakje (haakjesdiepte meettellen)
+    // 5. Zoek bijbehorend sluithaakje (haakjes-diepte meetellen)
     let abs_sluit = vind_sluitende_haak(expressie, abs_open)?;
 
     // 6. Parseer argumenten
     let argumenten_str = &expressie[abs_open + 1..abs_sluit];
     let argumenten = splits_argumenten(argumenten_str);
 
-    if argumenten.len() != functie.verwacht_argumenten() {
+    if argumenten.len() != functie.verwacht_argumenten() && !functie.verwacht_string_argument() {
         return Err(format!(
             "'{}' verwacht {} argumenten, maar {} zijn gegeven",
             functienaam,
             functie.verwacht_argumenten(),
+            argumenten.len()
+        ));
+    } else if functie.verwacht_string_argument()  && argumenten.len() != 1 {
+        return Err(format!(
+            "'{}' verwacht 1 string argument, maar {} zijn gegeven",
+            functienaam,
             argumenten.len()
         ));
     }

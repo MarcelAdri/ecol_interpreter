@@ -1,10 +1,12 @@
+use std::cmp::PartialEq;
 use std::str::FromStr;
 use crate::interpreter::EcolMachine;
 use crate::interpreter::helpers::{first_word, format_getal, geen_spaties, is_geldige_variabele_naam};
 use crate::interpreter::parsers::{parseer_functie, parseer_variabele};
 use crate::interpreter::program::{Operator};
-use crate::interpreter::functions::{Functie};
+use crate::interpreter::functions::{Functie, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
+
 
 impl EcolMachine {
     pub(super) fn bereken_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
@@ -39,8 +41,8 @@ impl EcolMachine {
     }
     pub(super) fn solve_expression(&mut self, expressie: &str) -> Result<f32, String> {
         let mut werk_expressie = geen_spaties(expressie);
-        self.vervang_variabelen_in_expressie(&mut werk_expressie)?;
         self.vervang_functies_in_expressie(&mut werk_expressie)?;
+        self.vervang_variabelen_in_expressie(&mut werk_expressie)?;
         self.bereken_expressie(&mut werk_expressie)?;
 
         let resultaat = f32::from_str(&werk_expressie);
@@ -61,15 +63,27 @@ impl EcolMachine {
     pub(super) fn vervang_functies_in_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
 
         while let Some(werk_functie) = parseer_functie(werk_expressie)? {
-            let mut argumenten_num: Vec<f32> = Vec::new();
-            for argument in werk_functie.argumenten() {
-                let arg = self.solve_expression(argument)?;
-                argumenten_num.push(arg);
-            }
             let functie_naam = werk_functie.functie().clone();
-            let functie = &Functie::new(functie_naam, argumenten_num, "")?;
+            let functie: Functie;
 
-            let uitkomst = self.execute_function(functie)?.to_string();
+            if functie_naam == FunctieNaam::ONDIN || functie_naam == FunctieNaam::BOVIN {
+                let argumenten = werk_functie.argumenten();
+                if argumenten.len() != 1 {
+                    return Err(format!("Functie {} verwacht slechts één argument ({}).", functie_naam.to_string(), argumenten.len()));
+                }
+                functie = Functie::new(functie_naam, Vec::new(), &argumenten[0])?;
+            } else {
+                let mut argumenten_num: Vec<f32> = Vec::new();
+                for argument in werk_functie.argumenten() {
+                    let arg = self.solve_expression(argument)?;
+                    argumenten_num.push(arg);
+                }
+
+                functie = Functie::new(functie_naam, argumenten_num, "")?;
+            }
+
+
+            let uitkomst = self.execute_function(&functie)?.to_string();
 
             werk_expressie.replace_range(werk_functie.start()..werk_functie.einde(), &uitkomst.trim());
         }

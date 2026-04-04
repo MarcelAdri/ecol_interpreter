@@ -231,7 +231,7 @@ impl EcolMachine {
                             return Err("Geen index verwijzing bij RIJSYM-variabele.".to_string());
                         }
 
-                        waarde.rijsym_set_value(value, argument)?;
+                        waarde.rij_set_value(value, argument)?;
                     }
                 }
             },

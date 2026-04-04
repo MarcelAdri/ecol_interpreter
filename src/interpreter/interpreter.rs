@@ -146,7 +146,7 @@ impl VariabelenOpslag {
         self.data_pool[index]=Waarde::new_rijsym(start, eind)?;
         Ok(())
     }
-    fn lees_waarde(&mut self, naam: &str) -> Option<Waarde> {
+    fn lees_waarde(&self, naam: &str) -> Option<Waarde> {
         if let Some(index) = self.symbolen.get(naam) {
             let waarde = self.data_pool[*index].clone();
             if waarde.type_van().is_none() {
@@ -220,7 +220,7 @@ impl EcolMachine {
     pub(super) fn var_type_van(&self, naam: &str) -> Option<VariabeleType> {
         self.variabelen_opslag.type_van(naam)
     }
-    pub(super) fn var_lees_waarde(&mut self, naam: &str) -> Option<Waarde> {
+    pub(super) fn var_lees_waarde(&self, naam: &str) -> Option<Waarde> {
         self.variabelen_opslag.lees_waarde(naam)
     }
     pub(super) fn var_schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {

@@ -89,11 +89,12 @@ Currently implemented:
 - Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
 - `RIJ(m,n) naam` — 1D numeric array (f32, 1-based; start ≥ 1); element access via `naam(index)`
 - `RIJSYM(m,n) naam` — 1D symbol array (u8, 0–99, 1-based); same element syntax; out-of-range write gives error
+- `ONDIN(naam)` — lower bound of a RIJ or RIJSYM array; error if argument is not an array
+- `BOVIN(naam)` — upper bound of a RIJ or RIJSYM array; error if argument is not an array
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
 - Flow control: `NAAR`, `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
-- Array bounds functions: `ONDIN`, `BOVIN`
 - `STOP` — runtime early-exit (differs from `KLAAR`: may appear in expressions/conditions)
 
 Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented.

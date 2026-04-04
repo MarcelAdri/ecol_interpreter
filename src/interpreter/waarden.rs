@@ -59,6 +59,9 @@ impl EcolRij {
         let index = self.get_index(positie)?;
         Ok(self.value[index])
     }
+    fn haal_grenswaarden(&self) -> (usize, usize) {
+        (self.start, self.einde)
+    }
 
     fn get_index(&self, positie: usize) -> Result<usize, String> {
         if positie < self.start || positie > self.einde {
@@ -101,6 +104,9 @@ impl EcolRijsym {
     fn get_value(&self, positie: usize) -> Result<f32, String> {
         let index = self.get_index(positie)?;
         Ok(self.value[index] as f32)
+    }
+    fn haal_grenswaarden(&self) -> (usize, usize) {
+        (self.start, self.einde)
     }
 
     fn get_index(&self, positie: usize) -> Result<usize, String> {
@@ -153,17 +159,19 @@ impl Waarde {
             Waarde::Rijsym(_) => Some(VariabeleType::Rijsym),
             Waarde::NogNietBepaald => None,
         }
-    }
+    }    
     pub(super) fn rij_set_value(&mut self, value: f32, positie: usize) -> Result<(), String> {
         match self {
-            Waarde::Rij(x) => { x.set_value(positie, value) }
-            _ => Err("Waarde is geen rij".to_string()),
+            Waarde::Rij(x) => { x.set_value(positie, value) },
+            Waarde::Rijsym(x) => { x.set_value(positie, value)},
+            _ => Err("Waarde is geen RIJ of RIJSYM".to_string()),
         }
     }
-    pub(super) fn rijsym_set_value(&mut self, value: f32, positie: usize) -> Result<(), String> {
+    pub(super) fn rij_haal_grenswaarden(&self) -> (usize, usize) {
         match self {
-            Waarde::Rijsym(x) => { x.set_value(positie, value) }
-            _ => Err("Waarde is geen rijsym".to_string()),
+            Waarde::Rij(x) => { x.haal_grenswaarden() },
+            Waarde::Rijsym(x) => { x.haal_grenswaarden() },
+            _ => (0, 0),
         }
     }
     pub(super) fn haal_getal(&self, positie: usize) -> Result<f32, String> {
