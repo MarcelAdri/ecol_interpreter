@@ -1,4 +1,4 @@
-use crate::interpreter::helpers::{extract_argumenten, extract_keyword, extract_regelnummer, extract_variabele_naam, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
+use crate::interpreter::helpers::{extract_argumenten, extract_keyword, extract_regelnummer, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
 use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord};
 use crate::interpreter::functions::{Functie, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleAanroep};
@@ -208,6 +208,9 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
     if is_alleen_regelnummer {
         return Ok(Line::new(regelnummer, LineInhoud::Verwijderen {}));
     }
+    if rest_na_regelnummer.trim_start().starts_with(':') {
+        return Ok(Line::new(regelnummer, LineInhoud::LegeRegel {}));
+    }
 
     let Some((keyword, rest_na_keyword)) = extract_keyword(rest_na_regelnummer) else { return Err("Onbekend of geen keyword.".to_string()) };
 
@@ -232,6 +235,15 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             } else {
                 Err("LIJST kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
             }
+        },
+        Sleutelwoord::NAAR => {
+            let Some(sprong_doel) = geen_spaties(rest_na_keyword).parse::<usize>().ok() else { return Err("Naar verwacht een regelnummer als argument.".to_string()) };
+
+            if sprong_doel < 1 || sprong_doel > 999 {
+                return Err("NAAR verwacht een regelnummer tussen 1 en 999.".to_string());
+            }
+
+            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel }))
         },
         Sleutelwoord::NP => {
             is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)

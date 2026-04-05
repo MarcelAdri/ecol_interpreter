@@ -156,10 +156,12 @@
 
 <span class="tag hist">historisch</span>
 
-<p>Een ECOL-programma bestaat uit een optioneel <em>funktiedeel</em> (FUN-beschrijvingen) gevolgd door het <em>hoofdprogramma</em>:</p>
+<p>In het originele ECOL bestaat een programma uit een optioneel <em>funktiedeel</em> (FUN-beschrijvingen) gevolgd door het <em>hoofdprogramma</em>. <span class="tag hist">historisch</span></p>
+
+<p>In deze interpreter mogen FUN- en SUB-beschrijvingen <strong>overal</strong> in het programma staan — niet per se bovenaan. Een aanroep mag in de regelvolgorde vóór de definitie staan (forward reference). FUN- en SUB-definitieregels worden bij normale uitvoering overgeslagen en alleen uitgevoerd bij aanroeping. <span class="tag ext">extensie</span></p>
 
 <pre>START
-  [opdrachten, RIJ-reserveringen, SUB-beschrijvingen]
+  [opdrachten, RIJ-reserveringen, SUB-beschrijvingen, FUN-beschrijvingen]
 KLAAR</pre>
 
 <p><strong>Startpunt</strong> — in het originele ECOL kan <code>START</code> als programmaregel met een regelnummer dienen als koptekst. In deze interpreter wordt <code>START</code> altijd direct uitgevoerd (niet als programmaregel opgeslagen); uitvoering begint altijd bij het laagste aanwezige regelnummer. <span class="tag nee">niet gepland</span></p>
@@ -194,8 +196,8 @@ r(i) := LEES        ; array-element</pre>
 
 <p>Een 1D-array wordt gereserveerd met <code>RIJ</code> (floating-point waarden) of <code>RIJSYM</code> (symboolwaarden: gehele getallen 0–99, compacter opgeslagen als bytes). Er zijn geen 2D-arrays.</p>
 
-<pre>RIJ(m,n) naam       ; reserveert elementen naam(m) t/m naam(n), elk een f32
-RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99 (opgeslagen als u8)</pre>
+<pre>RIJ(m,n) naam       ; reserveert elementen naam(m) t/m naam(n), elk een getal
+RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99</pre>
 
 <p><strong>Let op:</strong> in het originele ECOL werd de notatie <code>RIJ(m:n)naam</code> gebruikt (dubbele punt als scheidingsteken, geen spatie voor de naam). Deze interpreter gebruikt een komma als scheidingsteken en vereist een spatie vóór de variabelenaam.</p>
 
@@ -206,6 +208,8 @@ RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99 (opgeslagen als
 a := naam(index)</pre>
 
 <p>De index wordt als geheel getal geïnterpreteerd. Buiten de grenzen gaat het programma met een fout. Bij <code>RIJSYM</code> geeft een waarde buiten 0–99 eveneens een fout.</p>
+
+<p>Een bestaande <code>RIJ</code> of <code>RIJSYM</code> mag opnieuw gedefinieerd worden; de array wordt dan opnieuw geïnitialiseerd. Dit is nuttig wanneer een lus terugspringt naar vóór de reserveringsregel.</p>
 
 <h2>Uitvoer — het regelbuffer-model</h2>
 
@@ -352,17 +356,20 @@ a := naam(index)</pre>
 
 <h2>Stroombesturing</h2>
 
-<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
+<span class="tag hist">historisch</span>
 
 <h3>Onvoorwaardelijke sprong: NAAR</h3>
+<span class="tag ok">geïmpl.</span>
 <pre>50 NAAR 10</pre>
 
 <h3>Voorwaarde: ALS … DAN … ANDERS</h3>
+<span class="tag todo">gepland</span>
 <p>De DAN-sprong wordt uitgevoerd als de vergelijking WAAR is. <code>ANDERS</code> is optioneel; zonder ANDERS valt het programma bij ONWAAR door naar de volgende regel.</p>
 <pre>20 ALS a &lt; 0 DAN 100 ANDERS 200
 30 ALS p = q EN r &gt; 0 DAN 50</pre>
 
 <h3>Teller-lus: MET … HERHAAL</h3>
+<span class="tag todo">gepland</span>
 <p><code>MET</code> opent de lus, <code>HERHAAL</code> sluit hem. Bij negatieve stap loopt de teller omlaag. Geneste lussen zijn toegestaan.</p>
 <pre>MET &lt;stap&gt;, &lt;var&gt; := &lt;begin&gt;, &lt;einde&gt;
   [programmaregels]
@@ -390,13 +397,12 @@ HERHAAL</pre>
 <p>Voorbeeld:</p>
 <pre>10 druk af
 20 KLAAR
+30 SUB druk af
+40   TEKST := "hallo"
+50   NR
+60 END</pre>
 
-SUB druk af
-  TEKST := "hallo"
-  NR
-END</pre>
-
-<p>Geen RIJ-reserveringen en geen SUB-beschrijvingen binnen een SUB. Een SUB-roep mag vóór de beschrijving in de tekst staan.</p>
+<p>Geen RIJ-reserveringen en geen SUB-beschrijvingen binnen een SUB. Een SUB-roep mag vóór de beschrijving in de tekst staan (forward reference). SUB-definitieregels worden bij normale uitvoering overgeslagen.</p>
 
 <h2>Functies: FUN</h2>
 
@@ -409,13 +415,14 @@ END</pre>
 FUN := &lt;uitdrukking&gt;</pre>
 
 <p>Aanroep in een uitdrukking:</p>
-<pre>uitkomst := naam(aktueel1, aktueel2)</pre>
+<pre>10 uitkomst := naam(aktueel1, aktueel2)</pre>
 
 <p>Voorbeeld:</p>
-<pre>FUN kwadraat(x)
-  FUN := x M 2
+<pre>10 FUN kwadraat(x)
+20   FUN := x M 2
+30 p := kwadraat(5)     ; p krijgt waarde 25</pre>
 
-p := kwadraat(5)        ; p krijgt waarde 25</pre>
+<p>Een FUN-roep mag vóór de beschrijving in de tekst staan (forward reference). FUN-definitieregels worden bij normale uitvoering overgeslagen en alleen uitgevoerd bij aanroeping.</p>
 
 <p><strong>Opmerking:</strong> het FUN-mechanisme was bij het verschijnen van het docentenboek (1973) nog niet op alle computers geïmplementeerd.</p>
 

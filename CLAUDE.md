@@ -87,17 +87,26 @@ Currently implemented:
 - Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
 - Numeric functions: `G`, `ABS`, `WRTL`, `SIN`, `COS`, `ARCTAN`, `LN`, `LOG`, `EXP`, `GOK`, `GOKC`, `PS`
 - Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
-- `RIJ(m,n) naam` — 1D numeric array (f32, 1-based; start ≥ 1); element access via `naam(index)`
-- `RIJSYM(m,n) naam` — 1D symbol array (u8, 0–99, 1-based); same element syntax; out-of-range write gives error
+- `RIJ(m,n) naam` — 1D numeric array (f32, 1-based; start ≥ 1); element access via `naam(index)`; redefinition reinitialises the array
+- `RIJSYM(m,n) naam` — 1D symbol array (u8, 0–99, 1-based); same element syntax; out-of-range write gives error; redefinition reinitialises
 - `ONDIN(naam)` — lower bound of a RIJ or RIJSYM array; error if argument is not an array
 - `BOVIN(naam)` — upper bound of a RIJ or RIJSYM array; error if argument is not an array
+- `n:` — empty program line (valid jump target, no statement)
+- `NAAR <regelnummer>` — unconditional jump; backward jump triggers rollback of RIJ/RIJSYM declarations between target and jump site; program aborted after 5 s (infinite loop guard)
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
-- Flow control: `NAAR`, `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
+- Flow control: `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
 - `STOP` — runtime early-exit (differs from `KLAAR`: may appear in expressions/conditions)
+- `FUN` / `SUB` — user-defined functions and subroutines
 
-Numbered program lines (1–999): `Programma` struct stores and retrieves lines; flow control not yet implemented.
+Numbered program lines (1–999): `Programma` struct stores and retrieves lines; `NAAR` implemented; `ALS`/`DAN`/`ANDERS` and `MET`/`HERHAAL` not yet implemented.
+
+### Deliberate deviations from the 1973 spec
+
+- **`:` only for empty lines** — `n:` (label without statement) is valid; `n: statement` is not. ECOL had no multi-statement lines, so `:` after a statement is meaningless.
+- **FUN/SUB anywhere in the program** — definitions may appear before or after their call sites (forward references). The interpreter scans for all FUN/SUB definitions before execution begins.
+- **FUN/SUB definition lines are skipped during normal execution** — they are only executed when called.
 
 ### Variable Naming Rules
 

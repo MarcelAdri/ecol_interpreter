@@ -20,7 +20,9 @@ impl Line {
         match &self.inhoud {
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
             LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
+            LineInhoud::LegeRegel { } => None,
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
+            LineInhoud::Naar { .. } => Some(Sleutelwoord::NAAR),
             LineInhoud::NP {} => Some(Sleutelwoord::NP),
             LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
             LineInhoud::Rij { .. } => Some(Sleutelwoord::RIJ),
@@ -49,7 +51,13 @@ impl Line {
             LineInhoud::Klaar {} => format!("{}KLAAR", regelnummer)
                 .trim_start()
                 .to_string(),
+            LineInhoud::LegeRegel { } => format!("{}:", regelnummer)
+                .trim_start()
+                .to_string(),
             LineInhoud::Lijst {} => format!("{}LIJST", regelnummer)
+                .trim_start()
+                .to_string(),
+            LineInhoud::Naar { sprong_doel } => format!("{}NAAR {}", regelnummer, sprong_doel)
                 .trim_start()
                 .to_string(),
             LineInhoud::NP {} => format!("{}NP", regelnummer)
@@ -142,7 +150,9 @@ impl Line {
 pub(super) enum LineInhoud {
     Help {},
     Klaar {},
+    LegeRegel {},
     Lijst {},
+    Naar {sprong_doel: usize},
     NP {},
     NR {
         aantal: usize
@@ -188,6 +198,7 @@ impl LineInhoud {
             Sleutelwoord::HELP => Self::Help {},
             Sleutelwoord::KLAAR => Self::Klaar {},
             Sleutelwoord::LIJST => Self::Lijst {},
+            Sleutelwoord::NAAR => Self::Naar {sprong_doel: 0},
             Sleutelwoord::NP => Self::NP {},
             Sleutelwoord::NR => Self::NR { aantal: 0 },
             Sleutelwoord::RIJ => Self::Rij { start: 0, eind: 0, variabele_naam: String::new() },
@@ -205,7 +216,9 @@ impl LineInhoud {
         match self {
             LineInhoud::Help { } => "Help",
             LineInhoud::Klaar { } => "Klaar",
+            LineInhoud::LegeRegel { } => "",
             LineInhoud::Lijst { } => "Lijst",
+            LineInhoud::Naar { .. } => "Naar",
             LineInhoud::NP { } => "NP",
             LineInhoud::NR { .. } => "NR",
             LineInhoud::Rij { .. } => "Rij",
@@ -316,6 +329,7 @@ pub(super) enum Sleutelwoord {
     HELP,
     KLAAR,
     LIJST,
+    NAAR,
     NP,
     NR,
     RIJ,
@@ -335,6 +349,7 @@ impl Sleutelwoord {
             "HELP" => Some(Sleutelwoord::HELP),
             "KLAAR" => Some(Sleutelwoord::KLAAR),
             "LIJST" => Some(Sleutelwoord::LIJST),
+            "NAAR" => Some(Sleutelwoord::NAAR),
             "NP" => Some(Sleutelwoord::NP),
             "NR" => Some(Sleutelwoord::NR),
             "RIJ" => Some(Sleutelwoord::RIJ),
@@ -359,6 +374,7 @@ impl Sleutelwoord {
             Sleutelwoord::HELP => "HELP",
             Sleutelwoord::KLAAR => "KLAAR",
             Sleutelwoord::LIJST => "LIJST",
+            Sleutelwoord::NAAR => "NAAR",
             Sleutelwoord::NP => "NP",
             Sleutelwoord::NR => "NR",
             Sleutelwoord::RIJ => "RIJ",

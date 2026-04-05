@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+use web_sys::js_sys;
 use crate::interpreter::EcolMachine;
 use crate::interpreter::helpers::{extract_variabele_naam, format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
@@ -102,8 +104,14 @@ impl EcolMachine {
     pub(super) fn execute_start(&self, output: &mut dyn FnMut(&str)) -> Result<String, String> {
         let mut running_program = EcolMachine::new();
         let mut current = 0;
+        let start_tijd = js_sys::Date::now();
+        let mut stappen: u32 = 0;
 
         loop{
+            stappen += 1;
+            if stappen % 1000 == 0 && js_sys::Date::now() - start_tijd > 5000.0 {
+                return Err("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string());
+            }
             let Some((&regelnummer, current_regel)) = self.programma().range(current..).next() else {
                 return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string());
             };
@@ -116,8 +124,25 @@ impl EcolMachine {
                 LineInhoud::Klaar { } =>{
                     break;
                 },
+                LineInhoud::LegeRegel { } => {
+                    continue;
+                },
                 LineInhoud::Lijst { } => {
                     return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", regelnummer));
+                },
+                LineInhoud::Naar { sprong_doel } => {
+                    let doel = *sprong_doel as u16;
+
+                    if self.programma().contains_key(&doel) {
+                        if doel < current {
+                            running_program.rollback_program(self.programma(), current, doel);
+                        }
+                        current = doel;
+                        continue;
+                    } else {
+                        return Err(format!("FOUTMELDING in regel {}: Sprong naar niet gedefinieerde regel {}.", regelnummer, doel));
+                    }
+
                 },
                 LineInhoud::NP { } => {
                     let regel = running_program.execute_np( output )
@@ -206,6 +231,10 @@ impl EcolMachine {
     }
     pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, argument: usize, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
+        if !self.var_bestaat(variabele_naam) {
+            return Err(format!("RIJ-Variabele '{}' is niet gedefinieerd.", variabele_naam));
+        }
+
         let mut waarde = self.var_lees_waarde(variabele_naam).unwrap_or(Waarde::NogNietBepaald).clone();
         let var_type_compleet = self.var_type_van(variabele_naam);
         let variabele_type: VariabeleType;
@@ -245,5 +274,24 @@ impl EcolMachine {
 
         let _ = self.var_schrijf_waarde(variabele_naam, waarde)?;
         Ok("".to_string())
+    }
+
+    fn rollback_program(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, current: u16, doel: u16) {
+        let mut current_line = doel;
+
+        loop {
+            let Some((&regelnummer, current_regel)) = lopend_programma.range(current_line..current).next() else {
+                return;
+            };
+            current_line = regelnummer + 1;
+
+            match current_regel {
+                LineInhoud::Rij { start, eind, variabele_naam } |
+                LineInhoud::Rijsym { start, eind, variabele_naam } => {
+                    self.var_wis_rij(variabele_naam)
+                },
+                _ => { continue },
+            }
+        }
     }
 }

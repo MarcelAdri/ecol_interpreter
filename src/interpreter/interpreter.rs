@@ -131,20 +131,25 @@ impl VariabelenOpslag {
         }
     }
     fn reserveer_rij(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
-        if self.bestaat(variabele_naam) {
-            return Err(format!("Variabele '{}' is al gedefinieerd.", variabele_naam));
-        }
         let index = self.pak_of_maak_index(variabele_naam);
         self.data_pool[index]=Waarde::new_rij(start, eind)?;
         Ok(())
     }
     fn reserveer_rijsym(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
-        if self.bestaat(variabele_naam) {
-            return Err(format!("Variabele '{}' is al gedefinieerd.", variabele_naam));
-        }
         let index = self.pak_of_maak_index(variabele_naam);
         self.data_pool[index]=Waarde::new_rijsym(start, eind)?;
         Ok(())
+    }
+    fn wis_rij(&mut self, variabele_naam: &str)  {
+        let var_type = self.type_van(variabele_naam);
+        match var_type {
+            Some(VariabeleType::Rij) | Some(VariabeleType::Rijsym) => {
+                let index = self.symbolen[variabele_naam];
+                self.data_pool[index] = Waarde::NogNietBepaald;
+                self.symbolen.remove(variabele_naam);
+            },
+            _ => { },
+        }
     }
     fn lees_waarde(&self, naam: &str) -> Option<Waarde> {
         if let Some(index) = self.symbolen.get(naam) {
@@ -232,6 +237,9 @@ impl EcolMachine {
     pub(super) fn var_reserveer_rijsym(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
         self.variabelen_opslag.reserveer_rijsym(variabele_naam, start, eind)
     }
+    pub(super) fn var_wis_rij(&mut self, variabele_naam: &str) {
+        self.variabelen_opslag.wis_rij(variabele_naam)
+    }
     pub(super) fn var_bestaat(&self, naam: &str) -> bool {
         self.variabelen_opslag.bestaat(naam)
     }
@@ -274,8 +282,14 @@ impl EcolMachine {
                             //No action needed, just return an empty string.
                             reply = "".to_string();
                         },
+                        LineInhoud::LegeRegel { } => {
+                            reply = "".to_string();
+                        },
                         LineInhoud::Lijst { } => {
                             reply = result_to_string(self.execute_lijst());
+                        },
+                        LineInhoud::Naar { .. } => {
+                            reply = "".to_string();
                         },
                         LineInhoud::NP { } => {
                             reply = result_to_string(self.execute_np( output));

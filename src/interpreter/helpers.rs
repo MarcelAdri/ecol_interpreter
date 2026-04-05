@@ -39,7 +39,7 @@ pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), Stri
     if is_alleen_regelnummer {
         nummer = input.trim();
         restregel = "";
-    } else if let Some(positie) = input.find(|c: char| c.is_ascii_alphabetic()) {
+    } else if let Some(positie) = input.find(|c: char| c.is_ascii_alphabetic() || c == ':') {
         let (gevonden_nummer, rest) = input.split_at(positie);
         nummer = gevonden_nummer;
         restregel = rest.trim_start();
