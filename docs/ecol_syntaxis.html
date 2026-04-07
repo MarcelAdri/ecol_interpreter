@@ -316,18 +316,18 @@ a := naam(index)</pre>
 
 <h2>Vergelijkingen en logische operatoren</h2>
 
-<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
+<span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
 <table>
-  <tr><th>Operator</th><th>Betekenis</th></tr>
-  <tr><td><code>&lt;</code></td><td>Kleiner dan</td></tr>
-  <tr><td><code>≤</code></td><td>Kleiner dan of gelijk aan</td></tr>
-  <tr><td><code>=</code></td><td>Gelijk aan</td></tr>
-  <tr><td><code>≠</code></td><td>Ongelijk aan</td></tr>
-  <tr><td><code>≥</code></td><td>Groter dan of gelijk aan</td></tr>
-  <tr><td><code>&gt;</code></td><td>Groter dan</td></tr>
-  <tr><td><code>EN</code></td><td>Logische en (lagere prioriteit dan vergelijkers)</td></tr>
-  <tr><td><code>OF</code></td><td>Logische of (laagste prioriteit)</td></tr>
+  <tr><th>Operator</th><th>Betekenis</th><th>Alternatief</th></tr>
+  <tr><td><code>&lt;</code></td><td>Kleiner dan</td><td></td></tr>
+  <tr><td><code>≤</code></td><td>Kleiner dan of gelijk aan</td><td><code>&lt;=</code></td></tr>
+  <tr><td><code>=</code></td><td>Gelijk aan</td><td></td></tr>
+  <tr><td><code>≠</code></td><td>Ongelijk aan</td><td><code>&lt;&gt;</code></td></tr>
+  <tr><td><code>≥</code></td><td>Groter dan of gelijk aan</td><td><code>&gt;=</code></td></tr>
+  <tr><td><code>&gt;</code></td><td>Groter dan</td><td></td></tr>
+  <tr><td><code>EN</code></td><td>Logische en (hogere prioriteit dan OF)</td><td></td></tr>
+  <tr><td><code>OF</code></td><td>Logische of (laagste prioriteit)</td><td></td></tr>
 </table>
 
 <h2>Standaardfuncties</h2>
@@ -363,7 +363,7 @@ a := naam(index)</pre>
 <pre>50 NAAR 10</pre>
 
 <h3>Voorwaarde: ALS … DAN … ANDERS</h3>
-<span class="tag todo">gepland</span>
+<span class="tag ok">geïmpl.</span>
 <p>De DAN-sprong wordt uitgevoerd als de vergelijking WAAR is. <code>ANDERS</code> is optioneel; zonder ANDERS valt het programma bij ONWAAR door naar de volgende regel.</p>
 <pre>20 ALS a &lt; 0 DAN 100 ANDERS 200
 30 ALS p = q EN r &gt; 0 DAN 50</pre>
