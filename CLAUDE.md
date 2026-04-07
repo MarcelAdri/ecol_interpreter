@@ -93,14 +93,17 @@ Currently implemented:
 - `BOVIN(naam)` — upper bound of a RIJ or RIJSYM array; error if argument is not an array
 - `n:` — empty program line (valid jump target, no statement)
 - `NAAR <regelnummer>` — unconditional jump; backward jump triggers rollback of RIJ/RIJSYM declarations between target and jump site; program aborted after 5 s (infinite loop guard)
+- Comparison operators: `=`, `<>` / `≠`, `>`, `<`, `>=` / `≥`, `<=` / `≤`
+- Logical operators: `EN` (AND), `OF` (OR); OF has lower precedence than EN
+- `ALS <vergelijking> DAN <regelnr> [ANDERS <regelnr>]` — conditional jump; ANDERS is optional
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
-- Flow control: `ALS`/`DAN`/`ANDERS`, `MET`/`HERHAAL`
+- Flow control: `MET`/`HERHAAL`
 - `STOP` — runtime early-exit (differs from `KLAAR`: may appear in expressions/conditions)
 - `FUN` / `SUB` — user-defined functions and subroutines
 
-Numbered program lines (1–999): `Programma` struct stores and retrieves lines; `NAAR` implemented; `ALS`/`DAN`/`ANDERS` and `MET`/`HERHAAL` not yet implemented.
+Numbered program lines (1–999): `Programma` struct stores and retrieves lines; `NAAR` and `ALS`/`DAN`/`ANDERS` implemented; `MET`/`HERHAAL` not yet implemented.
 
 ### Deliberate deviations from the 1973 spec
 

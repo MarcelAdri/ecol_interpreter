@@ -1,6 +1,7 @@
-use crate::interpreter::helpers::{extract_argumenten, extract_keyword, extract_regelnummer, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
+use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_regelnummer, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
 use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord};
 use crate::interpreter::functions::{Functie, FunctieNaam};
+use crate::interpreter::vergelijkingen::Vergelijking;
 use crate::interpreter::waarden::{VariabeleAanroep};
 
 pub(super) struct FunctieAanroep {
@@ -215,6 +216,25 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
     let Some((keyword, rest_na_keyword)) = extract_keyword(rest_na_regelnummer) else { return Err("Onbekend of geen keyword.".to_string()) };
 
     match keyword {
+        Sleutelwoord::ALS => {
+            if regelnummer != 0 {
+                let Some((vergelijking_str, rest_na_dan)) = extract_als(rest_na_keyword) else { return Err("Geen DAN gevonden na ALS".to_string()) };
+                let vergelijking = vergelijking_str.to_string();
+                let (dan, rest_na_anders) = extract_dan(rest_na_dan)?;
+                let anders: Option<u16>;
+                if rest_na_anders == "" {
+                    anders = None;
+                } else {
+                    let (anders_getal, _rest_na_dan) = extract_anders(rest_na_anders)?;
+                    anders = Some(anders_getal);
+                }
+
+                Ok(Line::new(regelnummer, LineInhoud::Als { vergelijking, dan, anders }))
+            } else {
+                Err("KLAAR kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
+
+        },
         Sleutelwoord::HELP => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)

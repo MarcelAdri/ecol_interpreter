@@ -275,6 +275,9 @@ impl EcolMachine {
             Ok(regel) => {
                 if regel.regelnummer() == 0 {
                     match &regel.inhoud() {
+                        LineInhoud::Als { .. } => {
+                            reply = "".to_string();
+                        }
                         LineInhoud::Help { } => {
                             reply = result_to_string(self.execute_help());
                         },

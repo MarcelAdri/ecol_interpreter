@@ -18,6 +18,7 @@ impl Line {
     }
     pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
         match &self.inhoud {
+            LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
             LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
             LineInhoud::LegeRegel { } => None,
@@ -45,6 +46,23 @@ impl Line {
             regelnummer = format!("{:>4} ", self.regelnummer);
         }
         match &self.inhoud {
+            LineInhoud::Als { vergelijking, dan, anders } => {
+                match anders {
+                    Some( x ) => format!("{}ALS {} DAN {} ANDERS {}"
+                                         ,regelnummer
+                                         ,vergelijking
+                                         ,dan
+                                         ,x)
+                        .trim_start()
+                        .to_string(),
+                    None => format!("{}ALS {} DAN {}"
+                                    ,regelnummer
+                                    ,vergelijking
+                                    ,dan)
+                        .trim_start()
+                        .to_string(),
+                }
+            }
             LineInhoud::Help {} => format!("{}HELP", regelnummer)
                 .trim_start()
                 .to_string(),
@@ -148,6 +166,7 @@ impl Line {
 }
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
+    Als {vergelijking: String, dan: u16, anders: Option<u16>},
     Help {},
     Klaar {},
     LegeRegel {},
@@ -195,6 +214,7 @@ pub(super) enum LineInhoud {
 impl LineInhoud {
     pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Self {
         match sleutelwoord {
+            Sleutelwoord::ALS => Self::Als {vergelijking: String::new(), dan: 0, anders: None},
             Sleutelwoord::HELP => Self::Help {},
             Sleutelwoord::KLAAR => Self::Klaar {},
             Sleutelwoord::LIJST => Self::Lijst {},
@@ -214,6 +234,7 @@ impl LineInhoud {
     }
     pub(super) fn as_str(&self) -> &str {
         match self {
+            LineInhoud::Als { .. } => "Als",
             LineInhoud::Help { } => "Help",
             LineInhoud::Klaar { } => "Klaar",
             LineInhoud::LegeRegel { } => "",
@@ -326,6 +347,7 @@ impl Programma {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
+    ALS,
     HELP,
     KLAAR,
     LIJST,
@@ -346,6 +368,7 @@ impl Sleutelwoord {
 
     pub(super) fn from_string(input: &str) -> Option<Self> {
         match input {
+            "ALS" => Some(Sleutelwoord::ALS),
             "HELP" => Some(Sleutelwoord::HELP),
             "KLAAR" => Some(Sleutelwoord::KLAAR),
             "LIJST" => Some(Sleutelwoord::LIJST),
@@ -371,6 +394,7 @@ impl Sleutelwoord {
 
     pub(super) fn to_string(&self) -> &str {
         match self {
+            Sleutelwoord::ALS => "ALS",
             Sleutelwoord::HELP => "HELP",
             Sleutelwoord::KLAAR => "KLAAR",
             Sleutelwoord::LIJST => "LIJST",

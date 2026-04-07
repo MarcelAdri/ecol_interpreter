@@ -18,6 +18,7 @@ impl EcolMachine {
             Err("Kon het help-document niet openen.".to_string())
         }
     }
+
     pub(super) fn execute_lijst(&self) -> Result<String, String> {
         let mut reply = String::new();
         for (regelnummer, regel_inh) in self.programma() {
@@ -26,6 +27,18 @@ impl EcolMachine {
             reply.push('\n');
         }
         Ok(reply)
+    }
+    pub(super) fn execute_naar(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, sprong_doel: &u16, current: &u16) -> Result<u16, String> {
+        let doel = *sprong_doel;
+
+        if lopend_programma.contains_key(sprong_doel) {
+            if doel < *current {
+                self.rollback_program(lopend_programma, *current, doel);
+            }
+            Ok(doel)
+        } else {
+            Err(format!("FOUTMELDING in regel {}: Sprong naar niet gedefinieerde regel {}.", current, doel))
+        }
     }
     pub(super)  fn execute_np(&self, output: &mut dyn FnMut(&str)) -> Result<String, String> {
         output("\x0C");
@@ -118,6 +131,13 @@ impl EcolMachine {
             current = regelnummer + 1;
 
             match current_regel {
+                LineInhoud::Als { vergelijking, dan, anders } => {
+                    if running_program.parseer_vergelijking(vergelijking)? {
+                        current = running_program.execute_naar(self.programma(), dan, &current)?;
+                    } else if let Some(anders_regel) = anders {
+                        current = running_program.execute_naar(self.programma(), anders_regel, &current)?;
+                    }
+                }
                 LineInhoud::Help {} => {
                     return Err(format!("FOUTMELDING in regel {}: HELP mag niet in een programma (interpreter-besturing).", regelnummer));
                 }
@@ -132,17 +152,7 @@ impl EcolMachine {
                 },
                 LineInhoud::Naar { sprong_doel } => {
                     let doel = *sprong_doel as u16;
-
-                    if self.programma().contains_key(&doel) {
-                        if doel < current {
-                            running_program.rollback_program(self.programma(), current, doel);
-                        }
-                        current = doel;
-                        continue;
-                    } else {
-                        return Err(format!("FOUTMELDING in regel {}: Sprong naar niet gedefinieerde regel {}.", regelnummer, doel));
-                    }
-
+                    current = running_program.execute_naar(self.programma(), &doel, &current)?;
                 },
                 LineInhoud::NP { } => {
                     let regel = running_program.execute_np( output )
@@ -223,7 +233,7 @@ impl EcolMachine {
             }
         }
 
-        Ok("Programma heeft succesvol gelopen.".to_string())
+        Ok("Programma is normaal beëindigd.".to_string())
     }
     pub(super) fn execute_tekst(&mut self, expressie: &str) -> Result<String, String> {
         self.naar_regel_buffer(&literal_to_string(expressie)?)?;
@@ -231,9 +241,6 @@ impl EcolMachine {
     }
     pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, argument: usize, expressie: &str) -> Result<String, String> {
         let value = self.solve_expression(expressie)?;
-        if !self.var_bestaat(variabele_naam) {
-            return Err(format!("RIJ-Variabele '{}' is niet gedefinieerd.", variabele_naam));
-        }
 
         let mut waarde = self.var_lees_waarde(variabele_naam).unwrap_or(Waarde::NogNietBepaald).clone();
         let var_type_compleet = self.var_type_van(variabele_naam);

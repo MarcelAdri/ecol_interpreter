@@ -6,5 +6,6 @@ mod helpers;
 mod opdrachten;
 mod expressies;
 mod functions;
+mod vergelijkingen;
 
 pub use interpreter::{EcolMachine};
