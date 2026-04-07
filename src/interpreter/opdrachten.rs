@@ -3,7 +3,7 @@ use web_sys::js_sys;
 use crate::interpreter::EcolMachine;
 use crate::interpreter::helpers::{extract_variabele_naam, format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
-use crate::interpreter::program::{Line, LineInhoud};
+use crate::interpreter::program::{Line, LineInhoud, SprongDoel};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 impl EcolMachine {
@@ -133,9 +133,19 @@ impl EcolMachine {
             match current_regel {
                 LineInhoud::Als { vergelijking, dan, anders } => {
                     if running_program.parseer_vergelijking(vergelijking)? {
-                        current = running_program.execute_naar(self.programma(), dan, &current)?;
+                        match dan {
+                            SprongDoel::Stop => { break; }
+                            SprongDoel::Regel(regel) => {
+                                current = running_program.execute_naar(self.programma(), regel, &current)?;
+                            }
+                        }
                     } else if let Some(anders_regel) = anders {
-                        current = running_program.execute_naar(self.programma(), anders_regel, &current)?;
+                        match anders_regel {
+                            SprongDoel::Stop => { break; }
+                            SprongDoel::Regel(regel) => {
+                                current = running_program.execute_naar(self.programma(), regel, &current)?;
+                            }
+                        }
                     }
                 }
                 LineInhoud::Help {} => {

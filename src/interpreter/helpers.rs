@@ -1,4 +1,4 @@
-use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, WORDT_TEKEN};
+use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel, WORDT_TEKEN};
 
 pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<usize>, &str)> {
     let werkstring = input.trim_start();
@@ -81,27 +81,33 @@ pub(super) fn extract_als(input: &str) -> Option<(&str, &str)> {
     }
 
 }
-pub(super) fn extract_dan(input: &str) -> Result<(u16, &str), String> {
+pub(super) fn extract_dan(input: &str) -> Result<(SprongDoel, &str), String> {
     let werkstring = input.trim_start();
     let pos = werkstring.find("ANDERS");
+    let dan_reply: SprongDoel;
+
     match pos {
         Some(positie) => {
             let dan = &werkstring[..positie];
             let rest = &werkstring[positie + 6..];
-            let dan_nummer = dan.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal na DAN.".to_string())?;
-            Ok((dan_nummer, rest.trim_start()))
+
+            dan_reply = SprongDoel::vul(&geen_spaties(dan))?;
+
+            Ok((dan_reply, rest.trim_start()))
         }
         None => {
-            let dan = geen_spaties(werkstring);
-            let dan_nummer = dan.parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal na DAN.".to_string())?;
-            Ok((dan_nummer, ""))
+            let dan = &geen_spaties(werkstring);
+            dan_reply = SprongDoel::vul(dan)?;
+
+            Ok((dan_reply, ""))
         }
     }
 }
-pub(super) fn extract_anders(input: &str) -> Result<(u16, &str), String> {
+pub(super) fn extract_anders(input: &str) -> Result<(SprongDoel, &str), String> {
     let werkstring = geen_spaties(input);
 
-    let anders = werkstring.parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal na ANDERS.".to_string())?;
+    let anders = SprongDoel::vul(&werkstring)?;
+    
     Ok((anders, ""))
 }
 pub(super) fn first_word(input: &str) -> &str {

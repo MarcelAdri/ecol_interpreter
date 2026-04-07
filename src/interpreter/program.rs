@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use crate::interpreter::helpers::geen_spaties;
 
 pub(super) const WORDT_TEKEN: &str = ":=";
 
@@ -51,14 +52,14 @@ impl Line {
                     Some( x ) => format!("{}ALS {} DAN {} ANDERS {}"
                                          ,regelnummer
                                          ,vergelijking
-                                         ,dan
-                                         ,x)
+                                         ,dan.to_string()
+                                         ,x.to_string())
                         .trim_start()
                         .to_string(),
                     None => format!("{}ALS {} DAN {}"
                                     ,regelnummer
                                     ,vergelijking
-                                    ,dan)
+                                    ,dan.to_string())
                         .trim_start()
                         .to_string(),
                 }
@@ -164,9 +165,34 @@ impl Line {
         &self.inhoud
     }
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SprongDoel {
+    Regel(u16),
+    Stop,
+}
+
+impl SprongDoel {
+    fn to_string(&self) -> String {
+        match self {
+            SprongDoel::Regel(regelnummer) => format!("{}", regelnummer),
+            SprongDoel::Stop => "STOP".to_string(),
+        }
+    }
+
+    pub(super) fn vul(bron: &str) -> Result<Self, String> {
+        let reply: SprongDoel;
+        if geen_spaties(bron) == "STOP" {
+            reply = SprongDoel::Stop;
+        } else {
+            reply = SprongDoel::Regel(bron.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal.".to_string())?);
+        }
+        Ok(reply)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
-    Als {vergelijking: String, dan: u16, anders: Option<u16>},
+    Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>},
     Help {},
     Klaar {},
     LegeRegel {},
@@ -214,7 +240,7 @@ pub(super) enum LineInhoud {
 impl LineInhoud {
     pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Self {
         match sleutelwoord {
-            Sleutelwoord::ALS => Self::Als {vergelijking: String::new(), dan: 0, anders: None},
+            Sleutelwoord::ALS => Self::Als {vergelijking: String::new(), dan: SprongDoel::Regel(0), anders: None},
             Sleutelwoord::HELP => Self::Help {},
             Sleutelwoord::KLAAR => Self::Klaar {},
             Sleutelwoord::LIJST => Self::Lijst {},

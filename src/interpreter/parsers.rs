@@ -1,5 +1,5 @@
 use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_regelnummer, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
-use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord};
+use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel};
 use crate::interpreter::functions::{Functie, FunctieNaam};
 use crate::interpreter::vergelijkingen::Vergelijking;
 use crate::interpreter::waarden::{VariabeleAanroep};
@@ -221,7 +221,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
                 let Some((vergelijking_str, rest_na_dan)) = extract_als(rest_na_keyword) else { return Err("Geen DAN gevonden na ALS".to_string()) };
                 let vergelijking = vergelijking_str.to_string();
                 let (dan, rest_na_anders) = extract_dan(rest_na_dan)?;
-                let anders: Option<u16>;
+                let anders: Option<SprongDoel>;
                 if rest_na_anders == "" {
                     anders = None;
                 } else {

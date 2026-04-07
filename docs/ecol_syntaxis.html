@@ -351,7 +351,7 @@ a := naam(index)</pre>
   <tr><td><code>BOVIN(naam)</code></td><td>Bovengrens van array</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>PS</code></td><td>Aantal al afgedrukte symbolen op de huidige regel</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>PP</code></td><td>Aantal voltooide regels op de huidige pagina — niet relevant buiten teletype-context, niet gepland voor deze interpreter</td><td><span class="tag hist">historisch</span></td></tr>
-  <tr><td><code>STOP</code></td><td>Vroegtijdige runtime-beëindiging; verschilt van <code>KLAAR</code> doordat het ook in uitdrukkingen en voorwaarden mag voorkomen (bijv. <code>ALS fout DAN STOP</code>)</td><td><span class="tag todo">gepland</span></td></tr>
+  <tr><td><code>STOP</code></td><td>Beëindigt het programma vroegtijdig; uitsluitend bruikbaar als sprongdoel in <code>ALS … DAN … ANDERS</code> (bijv. <code>ALS fout &gt; 0 DAN STOP</code>). Als zelfstandige regelopdracht is <code>STOP</code> overbodig — gebruik dan <code>KLAAR</code>.</td><td><span class="tag ok">geïmpl.</span></td></tr>
 </table>
 
 <h2>Stroombesturing</h2>
