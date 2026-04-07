@@ -11,14 +11,14 @@ VERSIE=$1
 echo "==> Versie instellen: $VERSIE"
 sed -i "s/^version = .*/version = \"$VERSIE\"/" Cargo.toml
 
-echo "==> Bouwen..."
-trunk build --release
+echo "==> Syntaxispagina kopiëren naar dist/..."
+cp docs/ecol_syntaxis.html dist/ecol_syntaxis.html
 
-echo "==> Versie invullen in syntaxisreferentie..."
-sed -i "s/@@VERSIE@@/$VERSIE/g" dist/ecol_syntaxis.html
+echo "==> Bouwen..."
+~/.cargo/bin/trunk build --release --public-url "/ecol/"
 
 echo "==> Committen en taggen..."
-git add Cargo.toml dist/ docs/
+git add Cargo.toml CLAUDE.md src/ dist/ docs/
 git commit -m "Release v$VERSIE"
 git tag "v$VERSIE"
 
