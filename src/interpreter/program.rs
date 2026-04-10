@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use crate::interpreter::helpers::geen_spaties;
+use crate::interpreter::waarden::EcolTeller;
 
 pub(super) const WORDT_TEKEN: &str = ":=";
 
@@ -21,9 +22,11 @@ impl Line {
         match &self.inhoud {
             LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
+            LineInhoud::Herhaal {} => Some(Sleutelwoord::HERHAAL),
             LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
             LineInhoud::LegeRegel { } => None,
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
+            LineInhoud::Met { .. } => Some(Sleutelwoord::MET),
             LineInhoud::Naar { .. } => Some(Sleutelwoord::NAAR),
             LineInhoud::NP {} => Some(Sleutelwoord::NP),
             LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
@@ -67,6 +70,9 @@ impl Line {
             LineInhoud::Help {} => format!("{}HELP", regelnummer)
                 .trim_start()
                 .to_string(),
+            LineInhoud::Herhaal {} => format!("{}HERHAAL", regelnummer)
+                .trim_start()
+                .to_string(),
             LineInhoud::Klaar {} => format!("{}KLAAR", regelnummer)
                 .trim_start()
                 .to_string(),
@@ -76,6 +82,10 @@ impl Line {
             LineInhoud::Lijst {} => format!("{}LIJST", regelnummer)
                 .trim_start()
                 .to_string(),
+            LineInhoud::Met { stap_expressie, start_expressie, stop_expressie, variabele_naam } => {
+                format!("{}MET {}, {} := {}, {}", regelnummer, stap_expressie, variabele_naam, start_expressie, stop_expressie)
+                    .trim_start()
+                    .to_string() },
             LineInhoud::Naar { sprong_doel } => format!("{}NAAR {}", regelnummer, sprong_doel)
                 .trim_start()
                 .to_string(),
@@ -194,7 +204,14 @@ impl SprongDoel {
 pub(super) enum LineInhoud {
     Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>},
     Help {},
+    Herhaal {},
     Klaar {},
+    Met {
+        variabele_naam: String,
+        stap_expressie: String,
+        start_expressie: String,
+        stop_expressie: String,
+    },
     LegeRegel {},
     Lijst {},
     Naar {sprong_doel: usize},
@@ -238,33 +255,27 @@ pub(super) enum LineInhoud {
     Verwijderen {},
 }
 impl LineInhoud {
-    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Self {
+    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Result<Self, String> {
         match sleutelwoord {
-            Sleutelwoord::ALS => Self::Als {vergelijking: String::new(), dan: SprongDoel::Regel(0), anders: None},
-            Sleutelwoord::HELP => Self::Help {},
-            Sleutelwoord::KLAAR => Self::Klaar {},
-            Sleutelwoord::LIJST => Self::Lijst {},
-            Sleutelwoord::NAAR => Self::Naar {sprong_doel: 0},
-            Sleutelwoord::NP => Self::NP {},
-            Sleutelwoord::NR => Self::NR { aantal: 0 },
-            Sleutelwoord::RIJ => Self::Rij { start: 0, eind: 0, variabele_naam: String::new() },
-            Sleutelwoord::RIJSYM => Self::Rijsym { start: 0, eind: 0, variabele_naam: String::new() },
-            Sleutelwoord::SCHRIJF => Self::Schrijf { breedte: 0, decimalen: 0, expressie: String::new() },
-            Sleutelwoord::SCHRIJFSYM => Self::Schrijfsym { expressie: String::new() },
-            Sleutelwoord::SCHRIJM => Self::Schrijm { expressie: String::new() },
-            Sleutelwoord::SPATIE => Self::Spatie { aantal: 0 },
-            Sleutelwoord::START => Self::Start {},
-            Sleutelwoord::TEKST => Self::Tekst { expressie: String::new() },
-            Sleutelwoord::TOEKENNEN => Self::Toekennen { variabele_naam: String::new(), argument: 0, expressie: String::new() },
+            Sleutelwoord::HELP => Ok(Self::Help {}),
+            Sleutelwoord::HERHAAL => Ok(Self::Herhaal {}),
+            Sleutelwoord::KLAAR => Ok(Self::Klaar {}),
+            Sleutelwoord::LIJST => Ok(Self::Lijst {}),
+            Sleutelwoord::NP => Ok(Self::NP {}),
+            Sleutelwoord::NR => Ok(Self::NR { aantal: 0 }),
+            Sleutelwoord::START => Ok(Self::Start {}),
+            _ => Err("Incomplete syntax".to_string()),
         }
     }
     pub(super) fn as_str(&self) -> &str {
         match self {
             LineInhoud::Als { .. } => "Als",
             LineInhoud::Help { } => "Help",
+            LineInhoud::Herhaal { } => "Herhaal",
             LineInhoud::Klaar { } => "Klaar",
             LineInhoud::LegeRegel { } => "",
             LineInhoud::Lijst { } => "Lijst",
+            LineInhoud::Met { .. } => "Met",
             LineInhoud::Naar { .. } => "Naar",
             LineInhoud::NP { } => "NP",
             LineInhoud::NR { .. } => "NR",
@@ -375,8 +386,10 @@ impl Programma {
 pub(super) enum Sleutelwoord {
     ALS,
     HELP,
+    HERHAAL,
     KLAAR,
     LIJST,
+    MET,
     NAAR,
     NP,
     NR,
@@ -396,8 +409,10 @@ impl Sleutelwoord {
         match input {
             "ALS" => Some(Sleutelwoord::ALS),
             "HELP" => Some(Sleutelwoord::HELP),
+            "HERHAAL" => Some(Sleutelwoord::HERHAAL),
             "KLAAR" => Some(Sleutelwoord::KLAAR),
             "LIJST" => Some(Sleutelwoord::LIJST),
+            "MET" => Some(Sleutelwoord::MET),
             "NAAR" => Some(Sleutelwoord::NAAR),
             "NP" => Some(Sleutelwoord::NP),
             "NR" => Some(Sleutelwoord::NR),
@@ -422,8 +437,10 @@ impl Sleutelwoord {
         match self {
             Sleutelwoord::ALS => "ALS",
             Sleutelwoord::HELP => "HELP",
+            Sleutelwoord::HERHAAL => "HERHAAL",
             Sleutelwoord::KLAAR => "KLAAR",
             Sleutelwoord::LIJST => "LIJST",
+            Sleutelwoord::MET => "MET",
             Sleutelwoord::NAAR => "NAAR",
             Sleutelwoord::NP => "NP",
             Sleutelwoord::NR => "NR",

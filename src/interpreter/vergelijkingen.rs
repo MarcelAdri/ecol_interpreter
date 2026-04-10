@@ -77,7 +77,7 @@ impl Vergelijking {
     fn is_samenvoeg(&self) -> bool {
         matches!(self, Self::EN | Self::OF)
     }
-    fn vergelijk(&self, links: f32, rechts: f32) -> bool {
+    pub(super) fn vergelijk(&self, links: f32, rechts: f32) -> bool {
         match self {
             Self::Gelijk => links == rechts,
             Self::NietGelijk => links != rechts,
@@ -168,5 +168,27 @@ impl EcolMachine {
         let rechts_getal = self.solve_expression(rechts)?;
 
         Ok(operator_teken.vergelijk(links_getal, rechts_getal))
+    }
+
+    pub(super) fn parseer_operator(&mut self, input: &str) -> Result<(Vergelijking, f32), String> {
+        let mut rechts: &str = "";
+        let mut operator_teken: Vergelijking = Vergelijking::Gelijk;
+
+        for operator in Vergelijking::alle_vergelijking_operatoren() {
+            let positie = input.find(operator);
+
+            match positie {
+                Some(pos) => {
+                    rechts = &input[pos + operator.len()..];
+                    operator_teken = Vergelijking::from_string(operator).unwrap();
+                    break;
+                }
+                None => continue,
+            }
+        }
+        if rechts.is_empty() { return Err("Ongeldige vergelijking: geen rechterkant".to_string()); }
+        let rechts_getal = self.solve_expression(rechts)?;
+
+        Ok((operator_teken, rechts_getal))
     }
 }

@@ -1,4 +1,6 @@
+use std::convert::TryFrom;
 use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel, WORDT_TEKEN};
+use crate::interpreter::vergelijkingen::Vergelijking;
 
 pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<usize>, &str)> {
     let werkstring = input.trim_start();
@@ -55,13 +57,49 @@ pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), Stri
 
     Ok((regelnummer, restregel, is_alleen_regelnummer))
 }
+fn vind_top_level_komma(s: &str) -> Option<usize> {
+    let mut diepte = 0usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => diepte += 1,
+            ')' => diepte -= 1,
+            ',' if diepte == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+pub(super) fn extract_stap_expressie(input: &str) -> Result<(String, String), String> {
+    let werkstring = geen_spaties(input);
+
+    match vind_top_level_komma(&werkstring) {
+        Some(p) => {
+            let (stap_tekst, r) = werkstring.split_at(p);
+            Ok((stap_tekst.to_string(), r[1..].to_string()))
+        },
+        None => Err("Ongeldige syntax voor MET bij de STAP-expressie.".to_string()),
+    }
+}
+pub(super) fn extract_start_expressie(input: &str) -> Result<(String, String, String), String> {
+    let werkstring = geen_spaties(input);
+
+    match vind_top_level_komma(&werkstring) {
+        Some(p) => {
+            let (toekenning_string, r) = werkstring.split_at(p);
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(toekenning_string) else { return Err("Ongeldige variabele-naam in MET.".to_string()) };
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err("Ongeldig 'wordt'-teken in MET.".to_string()) };
+            Ok((naam.to_string(), rest_na_wordt_teken.to_string(), r[1..].to_string()))
+        },
+        None => Err("Ongeldige syntax voor MET bij de START-expressie.".to_string()),
+    }
+}
 pub(super) fn extract_variabele_naam(input: &str) -> Option<(&str, &str)> {
     let werkstring = input.trim_start();
     let position = werkstring.find(|c: char| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_').unwrap_or(werkstring.len());
     let (variabele_naam, rest) = werkstring.split_at(position);
 
-
     if is_geldige_variabele_naam(variabele_naam.trim()) {
+
         Some((variabele_naam.trim(), rest.trim_start()))
     } else {
         None
@@ -203,7 +241,7 @@ pub(super) fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
 }
 pub(super) fn is_alleen_keyword(input: &str, regelnummer: u16, keyword: Sleutelwoord) -> Result<Line, String> {
     if input.trim() == keyword.to_string() {
-        Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)))
+        Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)?))
     } else {
         Err(syntaxis_foutmelding(keyword.to_string()))
     }

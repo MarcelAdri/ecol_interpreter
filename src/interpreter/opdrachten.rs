@@ -28,6 +28,15 @@ impl EcolMachine {
         }
         Ok(reply)
     }
+    pub(super) fn execute_met(&mut self, variabele_naam: &str, stap_expressie: &str, start_expressie: &str, stop_expressie: &str, volgende_regel: u16) -> Result<String, String> {
+        let stap = self. solve_expression(stap_expressie)?;
+        let start = self. solve_expression(start_expressie)?;
+        let stop = self. solve_expression(stop_expressie)?;
+
+        self.teller_nieuw(variabele_naam, stap, start, stop, volgende_regel)?;
+
+        Ok("".to_string())
+    }
     pub(super) fn execute_naar(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, sprong_doel: &u16, current: &u16) -> Result<u16, String> {
         let doel = *sprong_doel;
 
@@ -151,6 +160,11 @@ impl EcolMachine {
                 LineInhoud::Help {} => {
                     return Err(format!("FOUTMELDING in regel {}: HELP mag niet in een programma (interpreter-besturing).", regelnummer));
                 }
+                LineInhoud::Herhaal {} => {
+                    let Some(sprong) = running_program.teller_herhaal()? else { continue };
+                    current = running_program.execute_naar(self.programma(), &sprong, &current)?;
+
+                }
                 LineInhoud::Klaar { } =>{
                     break;
                 },
@@ -159,6 +173,16 @@ impl EcolMachine {
                 },
                 LineInhoud::Lijst { } => {
                     return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", regelnummer));
+                },
+                LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
+                    let Some((&volgende_regelnummer, _)) = self.programma().range(current..).next() else {
+                        return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
+                    };
+                    let regel = running_program.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    if !regel.is_empty() {
+                        output(&regel);
+                    }
                 },
                 LineInhoud::Naar { sprong_doel } => {
                     let doel = *sprong_doel as u16;
@@ -278,7 +302,15 @@ impl EcolMachine {
                         }
 
                         waarde.rij_set_value(value, argument)?;
-                    }
+                    },
+                    VariabeleType::Teller => {
+                        if argument != 0 {
+                            return Err("Teller-variabele kan geen index hebben.".to_string());
+                        }
+
+                        waarde.teller_schrijf_current(value)?;
+                    },
+
                 }
             },
             None => {
@@ -305,7 +337,7 @@ impl EcolMachine {
             match current_regel {
                 LineInhoud::Rij { start, eind, variabele_naam } |
                 LineInhoud::Rijsym { start, eind, variabele_naam } => {
-                    self.var_wis_rij(variabele_naam)
+                    self.var_wis(variabele_naam)
                 },
                 _ => { continue },
             }

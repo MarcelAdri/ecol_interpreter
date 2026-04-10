@@ -97,10 +97,10 @@ Currently implemented:
 - Logical operators: `EN` (AND), `OF` (OR); OF has lower precedence than EN
 - `ALS <vergelijking> DAN <sprongdoel> [ANDERS <sprongdoel>]` — conditional jump; ANDERS is optional; sprongdoel is a line number or `STOP`
 - `STOP` — terminates the program early; only valid as a jump target in `ALS … DAN … ANDERS`
+- `MET <stap>, <var> := <begin>, <einde>` / `HERHAAL` — counted loop; stap/begin/einde are arbitrary expressions (including function calls); negative stap counts down; loop variable readable and writable during loop body; nested loops supported via LIFO stack (`actieve_tellers`); after loop, variable retains the first out-of-bounds value
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
-- Flow control: `MET`/`HERHAAL`
 - `FUN` / `SUB` — user-defined functions and subroutines
 
 Numbered program lines (1–999): `Programma` struct stores and retrieves lines; `NAAR` and `ALS`/`DAN`/`ANDERS` implemented; `MET`/`HERHAAL` not yet implemented.

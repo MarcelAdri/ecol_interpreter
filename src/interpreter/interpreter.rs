@@ -79,6 +79,7 @@ use std::f32;
 use web_sys::js_sys;
 use crate::interpreter::helpers::{result_to_string};
 use crate::interpreter::parsers::{parseer_regel};
+use crate::interpreter::vergelijkingen::Vergelijking;
 use super::waarden::{VariabeleType, Waarde};
 use super::program::{LineInhoud, Programma};
 
@@ -140,16 +141,10 @@ impl VariabelenOpslag {
         self.data_pool[index]=Waarde::new_rijsym(start, eind)?;
         Ok(())
     }
-    fn wis_rij(&mut self, variabele_naam: &str)  {
-        let var_type = self.type_van(variabele_naam);
-        match var_type {
-            Some(VariabeleType::Rij) | Some(VariabeleType::Rijsym) => {
-                let index = self.symbolen[variabele_naam];
-                self.data_pool[index] = Waarde::NogNietBepaald;
-                self.symbolen.remove(variabele_naam);
-            },
-            _ => { },
-        }
+    fn wis_variabele(&mut self, variabele_naam: &str)  {
+        let index = self.symbolen[variabele_naam];
+        self.data_pool[index] = Waarde::NogNietBepaald;
+        self.symbolen.remove(variabele_naam);
     }
     fn lees_waarde(&self, naam: &str) -> Option<Waarde> {
         if let Some(index) = self.symbolen.get(naam) {
@@ -210,6 +205,7 @@ pub struct EcolMachine {
     variabelen_opslag: VariabelenOpslag,
     regel_buffer: RegelBuffer,
     programma: Programma,
+    actieve_tellers: Vec<String>,
     seed: u64,
 }
 impl EcolMachine {
@@ -218,6 +214,7 @@ impl EcolMachine {
             variabelen_opslag: VariabelenOpslag::new(),
             regel_buffer: RegelBuffer::new(),
             programma: Programma::new(),
+            actieve_tellers: Vec::new(),
             seed: js_sys::Date::now() as u64,
         }
     }
@@ -237,8 +234,50 @@ impl EcolMachine {
     pub(super) fn var_reserveer_rijsym(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
         self.variabelen_opslag.reserveer_rijsym(variabele_naam, start, eind)
     }
-    pub(super) fn var_wis_rij(&mut self, variabele_naam: &str) {
-        self.variabelen_opslag.wis_rij(variabele_naam)
+    pub(super) fn var_wis(&mut self, variabele_naam: &str) {
+        self.variabelen_opslag.wis_variabele(variabele_naam)
+    }
+    pub(super) fn teller_nieuw(&mut self, naam: &str, stap: f32, start: f32, stop: f32, regel: u16) -> Result<(), String> {
+        let var_typ = self.var_type_van(naam);
+        match var_typ {
+            Some(VariabeleType::Getal) | None => {
+                if var_typ.is_some() {
+                    self.var_wis(naam);
+                }
+                let mut teller = Waarde::new_teller(stap, start, stop);
+                teller.teller_schrijf_regel(regel)?;
+                self.var_schrijf_waarde(naam, teller)?;
+                self.actieve_tellers.push(naam.to_string());
+
+                Ok(())
+            },
+            Some(v_type) => return Err(format!("Variabele '{}' bestaat al met type '{}'.", naam, v_type.to_string())),
+        }
+    }
+    pub(super) fn teller_herhaal(&mut self) -> Result<Option<u16>, String> {
+        if self.actieve_tellers.len() == 0 {
+            return Err("HERHAAL zonder MET aangetroffen.".to_string())
+        }
+        let last = self.actieve_tellers.len() - 1;
+        let naam = self.actieve_tellers[last].clone();
+        let Some(mut teller) = self.var_lees_waarde(&naam) else { return Err(format!("INTERNE FOUT: Teller '{}' bestaat niet.", naam))};
+
+        let regel = teller.teller_lees_regel()?;
+        let stap = teller.teller_lees_stap()?;
+        let current = teller.haal_getal(0usize)?;
+        let new_current = current + stap;
+
+        if teller.teller_is_klaar(new_current)? {
+            self.actieve_tellers.pop();
+            self.var_wis(&naam);
+            self.var_schrijf_waarde(&naam, Waarde::new_getal(new_current))?;
+            Ok(None)
+        } else {
+            teller.teller_schrijf_current(new_current)?;
+            self.var_schrijf_waarde(&naam, teller)?;
+            Ok(Some(regel))
+        }
+
     }
     pub(super) fn var_bestaat(&self, naam: &str) -> bool {
         self.variabelen_opslag.bestaat(naam)
@@ -281,6 +320,9 @@ impl EcolMachine {
                         LineInhoud::Help { } => {
                             reply = result_to_string(self.execute_help());
                         },
+                        LineInhoud::Herhaal { } => {
+                            reply = "".to_string();
+                        },
                         LineInhoud::Klaar { } => {
                             //No action needed, just return an empty string.
                             reply = "".to_string();
@@ -290,6 +332,9 @@ impl EcolMachine {
                         },
                         LineInhoud::Lijst { } => {
                             reply = result_to_string(self.execute_lijst());
+                        },
+                        LineInhoud::Met { .. } => {
+                            reply = "".to_string();
                         },
                         LineInhoud::Naar { .. } => {
                             reply = "".to_string();

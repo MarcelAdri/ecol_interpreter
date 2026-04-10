@@ -1,4 +1,5 @@
 use crate::interpreter::helpers::get_sym_value;
+use crate::interpreter::vergelijkingen::Vergelijking;
 
 pub(super) struct VariabeleAanroep {
     variabele_naam: String,
@@ -119,19 +120,58 @@ impl EcolRijsym {
         Ok(index)
     }
 }
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct EcolTeller {
+    stap: f32,
+    regel: u16,
+    start: f32,
+    einde: f32,
+    current: f32,
+}
+impl EcolTeller {
+    fn new(stap: f32, start: f32, einde: f32) -> Self {
+        EcolTeller { stap, regel: 0u16, start, einde, current: start }
+    }
+    fn haal_waarde(&self) -> f32 {
+        self.current
+    }
+    fn klaar(&self, new_current: f32) -> bool {
+        if self.stap < 0.0 {
+            new_current < self.einde
+        } else {
+            new_current > self.einde
+        }
+    }
+    fn lees_regel(&self) -> u16 {
+        self.regel
+    }
+    pub(super) fn lees_start(&self) -> f32 {
+        self.start
+    }
+    pub(super) fn lees_stap(&self) -> f32 {
+        self.stap
+    }
+    fn schrijf_current(&mut self, current: f32) {
+        self.current = current;
+    }
+    fn schrijf_regel(&mut self, regel: u16) {
+        self.regel = regel;
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum VariabeleType {
     Getal,
     Rij,
     Rijsym,
+    Teller,
 }
-
 impl VariabeleType {
     pub(super) fn to_string(&self) -> &'static str {
         match self {
             VariabeleType::Getal => "Getal",
             VariabeleType::Rij => "Rij",
             VariabeleType::Rijsym => "Rijsym",
+            VariabeleType::Teller => "Teller",
         }
     }
 }
@@ -140,6 +180,7 @@ pub(super) enum Waarde {
     Getal(f32),
     Rij(EcolRij),
     Rijsym(EcolRijsym),
+    Teller(EcolTeller),
     NogNietBepaald,
 }
 impl Waarde {
@@ -152,11 +193,15 @@ impl Waarde {
     pub(super) fn new_rijsym(start: usize, einde: usize) -> Result<Self, String> {
         Ok(Waarde::Rijsym(EcolRijsym::new(start, einde)?))
     }
+    pub(super) fn new_teller(stap: f32, start: f32, stop: f32) -> Self {
+        Waarde::Teller(EcolTeller::new(stap, start, stop))
+    }
     pub(super) fn type_van(&self) -> Option<VariabeleType> {
         match self {
             Waarde::Getal(_) => Some(VariabeleType::Getal),
             Waarde::Rij(_) => Some(VariabeleType::Rij),
             Waarde::Rijsym(_) => Some(VariabeleType::Rijsym),
+            Waarde::Teller(_) => Some(VariabeleType::Teller),
             Waarde::NogNietBepaald => None,
         }
     }    
@@ -179,7 +224,50 @@ impl Waarde {
             Waarde::Getal(x) => Ok(*x),
             Waarde::Rij(x) => { Ok(x.get_value(positie)?) }
             Waarde::Rijsym(x) => { Ok(x.get_value(positie)?) }
+            Waarde::Teller(x) => Ok(x.haal_waarde()),
             Waarde::NogNietBepaald => Err("Waarde is nog niet bepaald".to_string()),
+        }
+    }
+    pub(super) fn teller_is_klaar(&self, new_current: f32) -> Result<bool, String> {
+        match self {
+            Waarde::Teller(x) => {
+                Ok(x.klaar(new_current))
+            }
+            _ => Err("Waarde is geen teller".to_string()),
+        }
+    }
+    pub(super) fn teller_schrijf_regel(&mut self, regel: u16) -> Result<(), String> {
+        match self {
+            Waarde::Teller(x) => {
+                x.schrijf_regel(regel);
+                Ok(())
+            }
+            _ => Err("Waarde is geen teller".to_string()),
+        }
+    }
+    pub(super) fn teller_lees_regel(&self) -> Result<u16, String> {
+        match self {
+            Waarde::Teller(x) => {
+                Ok(x.lees_regel())
+            }
+            _ => Err("Waarde is geen teller".to_string()),
+        }
+    }
+    pub(super) fn teller_lees_stap(&self) -> Result<f32, String> {
+        match self {
+            Waarde::Teller(x) => {
+                Ok(x.lees_stap())
+            }
+            _ => Err("Waarde is geen teller".to_string()),
+        }
+    }
+    pub(super) fn teller_schrijf_current(&mut self, current: f32) -> Result<(), String> {
+        match self {
+            Waarde::Teller(x) => {
+                x.schrijf_current(current);
+                Ok(())
+            }
+            _ => Err("Waarde is geen teller".to_string()),
         }
     }
 

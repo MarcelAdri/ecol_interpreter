@@ -1,7 +1,19 @@
-use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_regelnummer, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, verbijzonder_argumenten};
+use crate::interpreter::helpers::{
+    extract_als
+    ,extract_anders
+    ,extract_argumenten
+    ,extract_dan
+    ,extract_keyword
+    ,extract_regelnummer
+    ,extract_stap_expressie
+    ,extract_start_expressie
+    ,extract_variabele_naam
+    ,geen_spaties
+    ,is_alleen_keyword
+    ,is_geldig_wordt_teken
+    ,is_geldige_variabele_naam};
 use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel};
-use crate::interpreter::functions::{Functie, FunctieNaam};
-use crate::interpreter::vergelijkingen::Vergelijking;
+use crate::interpreter::functions::{FunctieNaam};
 use crate::interpreter::waarden::{VariabeleAanroep};
 
 pub(super) struct FunctieAanroep {
@@ -242,6 +254,13 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
                 Err("HELP kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
             }
         },
+        Sleutelwoord::HERHAAL => {
+            if regelnummer != 0 {
+                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            } else {
+                Err("HERHAAL kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
+        },
         Sleutelwoord::KLAAR => {
             if regelnummer != 0 {
                 is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
@@ -255,6 +274,15 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             } else {
                 Err("LIJST kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
             }
+        },
+        Sleutelwoord::MET => {
+            if regelnummer == 0 {
+                return Err("MET kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
+            let (stap_expressie, rest_na_stap) = extract_stap_expressie(rest_na_keyword)?;
+            let (variabele_naam, start_expressie, stop_expressie) = extract_start_expressie(&rest_na_stap)?;
+            
+            Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie }))
         },
         Sleutelwoord::NAAR => {
             let Some(sprong_doel) = geen_spaties(rest_na_keyword).parse::<usize>().ok() else { return Err("Naar verwacht een regelnummer als argument.".to_string()) };
