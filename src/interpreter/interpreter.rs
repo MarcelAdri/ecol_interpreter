@@ -237,7 +237,14 @@ impl EcolMachine {
     pub(super) fn var_wis(&mut self, variabele_naam: &str) {
         self.variabelen_opslag.wis_variabele(variabele_naam)
     }
-    pub(super) fn teller_nieuw(&mut self, naam: &str, stap: f32, start: f32, stop: f32, regel: u16) -> Result<(), String> {
+    pub(super) fn teller_nieuw(&mut self, naam: &str, stap: f32, start: f32, stop: f32, regel: u16) -> Result<Option<()>, String> {
+        if (stap > 0.0 && start > stop) || (stap < 0.0 && start < stop) {
+            return Ok(None)
+        }
+        if stap == 0.0 {
+            return Err("Stapgrootte mag niet 0 zijn.".to_string())
+        }
+
         let var_typ = self.var_type_van(naam);
         match var_typ {
             Some(VariabeleType::Getal) | None => {
@@ -249,9 +256,32 @@ impl EcolMachine {
                 self.var_schrijf_waarde(naam, teller)?;
                 self.actieve_tellers.push(naam.to_string());
 
-                Ok(())
+                Ok(Some(()))
             },
             Some(v_type) => return Err(format!("Variabele '{}' bestaat al met type '{}'.", naam, v_type.to_string())),
+        }
+    }
+    pub(super) fn teller_naar_herhaal(programma: &BTreeMap<u16, LineInhoud>, regel: &u16) -> Result<u16, String> {
+        let mut current = *regel;
+        let mut met_diepte = 0u16;
+        loop{
+            let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
+                return Err("FOUTMELDING: Geen HERHAAL aangetroffen na MET.".to_string());
+            };
+            current = regelnummer + 1;
+            match current_regel {
+                LineInhoud::Met { .. } => {
+                    met_diepte += 1;
+                    continue;
+                }
+                LineInhoud::Herhaal {} => {
+                    if met_diepte == 0 {
+                        return Ok(current)
+                    }
+                    met_diepte -= 1;
+                },
+                _ => { continue; },
+            }
         }
     }
     pub(super) fn teller_herhaal(&mut self) -> Result<Option<u16>, String> {

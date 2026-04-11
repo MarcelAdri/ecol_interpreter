@@ -28,14 +28,12 @@ impl EcolMachine {
         }
         Ok(reply)
     }
-    pub(super) fn execute_met(&mut self, variabele_naam: &str, stap_expressie: &str, start_expressie: &str, stop_expressie: &str, volgende_regel: u16) -> Result<String, String> {
+    pub(super) fn execute_met(&mut self, variabele_naam: &str, stap_expressie: &str, start_expressie: &str, stop_expressie: &str, volgende_regel: u16) -> Result<Option<()>, String> {
         let stap = self. solve_expression(stap_expressie)?;
         let start = self. solve_expression(start_expressie)?;
         let stop = self. solve_expression(stop_expressie)?;
 
-        self.teller_nieuw(variabele_naam, stap, start, stop, volgende_regel)?;
-
-        Ok("".to_string())
+        Ok(self.teller_nieuw(variabele_naam, stap, start, stop, volgende_regel)?)
     }
     pub(super) fn execute_naar(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, sprong_doel: &u16, current: &u16) -> Result<u16, String> {
         let doel = *sprong_doel;
@@ -128,13 +126,14 @@ impl EcolMachine {
         let mut current = 0;
         let start_tijd = js_sys::Date::now();
         let mut stappen: u32 = 0;
+        let mut programma = self.programma().clone();
 
         loop{
             stappen += 1;
             if stappen % 1000 == 0 && js_sys::Date::now() - start_tijd > 5000.0 {
                 return Err("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string());
             }
-            let Some((&regelnummer, current_regel)) = self.programma().range(current..).next() else {
+            let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
                 return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string());
             };
             current = regelnummer + 1;
@@ -145,14 +144,14 @@ impl EcolMachine {
                         match dan {
                             SprongDoel::Stop => { break; }
                             SprongDoel::Regel(regel) => {
-                                current = running_program.execute_naar(self.programma(), regel, &current)?;
+                                current = running_program.execute_naar(&programma, regel, &current)?;
                             }
                         }
                     } else if let Some(anders_regel) = anders {
                         match anders_regel {
                             SprongDoel::Stop => { break; }
                             SprongDoel::Regel(regel) => {
-                                current = running_program.execute_naar(self.programma(), regel, &current)?;
+                                current = running_program.execute_naar(&programma, regel, &current)?;
                             }
                         }
                     }
@@ -162,8 +161,7 @@ impl EcolMachine {
                 }
                 LineInhoud::Herhaal {} => {
                     let Some(sprong) = running_program.teller_herhaal()? else { continue };
-                    current = running_program.execute_naar(self.programma(), &sprong, &current)?;
-
+                    current = running_program.execute_naar(&programma, &sprong, &current)?;
                 }
                 LineInhoud::Klaar { } =>{
                     break;
@@ -175,18 +173,23 @@ impl EcolMachine {
                     return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", regelnummer));
                 },
                 LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
-                    let Some((&volgende_regelnummer, _)) = self.programma().range(current..).next() else {
+                    let Some((&volgende_regelnummer, _)) = &programma.range(current..).next() else {
                         return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
                     };
                     let regel = running_program.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
+                    match regel {
+                        Some(_) => { continue; },
+                        None => {
+                            current = EcolMachine::teller_naar_herhaal(&programma, &current)?;
+                            continue;
+                        }
                     }
+
                 },
                 LineInhoud::Naar { sprong_doel } => {
                     let doel = *sprong_doel as u16;
-                    current = running_program.execute_naar(self.programma(), &doel, &current)?;
+                    current = running_program.execute_naar(&programma, &doel, &current)?;
                 },
                 LineInhoud::NP { } => {
                     let regel = running_program.execute_np( output )
