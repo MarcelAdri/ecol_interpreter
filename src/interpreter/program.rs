@@ -21,6 +21,8 @@ impl Line {
     pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
         match &self.inhoud {
             LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
+            LineInhoud::FunStart { .. } => Some(Sleutelwoord::FUNstart),
+            LineInhoud::FunEind { .. } => Some(Sleutelwoord::FUNeind),
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
             LineInhoud::Herhaal {} => Some(Sleutelwoord::HERHAAL),
             LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
@@ -67,6 +69,19 @@ impl Line {
                         .to_string(),
                 }
             }
+            LineInhoud::FunStart { variabele_naam, argumenten } => {
+                format!("{}FUN {}({})"
+                        ,regelnummer
+                        ,variabele_naam
+                        ,argumenten)
+                    .trim_start()
+                    .to_string()
+            },
+            LineInhoud::FunEind { expressie } => {
+                format!("{}FUN := {}", regelnummer, expressie)
+                    .trim_start()
+                    .to_string()
+            },
             LineInhoud::Help {} => format!("{}HELP", regelnummer)
                 .trim_start()
                 .to_string(),
@@ -86,7 +101,7 @@ impl Line {
                 format!("{}MET {}, {} := {}, {}", regelnummer, stap_expressie, variabele_naam, start_expressie, stop_expressie)
                     .trim_start()
                     .to_string() },
-            LineInhoud::Naar { sprong_doel } => format!("{}NAAR {}", regelnummer, sprong_doel)
+            LineInhoud::Naar { sprong_doel } => format!("{}NAAR {}", regelnummer, sprong_doel.to_string())
                 .trim_start()
                 .to_string(),
             LineInhoud::NP {} => format!("{}NP", regelnummer)
@@ -148,7 +163,7 @@ impl Line {
                     .trim_start()
                     .to_string(),
             LineInhoud::Toekennen { variabele_naam, argument, expressie } =>
-                if *argument == 0 {
+                if *argument == "" {
                     format!("{}{} := {}"
                             ,regelnummer
                             ,variabele_naam
@@ -189,12 +204,24 @@ impl SprongDoel {
         }
     }
 
+    pub(super) fn regelnummer(&self) -> Option<u16> {
+        match self {
+            SprongDoel::Regel(regelnummer) => Some(*regelnummer),
+            SprongDoel::Stop => None,
+        }
+    }
+
     pub(super) fn vul(bron: &str) -> Result<Self, String> {
         let reply: SprongDoel;
         if geen_spaties(bron) == "STOP" {
             reply = SprongDoel::Stop;
         } else {
-            reply = SprongDoel::Regel(bron.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal.".to_string())?);
+            let regelnummer = bron.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal.".to_string())?;
+            if regelnummer <1 || regelnummer > 999 {
+                return Err("Regelnummer moet tussen 1 en 999 (inclusief) liggen.".to_string());
+            }
+            reply = SprongDoel::Regel(regelnummer);
+
         }
         Ok(reply)
     }
@@ -203,6 +230,8 @@ impl SprongDoel {
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
     Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>},
+    FunStart {variabele_naam: String, argumenten: String},
+    FunEind {expressie: String },
     Help {},
     Herhaal {},
     Klaar {},
@@ -214,19 +243,19 @@ pub(super) enum LineInhoud {
     },
     LegeRegel {},
     Lijst {},
-    Naar {sprong_doel: usize},
+    Naar {sprong_doel: SprongDoel},
     NP {},
     NR {
-        aantal: usize
+        aantal: String
     },
     Rij {
-        start: usize,
-        eind: usize,
+        start: String,
+        eind: String,
         variabele_naam: String,
     },
     Rijsym {
-        start: usize,
-        eind: usize,
+        start: String,
+        eind: String,
         variabele_naam: String,
     },
     Schrijf {
@@ -241,7 +270,7 @@ pub(super) enum LineInhoud {
         expressie: String,
     },
     Spatie {
-        aantal: usize,
+        aantal: String,
     },
     Start {},
     Tekst {
@@ -249,7 +278,7 @@ pub(super) enum LineInhoud {
     },
     Toekennen {
         variabele_naam: String,
-        argument: usize,
+        argument: String,
         expressie: String,
     },
     Verwijderen {},
@@ -262,7 +291,7 @@ impl LineInhoud {
             Sleutelwoord::KLAAR => Ok(Self::Klaar {}),
             Sleutelwoord::LIJST => Ok(Self::Lijst {}),
             Sleutelwoord::NP => Ok(Self::NP {}),
-            Sleutelwoord::NR => Ok(Self::NR { aantal: 0 }),
+            Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string() }),
             Sleutelwoord::START => Ok(Self::Start {}),
             _ => Err("Incomplete syntax".to_string()),
         }
@@ -270,6 +299,8 @@ impl LineInhoud {
     pub(super) fn as_str(&self) -> &str {
         match self {
             LineInhoud::Als { .. } => "Als",
+            LineInhoud::FunStart { .. } => "FunStart",
+            LineInhoud::FunEind { .. } => "FunEind",
             LineInhoud::Help { } => "Help",
             LineInhoud::Herhaal { } => "Herhaal",
             LineInhoud::Klaar { } => "Klaar",
@@ -385,6 +416,8 @@ impl Programma {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     ALS,
+    FUNstart,
+    FUNeind,
     HELP,
     HERHAAL,
     KLAAR,
@@ -436,6 +469,8 @@ impl Sleutelwoord {
     pub(super) fn to_string(&self) -> &str {
         match self {
             Sleutelwoord::ALS => "ALS",
+            Sleutelwoord::FUNstart => "FUN",
+            Sleutelwoord::FUNeind => "FUN",
             Sleutelwoord::HELP => "HELP",
             Sleutelwoord::HERHAAL => "HERHAAL",
             Sleutelwoord::KLAAR => "KLAAR",

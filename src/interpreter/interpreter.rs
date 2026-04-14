@@ -79,7 +79,7 @@ use std::f32;
 use web_sys::js_sys;
 use crate::interpreter::helpers::{result_to_string};
 use crate::interpreter::parsers::{parseer_regel};
-use crate::interpreter::vergelijkingen::Vergelijking;
+use super::functions::{FunDef};
 use super::waarden::{VariabeleType, Waarde};
 use super::program::{LineInhoud, Programma};
 
@@ -206,6 +206,8 @@ pub struct EcolMachine {
     regel_buffer: RegelBuffer,
     programma: Programma,
     actieve_tellers: Vec<String>,
+    functie_register: HashMap<String, FunDef>,
+    functie_recursie_diepte: u16,
     seed: u64,
 }
 impl EcolMachine {
@@ -215,6 +217,8 @@ impl EcolMachine {
             regel_buffer: RegelBuffer::new(),
             programma: Programma::new(),
             actieve_tellers: Vec::new(),
+            functie_register: HashMap::new(),
+            functie_recursie_diepte: 0,
             seed: js_sys::Date::now() as u64,
         }
     }
@@ -226,6 +230,9 @@ impl EcolMachine {
         self.variabelen_opslag.lees_waarde(naam)
     }
     pub(super) fn var_schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
+        if self.functie_register.contains_key(naam) {
+            return Err(format!("Ongeldige variabele naam: '{}' is gedefinieerd als FUN.", naam))
+        }
         self.variabelen_opslag.schrijf_waarde(naam, waarde)
     }
     pub(super) fn var_reserveer_rij(&mut self, variabele_naam: &str, start: usize, eind: usize) -> Result<(), String> {
@@ -329,6 +336,30 @@ impl EcolMachine {
     pub(super) fn laad_programma(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
         self.programma.laad(bron);
     }
+    pub(super) fn laad_functies(&mut self, bron: &HashMap<String, FunDef>) {
+        self.functie_register = bron.clone();
+    }
+    pub(super) fn haal_functiedefinitie(&self, naam: &str) -> Option<&FunDef> {
+        self.functie_register.get(naam)
+    }
+    pub(super) fn schrijf_nieuwe_functie(&mut self, naam: &str, fundef: &FunDef) -> Result<(), String>{
+        if self.functie_register.contains_key(naam) {
+            return Err(format!("Functie met naam '{}' bestaat al", naam));
+        }
+        self.functie_register.insert(naam.to_string(), fundef.clone());
+        Ok(())
+    }
+    pub(super) fn functie_diepte(&self) -> u16 {
+        self.functie_recursie_diepte
+    }
+    pub(super) fn stel_functie_diepte_in(&mut self, diepte: u16) {
+        self.functie_recursie_diepte = diepte;
+    }
+    pub(super) fn haal_functie_register(&self) -> &HashMap<String,FunDef>
+    {
+        &self.functie_register
+    }
+
     pub(super) fn volgende_willekeurig(&mut self, laag: f32, hoog: f32) -> f32 {
         self.seed ^= self.seed << 13;
         self.seed ^= self.seed >> 7;
@@ -345,6 +376,12 @@ impl EcolMachine {
                 if regel.regelnummer() == 0 {
                     match &regel.inhoud() {
                         LineInhoud::Als { .. } => {
+                            reply = "".to_string();
+                        }
+                        LineInhoud::FunStart { .. } => {
+                            reply = "".to_string();
+                        }
+                        LineInhoud::FunEind { .. } => {
                             reply = "".to_string();
                         }
                         LineInhoud::Help { } => {
@@ -373,13 +410,13 @@ impl EcolMachine {
                             reply = result_to_string(self.execute_np( output));
                         },
                         LineInhoud::NR { aantal } => {
-                            reply =  result_to_string(self.execute_nr( *aantal ));
+                            reply =  result_to_string(self.execute_nr( aantal ));
                         },
                         LineInhoud::Rij { start, eind, variabele_naam } => {
-                            reply = result_to_string(self.execute_rij(*start, *eind, variabele_naam));
+                            reply = result_to_string(self.execute_rij(start, eind, variabele_naam));
                         },
                         LineInhoud::Rijsym { start, eind, variabele_naam } => {
-                            reply = result_to_string(self.execute_rijsym(*start, *eind, variabele_naam));
+                            reply = result_to_string(self.execute_rijsym(start, eind, variabele_naam));
                         },
                         LineInhoud::Schrijf { breedte, decimalen, expressie } => {
                             reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));
@@ -391,7 +428,7 @@ impl EcolMachine {
                             reply = result_to_string(self.execute_schrijm(expressie));
                         },
                         LineInhoud::Spatie { aantal } => {
-                            reply = result_to_string(self.execute_spatie(*aantal));
+                            reply = result_to_string(self.execute_spatie(aantal));
                         },
                         LineInhoud::Start { } => {
                             reply = result_to_string(self.execute_start(output));
@@ -400,7 +437,7 @@ impl EcolMachine {
                             reply = result_to_string(self.execute_tekst(expressie));
                         },
                         LineInhoud::Toekennen {variabele_naam, argument,  expressie} => {
-                            reply = result_to_string(self.execute_toekennen(variabele_naam, *argument, expressie));
+                            reply = result_to_string(self.execute_toekennen(variabele_naam, argument, expressie));
                         },
                         LineInhoud::Verwijderen { } => {
                             reply = "Verwijderen van een ongenummerde regel is niet mogelijk.".to_string();

@@ -1,6 +1,9 @@
+use std::collections::{BTreeMap, HashMap};
+use web_sys::js_sys;
 use crate::interpreter::EcolMachine;
-use crate::interpreter::helpers::grens_bewaking;
-use crate::interpreter::waarden::VariabeleType;
+use crate::interpreter::helpers::{geen_spaties, grens_bewaking};
+use crate::interpreter::program::{LineInhoud, Programma, SprongDoel};
+use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
 pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
@@ -144,6 +147,185 @@ impl Functie {
         }
     }
 }
+#[derive(Debug, Clone)]
+pub(super) struct FunDef {
+    parameters: Vec<String>,
+    body: BTreeMap<u16, LineInhoud>,
+}
+impl FunDef {
+    fn new() -> Self {
+        FunDef { parameters: Vec::new(), body: BTreeMap::new() }
+    }
+
+    fn get_parameters(&self) -> &Vec<String> {
+        &self.parameters
+    }
+    fn get_body(&self) -> &BTreeMap<u16, LineInhoud> {
+        &self.body
+    }
+}
+
+pub(super) struct EigenFunctie {
+    functie_omgeving: EcolMachine,
+}
+
+impl EigenFunctie {
+    fn new() -> Self {
+        EigenFunctie { functie_omgeving: EcolMachine::new() }
+    }
+
+    fn eigen_functie(functies: &HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16) -> Result<f32, String> {
+        if diepte > 100 {
+            return Err("Maximum recursie-diepte overschreden (100).".to_string());
+        }
+        let mut machine = Self::new();
+        machine.functie_omgeving.stel_functie_diepte_in(diepte);
+        if argumenten.len() != functie.parameters.len() {
+            return Err(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters.len(), argumenten.len()));
+        }
+        machine.functie_omgeving.laad_programma(&functie.body);
+        machine.functie_omgeving.laad_functies(functies);
+
+        for index in 0..functie.parameters.len() {
+            let mut naam = functie.parameters[index].to_string();
+            if geen_spaties(&naam).starts_with("RIJSYM") {
+                naam = geen_spaties(&naam[6..]);
+                if argumenten[index].type_van() != Some(VariabeleType::Rijsym) {
+                    return Err(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string()));
+                }
+                let (begin, einde) = argumenten[index].rij_haal_grenswaarden();
+                machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
+            } else if geen_spaties(&naam).starts_with("RIJ") {
+                naam = geen_spaties(&naam[3..]);
+                if argumenten[index].type_van() != Some(VariabeleType::Rij) {
+                    return Err(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string()));
+                }
+                let (begin, einde) = argumenten[index].rij_haal_grenswaarden();
+                machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
+            } else {
+                if argumenten[index].type_van() != Some(VariabeleType::Getal) {
+                    return Err(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string()));
+                }
+            }
+            machine.functie_omgeving.var_schrijf_waarde(&naam, argumenten[index].clone())?;
+        }
+
+        let programma = machine.functie_omgeving.programma().clone();
+        let mut current = 1;
+        loop {
+
+            let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
+                return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. FUN := niet aangetroffen.".to_string());
+            };
+            current = regelnummer + 1;
+
+            match current_regel {
+                LineInhoud::Als { vergelijking, dan, anders } => {
+                    if machine.functie_omgeving.parseer_vergelijking(vergelijking)? {
+                        match machine.functie_omgeving.execute_naar(&programma, dan, &current)? {
+                            Some(regel) => current = regel,
+                            None => return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
+                        }
+                    } else if let Some(anders_regel) = anders {
+                        match machine.functie_omgeving.execute_naar(&programma, anders_regel, &current)? {
+                            Some(regel) => current = regel,
+                            None => return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
+                        }
+                    }
+                },
+                LineInhoud::FunStart { .. } => {
+                    return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een andere functie definitie.", regelnummer));
+                },
+                LineInhoud::FunEind { expressie } => {
+                    return Ok(machine.functie_omgeving.solve_expression(expressie)?);
+                },
+                LineInhoud::Help {} => {
+                    return Err(format!("FOUTMELDING in regel {}: HELP kan niet in een FUN definitie.", regelnummer));
+                },
+                LineInhoud::Herhaal {} => {
+                    let Some(sprong) = machine.functie_omgeving.teller_herhaal()? else { continue };
+                    let doel = SprongDoel::Regel(sprong);
+                    match machine.functie_omgeving.execute_naar(&programma, &doel, &current)? {
+                        Some(regel) => current = regel,
+                        None => return Err(format!("Interne fout in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
+                    }
+                },
+                LineInhoud::Klaar { } =>{
+                    return Err(format!("FOUTMELDING in regel {}: KLAAR kan niet in een FUN definitie.", regelnummer));
+                },
+                LineInhoud::LegeRegel { } => {
+                    continue;
+                },
+                LineInhoud::Lijst { } => {
+                    return Err(format!("FOUTMELDING in regel {}: LIJST kan niet in een FUN definitie.", regelnummer));
+                },
+                LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
+                    let Some((&volgende_regelnummer, _)) = &programma.range(current..).next() else {
+                        return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
+                    };
+                    let regel = machine.functie_omgeving.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                    match regel {
+                        Some(_) => { continue; },
+                        None => {
+                            current = EcolMachine::teller_naar_herhaal(&programma, &current)?;
+                            continue;
+                        }
+                    }
+
+                },
+                LineInhoud::Naar { sprong_doel } => {
+                    match machine.functie_omgeving.execute_naar(&programma, sprong_doel, &current)? {
+                        Some(regel) => current = regel,
+                        None => return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
+                    }
+                },
+                LineInhoud::NP { } => {
+                    return Err(format!("FOUTMELDING in regel {}: NP kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::NR { aantal } => {
+                    return Err(format!("FOUTMELDING in regel {}: NR kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::Rij { start, eind, variabele_naam } => {
+                    let _ = machine.functie_omgeving.execute_rij(start, eind, variabele_naam)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                },
+                LineInhoud::Rijsym { start, eind, variabele_naam } => {
+                    let _ = machine.functie_omgeving.execute_rijsym(start, eind, variabele_naam)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                },
+                LineInhoud::Schrijf { breedte, decimalen, expressie } => {
+                    return Err(format!("FOUTMELDING in regel {}: SCHRIJF kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::Schrijfsym { expressie } => {
+                    return Err(format!("FOUTMELDING in regel {}: SCHRIJFSYM kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::Schrijm { expressie } => {
+                    return Err(format!("FOUTMELDING in regel {}: SCHRIJM kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::Spatie { aantal } => {
+                    return Err(format!("FOUTMELDING in regel {}: SPATIE kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::Start { } => {
+                    return Err(format!("FOUTMELDING in regel {}: START kan niet in een FUN definitie.", regelnummer));
+                },
+                LineInhoud::Tekst { expressie } => {
+                    return Err(format!("FOUTMELDING in regel {}: TEKST kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
+                },
+                LineInhoud::Toekennen {variabele_naam, argument, expressie} => {
+                    //panic!("expressie: {}", expressie);
+                    let _ = machine.functie_omgeving.execute_toekennen(variabele_naam, argument, expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
+                },
+                LineInhoud::Verwijderen { } => {
+                    //Kan niet voorkomen in een programma
+                },
+            }
+        }
+
+        //Ok(1f32)
+    }
+}
 
 impl EcolMachine {
     pub(super) fn execute_function(&mut self, functie: &Functie) -> Result<f32, String> {
@@ -248,4 +430,63 @@ impl EcolMachine {
 
         Ok(getal.sqrt())
     }
+    pub(super) fn execute_eigen_functie(&self, naam: &str, argumenten: Vec<Waarde>) -> Result<f32, String> {
+        let definitie = self.haal_functiedefinitie(naam)
+            .ok_or_else(|| format!("Functie '{}' bestaat niet", naam))?
+            .clone();
+        let diepte = self.functie_diepte() + 1;
+        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte)
+    }
+    pub(super) fn get_fundef_parameters(&self, naam: &str) -> Option<Vec<String>> {
+        let definitie = self.haal_functiedefinitie(naam)?;
+        Some(definitie.get_parameters().clone())
+    }
+    pub(super) fn get_fundef_body(&self, naam: &str) -> Option<BTreeMap<u16, LineInhoud>> {
+        let definitie = self.haal_functiedefinitie(naam)?;
+        Some(definitie.get_body().clone())
+    }
+
+    pub(super) fn extract_functie_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, String> {
+        let mut nieuwe_programma: BTreeMap<u16, LineInhoud> = BTreeMap::new();
+        let mut in_functie_definitie = false;
+        let mut fundef = FunDef::new();
+        let mut naam_van_functie: &str = "";
+
+        for (regelnummer, regel) in volledige_programma.iter() {
+            match regel {
+                LineInhoud::FunStart { variabele_naam, argumenten } => {
+                    in_functie_definitie = true;
+                    naam_van_functie = variabele_naam;
+                    let parameters = argumenten.split(',')
+                        .filter_map(|s| {
+                            let t = s.trim().to_string();
+                            if t.is_empty() { None } else { Some(t) }
+                        })
+                        .collect::<Vec<String>>();
+                    fundef = FunDef::new();
+                    fundef.parameters = parameters;
+                }
+                LineInhoud::FunEind { expressie } => {
+                    if in_functie_definitie {
+                        fundef.body.insert(*regelnummer, regel.clone());
+                        self.schrijf_nieuwe_functie(naam_van_functie, &fundef)?;
+                        naam_van_functie = "";
+                        in_functie_definitie = false;
+                    } else {
+                        nieuwe_programma.insert(*regelnummer, regel.clone());
+                    }
+                }
+                _ => {
+                    if in_functie_definitie {
+                        fundef.body.insert(*regelnummer, regel.clone());
+                    } else {
+                        nieuwe_programma.insert(*regelnummer, regel.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(nieuwe_programma)
+    }
+
 }

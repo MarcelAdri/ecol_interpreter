@@ -406,7 +406,7 @@ HERHAAL</pre>
 
 <h2>Functies: FUN</h2>
 
-<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
+<span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
 <p>Een FUN-beschrijving definieert een functie met een returnwaarde. Parameters zijn formele namen (GP of RIJ). Namen en labels binnen een FUN zijn volledig lokaal.</p>
 
@@ -425,6 +425,10 @@ FUN := &lt;uitdrukking&gt;</pre>
 <p>Een FUN-roep mag vóór de beschrijving in de tekst staan (forward reference). FUN-definitieregels worden bij normale uitvoering overgeslagen en alleen uitgevoerd bij aanroeping.</p>
 
 <p><strong>Opmerking:</strong> het FUN-mechanisme was bij het verschijnen van het docentenboek (1973) nog niet op alle computers geïmplementeerd.</p>
+
+<p><strong>Bemerking (afwijking van de 1973-beschrijving):</strong> In de originele beschrijving is de naam van een functie alleen verboden als lokale variabele <em>voor zover die functie vanuit zichzelf wordt aangeroepen</em> (recursieve aanroep). In deze implementatie mag een functienaam nooit als variabelenaam worden gebruikt, ook niet in functies die de betreffende functie niet aanroepen.</p>
+
+<p><strong>Bemerking (afwijking van de 1973-beschrijving):</strong> In de originele beschrijving kan een FUN ook als zelfstandige opdracht worden gebruikt, waarbij de returnwaarde wordt weggegooid. In deze implementatie kan een FUN uitsluitend vanuit een uitdrukking worden aangeroepen; de returnwaarde wordt altijd gebruikt.</p>
 
 <h2>Symboltabel (LEESSYM / SCHRIJFSYM)</h2>
 

@@ -1,8 +1,7 @@
-use std::cmp::PartialEq;
 use std::str::FromStr;
 use crate::interpreter::EcolMachine;
-use crate::interpreter::helpers::{first_word, format_getal, geen_spaties, is_geldige_variabele_naam};
-use crate::interpreter::parsers::{parseer_functie, parseer_variabele};
+use crate::interpreter::helpers::{geen_spaties};
+use crate::interpreter::parsers::{parseer_eigen_functie, parseer_functie, parseer_variabele};
 use crate::interpreter::program::{Operator};
 use crate::interpreter::functions::{Functie, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
@@ -42,9 +41,10 @@ impl EcolMachine {
     pub(super) fn solve_expression(&mut self, expressie: &str) -> Result<f32, String> {
         let mut werk_expressie = geen_spaties(expressie);
         self.vervang_functies_in_expressie(&mut werk_expressie)?;
+        self.vervang_eigen_functies_in_expressie(&mut werk_expressie)?;
         self.vervang_variabelen_in_expressie(&mut werk_expressie)?;
         self.bereken_expressie(&mut werk_expressie)?;
-
+        //panic!("expressie: {}", werk_expressie);
         let resultaat = f32::from_str(&werk_expressie);
 
         match resultaat {
@@ -56,9 +56,6 @@ impl EcolMachine {
             }
         }
 
-    }
-    pub(super) fn solve_string_expression(&mut self, expressie: &str) -> Result<String, String> {
-        Ok(expressie.to_string())
     }
     pub(super) fn vervang_functies_in_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
 
@@ -86,6 +83,48 @@ impl EcolMachine {
             let uitkomst = self.execute_function(&functie)?.to_string();
 
             werk_expressie.replace_range(werk_functie.start()..werk_functie.einde(), &uitkomst.trim());
+        }
+
+        Ok(())
+    }
+    pub(super) fn vervang_eigen_functies_in_expressie(&mut self, werk_expressie: &mut String) -> Result<(), String> {
+
+        while let Some((naam, start, einde, argumenten)) = parseer_eigen_functie(self.haal_functie_register(), werk_expressie) {
+
+            let verwachte_argumenten = match self.get_fundef_parameters(&naam) {
+                None => return Err(format!("Interne fout: functie '{}' niet gevonden.", naam)),
+                Some(params) if params.is_empty() => return Err(format!("Functie '{}' heeft geen parameters.", naam)),
+                Some(params) => params,
+            };
+            let mut doel_argumenten: Vec<Waarde> = Vec::new();
+
+            if verwachte_argumenten.len() != argumenten.len() {
+                return Err(format!("Functie {} verwacht {} argumenten, maar {} argumenten zijn opgegeven.", naam, verwachte_argumenten.len(), argumenten.len()));
+            }
+
+            for index in 0..verwachte_argumenten.len() {
+                let verwacht_argument = &verwachte_argumenten[index];
+                let argument = &argumenten[index];
+                if verwacht_argument.starts_with("RIJSYM"){
+                    if self.var_type_van(argument) != Some(VariabeleType::Rijsym) {
+                        return Err(format!("Argument {} van functie {} verwacht een RIJSYM, maar {} is opgegeven.", index + 1, naam, argument));
+                    }
+                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err("Variabele niet gevonden".to_string());};
+                    doel_argumenten.push(waarde);
+                } else if verwacht_argument.starts_with("RIJ") {
+                    if self.var_type_van(argument) != Some(VariabeleType::Rij) {
+                        return Err(format!("Argument {} van functie {} verwacht een RIJ, maar {} is opgegeven.", index + 1, naam, argument));
+                    }
+                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err("Variabele niet gevonden".to_string());};
+                    doel_argumenten.push(waarde);
+                } else {
+                    doel_argumenten.push(Waarde::Getal(self.solve_expression(argument)?));
+                }
+            }
+
+            let uitkomst = self.execute_eigen_functie(&naam, doel_argumenten)?.to_string();
+
+            werk_expressie.replace_range(start..einde, &uitkomst.trim());
         }
 
         Ok(())

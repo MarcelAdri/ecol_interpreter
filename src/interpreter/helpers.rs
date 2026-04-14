@@ -2,25 +2,19 @@ use std::convert::TryFrom;
 use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel, WORDT_TEKEN};
 use crate::interpreter::vergelijkingen::Vergelijking;
 
-pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<usize>, &str)> {
+pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<String>, &str)> {
     let werkstring = input.trim_start();
 
     let (mut inhoud, rest) = werkstring.split_once(')')?;
     inhoud = inhoud.strip_prefix('(')?;
 
-    let reply = inhoud
-        .trim_start()
-        .split(',')
-        .map(|part| part.trim())
-        .filter(|part| !part.is_empty())
-        .map(|token| token
-            .parse::<usize>().ok()).collect::<Option<Vec<usize>>>()?;
-
-
+    let reply = inhoud.split(',').filter_map(|s| { let t = s.trim().to_string(); if t.is_empty() { None } else { Some(t) } }).collect();
+    
     Some((reply, rest.trim_start()))
 }
 pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
     let werkstring = input.trim_start();
+    let resultaat: Sleutelwoord;
 
     if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
         return Some((Sleutelwoord::TOEKENNEN, werkstring));
@@ -28,7 +22,17 @@ pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
     let position = werkstring.find(|c: char| !c.is_ascii_uppercase()).unwrap_or(werkstring.len());
     let (keyword_string, rest) = werkstring.split_at(position);
 
-    let Some(resultaat) = Sleutelwoord::from_string(keyword_string.trim_start()) else { return None };
+    if keyword_string.trim_start().starts_with("FUN") {
+        if rest.trim_start().chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+            resultaat = Sleutelwoord::FUNstart;
+        } else {
+            resultaat = Sleutelwoord::FUNeind;
+        }
+    } else {
+        let Some(res) = Sleutelwoord::from_string(keyword_string.trim_start()) else { return None };
+        resultaat = res;
+    }
+
 
     Some((resultaat, rest.trim_start()))
 }
@@ -184,13 +188,7 @@ pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Resu
 }
 
 pub(super) fn geen_spaties(input: &str) -> String {
-    let mut result = String::new();
-
-    for c in input.chars() {
-        if c.is_whitespace() { continue; }
-        result.push(c);
-    }
-    result
+    input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
 pub(super) fn get_sym_value(getal: &f32) -> Result<u8, String> {
     if getal.is_nan() || getal < &0.0 || getal > &99.0 {

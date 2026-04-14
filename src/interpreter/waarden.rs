@@ -145,10 +145,7 @@ impl EcolTeller {
     fn lees_regel(&self) -> u16 {
         self.regel
     }
-    pub(super) fn lees_start(&self) -> f32 {
-        self.start
-    }
-    pub(super) fn lees_stap(&self) -> f32 {
+    fn lees_stap(&self) -> f32 {
         self.stap
     }
     fn schrijf_current(&mut self, current: f32) {

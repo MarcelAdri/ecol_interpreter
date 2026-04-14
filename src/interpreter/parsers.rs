@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::interpreter::helpers::{
     extract_als
     ,extract_anders
@@ -13,7 +14,7 @@ use crate::interpreter::helpers::{
     ,is_geldig_wordt_teken
     ,is_geldige_variabele_naam};
 use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel};
-use crate::interpreter::functions::{FunctieNaam};
+use crate::interpreter::functions::{FunDef, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleAanroep};
 
 pub(super) struct FunctieAanroep {
@@ -247,6 +248,24 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             }
 
         },
+        Sleutelwoord::FUNstart => {
+            if regelnummer == 0 {
+                return Err("FUN definitie kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
+            let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else { return Err("Variabele naam ontbreekt.".to_string()) };
+            let parameters = rest_na_variabele.trim().trim_start_matches("(").trim_end_matches(")");
+
+            Ok(Line::new(regelnummer, LineInhoud::FunStart { variabele_naam: variabele_naam.to_string() , argumenten: parameters.to_string() }))
+        },
+        Sleutelwoord::FUNeind => {
+            if regelnummer == 0 {
+                return Err("FUN toekenning kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else { return Err("Ongeldig 'wordt'-teken.".to_string()) };
+            let expressie = geen_spaties(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::FunEind { expressie }))
+        }
         Sleutelwoord::HELP => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
@@ -281,76 +300,59 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             }
             let (stap_expressie, rest_na_stap) = extract_stap_expressie(rest_na_keyword)?;
             let (variabele_naam, start_expressie, stop_expressie) = extract_start_expressie(&rest_na_stap)?;
-            
+
             Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie }))
         },
         Sleutelwoord::NAAR => {
-            let Some(sprong_doel) = geen_spaties(rest_na_keyword).parse::<usize>().ok() else { return Err("Naar verwacht een regelnummer als argument.".to_string()) };
-
-            if sprong_doel < 1 || sprong_doel > 999 {
-                return Err("NAAR verwacht een regelnummer tussen 1 en 999.".to_string());
-            }
-
-            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel }))
+            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(rest_na_keyword)? }))
         },
         Sleutelwoord::NP => {
             is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
         },
         Sleutelwoord::NR => {
-            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 1 && argumenten.len() != 0 { return Err(format!("NR verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())) }
-            let aantal: usize;
             if argumenten.len() == 0 {
-                aantal = 1;
-            } else {
-                aantal = argumenten[0];
+                argumenten.push("1".to_string());
             }
             let expressie = rest_na_argumenten.to_string();
             if !expressie.is_empty() {
                 return Err("NR verwacht geen argumenten na de aantal-aanduiding.".to_string());
             }
-            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal }))
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone()}))
         },
         Sleutelwoord::RIJ => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 2 { return Err(format!("RIJ verwacht twee argumenten. {} argumenten aangetroffen", argumenten.len())) }
-            let start: usize;
-            let eind: usize;
 
-            start = argumenten[0];
-            eind = argumenten[1];
             let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else { return Err("Variabele naam ontbreekt.".to_string()) };
             let expressie = rest_na_variabele.to_string();
             if !expressie.is_empty() {
                 return Err("RIJ verwacht geen argumenten na de naam van de variabele.".to_string());
             }
 
-            Ok(Line::new(regelnummer, LineInhoud::Rij{ start, eind, variabele_naam: naam.to_string() }))
+            Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string() }))
         },
         Sleutelwoord::RIJSYM => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 2 { return Err(format!("RIJSYM verwacht twee argumenten. {} argumenten aangetroffen", argumenten.len())) }
-            let start: usize;
-            let eind: usize;
 
-            start = argumenten[0];
-            eind = argumenten[1];
             let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else { return Err("Variabele naam ontbreekt.".to_string()) };
             let expressie = rest_na_variabele.to_string();
             if !expressie.is_empty() {
                 return Err("RIJSYM verwacht geen argumenten na de naam van de variabele.".to_string());
             }
 
-            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start, eind, variabele_naam: naam.to_string() }))
+            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string() }))
         }
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else { return Err("Variabele naam ontbreekt.".to_string()) };
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));
-            let argument: usize;
+            let argument: String;
             if argumenten.len() == 0 {
-                argument = 0usize;
+                argument = "".to_string();
             } else if argumenten.len() == 1 {
-                argument = argumenten[0];
+                argument = argumenten[0].clone();
             } else {
                 return Err("Een RIJ variabele verwacht slechts één argument.".to_string());
             }
@@ -373,11 +375,10 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
                 breedte = 0;
                 decimalen = 0;
             } else {
-                if argumenten[0] == 0 {
+                breedte = argumenten[0].trim().parse::<usize>().map_err(|_| "SCHRIJF verwacht een getal als breedte.".to_string())? ;
+                decimalen = argumenten[1].trim().parse::<usize>().map_err(|_| "SCHRIJF verwacht een getal als aantal decimalen.".to_string())? ;
+                if breedte == 0 {
                     return Err("SCHRIJF verwacht een breedte groter dan 0 als eerste argument.".to_string());
-                } else {
-                    breedte = argumenten[0];
-                    decimalen = argumenten[1];
                 }
             }
 
@@ -397,26 +398,16 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             Ok(Line::new(regelnummer, LineInhoud::Schrijm{ expressie }))
         },
         Sleutelwoord::SPATIE => {
-            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 1 && argumenten.len() != 0 { return Err(format!("SPATIE verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())) }
-            let aantal: usize;
             if argumenten.len() == 0 {
-                aantal = 1;
-            } else {
-                if argumenten[0] == 0 {
-                    return Err("SPATIE verwacht een aantal groter dan 0 als eerste argument.".to_string());
-                } else {
-                    aantal = argumenten[0];
-                }
-            }
-            if aantal > 80 {
-                return Err(format!("SPATIE verwacht een aantal kleiner dan 80 (maximale regelgrootte). Aantal: {}", aantal));
+                argumenten.push("1".to_string());
             }
             let expressie = rest_na_argumenten.to_string();
             if !expressie.is_empty() {
                 return Err("SPATIE verwacht geen argumenten na de aantal-aanduiding.".to_string());
             }
-            Ok(Line::new(regelnummer, LineInhoud::Spatie{ aantal }))
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone() }))
         },
         Sleutelwoord::START => {
             if regelnummer == 0 {
@@ -483,4 +474,43 @@ fn haal_index_expressie(expressie: &str, naam_einde: usize) -> (Option<String>, 
         }
         Err(_) => (None, naam_einde),
     }
+}
+pub(super) fn parseer_eigen_functie(functie_register: &HashMap<String, FunDef>, expressie: &str) -> Option<(String, usize, usize, Vec<String>)> {
+    let mut naam_start: Option<usize> = None;
+
+    for (i, c) in expressie.char_indices() {
+
+        match naam_start {
+            None => {
+                if c.is_ascii_lowercase() {
+                    naam_start = Some(i);
+                }
+            }
+            Some(start) => {
+                if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
+                    continue;
+                }
+
+                let naam = &expressie[start..i];
+                if functie_register.contains_key(naam) {
+                    let (arg_str, einde) = haal_index_expressie(expressie, i);
+                    let argumenten = match arg_str {
+                        Some(s) => splits_argumenten(&s),
+                        None => Vec::new(),
+                    };
+                    return Some((naam.to_string(), start, einde, argumenten));
+                }
+                naam_start = None;
+            }
+        }
+
+    }
+    if let Some(start) = naam_start {
+        let naam = &expressie[start..];
+        if functie_register.contains_key(naam) {
+            return Some((naam.to_string(), start, expressie.len(), Vec::new()));
+        }
+    }
+
+    None
 }

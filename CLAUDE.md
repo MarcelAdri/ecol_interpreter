@@ -98,10 +98,11 @@ Currently implemented:
 - `ALS <vergelijking> DAN <sprongdoel> [ANDERS <sprongdoel>]` — conditional jump; ANDERS is optional; sprongdoel is a line number or `STOP`
 - `STOP` — terminates the program early; only valid as a jump target in `ALS … DAN … ANDERS`
 - `MET <stap>, <var> := <begin>, <einde>` / `HERHAAL` — counted loop; stap/begin/einde are arbitrary expressions (including function calls); negative stap counts down; loop variable readable and writable during loop body; nested loops supported via LIFO stack (`actieve_tellers`); after loop, variable retains the first out-of-bounds value
+- `FUN naam(param, …) … FUN := expressie` — user-defined numeric functions; parameters are passed by value; names and labels are fully local; forward references supported; definition lines are skipped during normal execution
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
-- `FUN` / `SUB` — user-defined functions and subroutines
+- `SUB` — user-defined subroutines
 
 Numbered program lines (1–999): `Programma` struct stores and retrieves lines; `NAAR` and `ALS`/`DAN`/`ANDERS` implemented; `MET`/`HERHAAL` not yet implemented.
 
@@ -110,6 +111,8 @@ Numbered program lines (1–999): `Programma` struct stores and retrieves lines;
 - **`:` only for empty lines** — `n:` (label without statement) is valid; `n: statement` is not. ECOL had no multi-statement lines, so `:` after a statement is meaningless.
 - **FUN/SUB anywhere in the program** — definitions may appear before or after their call sites (forward references). The interpreter scans for all FUN/SUB definitions before execution begins.
 - **FUN/SUB definition lines are skipped during normal execution** — they are only executed when called.
+- **FUN: function names always reserved as variable names** — the 1973 spec only forbids using a function name as a local variable when that function is recursively called from within itself; this implementation forbids using any function name as a variable name anywhere in the program.
+- **FUN: return value always used** — the 1973 spec allows calling a FUN as a standalone statement (discarding the return value); this implementation only allows FUN calls inside expressions.
 
 ### Variable Naming Rules
 
