@@ -388,17 +388,17 @@ HERHAAL</pre>
 
 <span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
-<p>Een SUB-beschrijving is een subroutine zonder returnwaarde. Aanroep met <code>GASUB naam</code>. <code>END</code> keert terug naar de regel na de aanroep. Geneste aanroepen zijn toegestaan.</p>
+<p>Een SUB-beschrijving is een subroutine zonder returnwaarde. Aanroep door de naam als enige opdracht op een regel — de interpreter herkent een kleine-letter naam zonder <code>:=</code> als subroutine-aanroep. <code>END</code> keert terug naar de regel na de aanroep. Geneste aanroepen zijn toegestaan.</p>
 
 <pre>[label] SUB naam
   [opdrachten]
 [label] END</pre>
 
 <p>Aanroep:</p>
-<pre>[label] GASUB naam</pre>
+<pre>[label] naam</pre>
 
 <p>Voorbeeld:</p>
-<pre>10 GASUB druk_af
+<pre>10 druk_af
 20 KLAAR
 30 SUB druk_af
 40   TEKST := "hallo"

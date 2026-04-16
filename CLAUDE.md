@@ -99,7 +99,7 @@ Currently implemented:
 - `STOP` — terminates the program early; only valid as a jump target in `ALS … DAN … ANDERS`
 - `MET <stap>, <var> := <begin>, <einde>` / `HERHAAL` — counted loop; stap/begin/einde are arbitrary expressions (including function calls); negative stap counts down; loop variable readable and writable during loop body; nested loops supported via LIFO stack (`actieve_tellers`); after loop, variable retains the first out-of-bounds value
 - `FUN naam(param, …) … FUN := expressie` — user-defined numeric functions; parameters are passed by value; names and labels are fully local; forward references supported; definition lines are skipped during normal execution
-- `SUB naam … END` / `GASUB naam` — user-defined subroutines without return value; subroutine names follow the same rules as variable names (lowercase ASCII letters, digits, underscores; must not start with a digit); forward references supported; nested calls supported via LIFO stack (`sub_return_stack`); definition lines are skipped during normal execution
+- `SUB naam … END` — user-defined subroutines without return value; called by writing the name as a standalone statement (a lowercase name without `:=` is parsed as a subroutine call, mapped internally to `Sleutelwoord::GASUB`); subroutine names follow the same rules as variable names (lowercase ASCII letters, digits, underscores; must not start with a digit); forward references supported; nested calls supported via LIFO stack (`sub_return_stack`); definition lines are skipped during normal execution
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
