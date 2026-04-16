@@ -21,8 +21,10 @@ impl Line {
     pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
         match &self.inhoud {
             LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
+            LineInhoud::End { } => Some(Sleutelwoord::END),
             LineInhoud::FunStart { .. } => Some(Sleutelwoord::FUNstart),
             LineInhoud::FunEind { .. } => Some(Sleutelwoord::FUNeind),
+            LineInhoud::GaSub { .. } => Some(Sleutelwoord::GASUB),
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
             LineInhoud::Herhaal {} => Some(Sleutelwoord::HERHAAL),
             LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
@@ -40,6 +42,7 @@ impl Line {
             LineInhoud::Schrijm { .. } => Some(Sleutelwoord::SCHRIJM),
             LineInhoud::Spatie { .. } => Some(Sleutelwoord::SPATIE),
             LineInhoud::Start { } => Some(Sleutelwoord::START),
+            LineInhoud::Sub { .. } => Some(Sleutelwoord::SUB),
             LineInhoud::Toekennen { .. } => Some(Sleutelwoord::TOEKENNEN),
             LineInhoud::Verwijderen { } => None,
         }
@@ -69,6 +72,11 @@ impl Line {
                         .to_string(),
                 }
             }
+            LineInhoud::End { } => {
+                format!("{}END", regelnummer)
+                    .trim_start()
+                    .to_string()
+            }
             LineInhoud::FunStart { variabele_naam, argumenten } => {
                 format!("{}FUN {}({})"
                         ,regelnummer
@@ -79,6 +87,11 @@ impl Line {
             },
             LineInhoud::FunEind { expressie } => {
                 format!("{}FUN := {}", regelnummer, expressie)
+                    .trim_start()
+                    .to_string()
+            },
+            LineInhoud::GaSub { sub_naam } => {
+                format!("{}{}", regelnummer, sub_naam)
                     .trim_start()
                     .to_string()
             },
@@ -156,6 +169,10 @@ impl Line {
                     .trim_start()
                     .to_string(),
             LineInhoud::Start { } => "".to_string(),
+            LineInhoud::Sub { sub_naam} =>
+                format!("{}SUB {}", regelnummer, sub_naam)
+                    .trim_start()
+                    .to_string(),
             LineInhoud::Tekst { expressie } =>
                 format!("{}TEKST := {}"
                         ,regelnummer
@@ -230,8 +247,10 @@ impl SprongDoel {
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
     Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>},
+    End {},
     FunStart {variabele_naam: String, argumenten: String},
     FunEind {expressie: String },
+    GaSub { sub_naam: String },
     Help {},
     Herhaal {},
     Klaar {},
@@ -273,6 +292,7 @@ pub(super) enum LineInhoud {
         aantal: String,
     },
     Start {},
+    Sub { sub_naam: String},
     Tekst {
         expressie: String,
     },
@@ -286,6 +306,7 @@ pub(super) enum LineInhoud {
 impl LineInhoud {
     pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Result<Self, String> {
         match sleutelwoord {
+            Sleutelwoord::END => Ok(Self::End {}),
             Sleutelwoord::HELP => Ok(Self::Help {}),
             Sleutelwoord::HERHAAL => Ok(Self::Herhaal {}),
             Sleutelwoord::KLAAR => Ok(Self::Klaar {}),
@@ -299,8 +320,10 @@ impl LineInhoud {
     pub(super) fn as_str(&self) -> &str {
         match self {
             LineInhoud::Als { .. } => "Als",
+            LineInhoud::End { } => "End",
             LineInhoud::FunStart { .. } => "FunStart",
             LineInhoud::FunEind { .. } => "FunEind",
+            LineInhoud::GaSub { .. } => "GaSub",
             LineInhoud::Help { } => "Help",
             LineInhoud::Herhaal { } => "Herhaal",
             LineInhoud::Klaar { } => "Klaar",
@@ -317,6 +340,7 @@ impl LineInhoud {
             LineInhoud::Schrijm { .. } => "Schrijm",
             LineInhoud::Spatie { .. } => "Spatie",
             LineInhoud::Start { } => "Start",
+            LineInhoud::Sub { .. } => "Sub",
             LineInhoud::Tekst { .. } => "Tekst",
             LineInhoud::Toekennen { .. } => "Toekennen",
             LineInhoud::Verwijderen { } => "Verwijderen",
@@ -416,8 +440,10 @@ impl Programma {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     ALS,
+    END,
     FUNstart,
     FUNeind,
+    GASUB,
     HELP,
     HERHAAL,
     KLAAR,
@@ -433,6 +459,7 @@ pub(super) enum Sleutelwoord {
     SCHRIJM,
     SPATIE,
     START,
+    SUB,
     TEKST,
     TOEKENNEN,
 }
@@ -441,6 +468,7 @@ impl Sleutelwoord {
     pub(super) fn from_string(input: &str) -> Option<Self> {
         match input {
             "ALS" => Some(Sleutelwoord::ALS),
+            "END" => Some(Sleutelwoord::END),
             "HELP" => Some(Sleutelwoord::HELP),
             "HERHAAL" => Some(Sleutelwoord::HERHAAL),
             "KLAAR" => Some(Sleutelwoord::KLAAR),
@@ -456,6 +484,7 @@ impl Sleutelwoord {
             "SCHRIJM" => Some(Sleutelwoord::SCHRIJM),
             "SPATIE" => Some(Sleutelwoord::SPATIE),
             "START" => Some(Sleutelwoord::START),
+            "SUB" => Some(Sleutelwoord::SUB),
             "TEKST" => Some(Sleutelwoord::TEKST),
             "TOEKENNEN" => Some(Sleutelwoord::TOEKENNEN),
             _ => None
@@ -469,8 +498,10 @@ impl Sleutelwoord {
     pub(super) fn to_string(&self) -> &str {
         match self {
             Sleutelwoord::ALS => "ALS",
+            Sleutelwoord::END => "END",
             Sleutelwoord::FUNstart => "FUN",
             Sleutelwoord::FUNeind => "FUN",
+            Sleutelwoord::GASUB => "GASUB",
             Sleutelwoord::HELP => "HELP",
             Sleutelwoord::HERHAAL => "HERHAAL",
             Sleutelwoord::KLAAR => "KLAAR",
@@ -486,6 +517,7 @@ impl Sleutelwoord {
             Sleutelwoord::SCHRIJM => "SCHRIJM",
             Sleutelwoord::SPATIE => "SPATIE",
             Sleutelwoord::START => "START",
+            Sleutelwoord::SUB => "SUB",
             Sleutelwoord::TEKST => "TEKST",
             Sleutelwoord::TOEKENNEN => "TOEKENNEN",
         }

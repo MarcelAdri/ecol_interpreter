@@ -233,11 +233,17 @@ impl EigenFunctie {
                         }
                     }
                 },
+                LineInhoud::End {} => {
+                    return Err(format!("FOUTMELDING in regel {}: END kan niet in een FUN definitie.", regelnummer));
+                }
                 LineInhoud::FunStart { .. } => {
                     return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een andere functie definitie.", regelnummer));
                 },
                 LineInhoud::FunEind { expressie } => {
                     return Ok(machine.functie_omgeving.solve_expression(expressie)?);
+                },
+                LineInhoud::GaSub { .. } => {
+                    return Err(format!("FOUTMELDING in regel {}: Vanuit een functie kan een subroutine niet aangeroepen worden.", regelnummer));
                 },
                 LineInhoud::Help {} => {
                     return Err(format!("FOUTMELDING in regel {}: HELP kan niet in een FUN definitie.", regelnummer));
@@ -309,6 +315,9 @@ impl EigenFunctie {
                 LineInhoud::Start { } => {
                     return Err(format!("FOUTMELDING in regel {}: START kan niet in een FUN definitie.", regelnummer));
                 },
+                LineInhoud::Sub { .. } => {
+                    return Err(format!("FOUTMELDING in regel {}: SUB kan niet in een FUN definitie.", regelnummer));
+                }
                 LineInhoud::Tekst { expressie } => {
                     return Err(format!("FOUTMELDING in regel {}: TEKST kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
                 },

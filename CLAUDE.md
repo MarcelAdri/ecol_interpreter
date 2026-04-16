@@ -99,12 +99,10 @@ Currently implemented:
 - `STOP` — terminates the program early; only valid as a jump target in `ALS … DAN … ANDERS`
 - `MET <stap>, <var> := <begin>, <einde>` / `HERHAAL` — counted loop; stap/begin/einde are arbitrary expressions (including function calls); negative stap counts down; loop variable readable and writable during loop body; nested loops supported via LIFO stack (`actieve_tellers`); after loop, variable retains the first out-of-bounds value
 - `FUN naam(param, …) … FUN := expressie` — user-defined numeric functions; parameters are passed by value; names and labels are fully local; forward references supported; definition lines are skipped during normal execution
+- `SUB naam … END` / `GASUB naam` — user-defined subroutines without return value; subroutine names follow the same rules as variable names (lowercase ASCII letters, digits, underscores; must not start with a digit); forward references supported; nested calls supported via LIFO stack (`sub_return_stack`); definition lines are skipped during normal execution
 
 Not yet implemented:
 - `variabele := LEES` — read input as a value
-- `SUB` — user-defined subroutines
-
-Numbered program lines (1–999): `Programma` struct stores and retrieves lines; `NAAR` and `ALS`/`DAN`/`ANDERS` implemented; `MET`/`HERHAAL` not yet implemented.
 
 ### Deliberate deviations from the 1973 spec
 
@@ -113,6 +111,7 @@ Numbered program lines (1–999): `Programma` struct stores and retrieves lines;
 - **FUN/SUB definition lines are skipped during normal execution** — they are only executed when called.
 - **FUN: function names always reserved as variable names** — the 1973 spec only forbids using a function name as a local variable when that function is recursively called from within itself; this implementation forbids using any function name as a variable name anywhere in the program.
 - **FUN: return value always used** — the 1973 spec allows calling a FUN as a standalone statement (discarding the return value); this implementation only allows FUN calls inside expressions.
+- **SUB: subroutine names follow variable naming rules** — the 1973 spec places no restriction on SUB names; this implementation requires lowercase ASCII letters, digits, and underscores, not starting with a digit (same as variables and functions).
 
 ### Variable Naming Rules
 

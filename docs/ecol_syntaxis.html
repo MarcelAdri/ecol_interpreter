@@ -386,23 +386,28 @@ HERHAAL</pre>
 
 <h2>Subroutines: SUB … END</h2>
 
-<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
+<span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
-<p>Een SUB-beschrijving is een subroutine zonder returnwaarde. Aanroep door de naam als zelfstandige opdracht op een regel. <code>END</code> keert terug naar de regel na de aanroep.</p>
+<p>Een SUB-beschrijving is een subroutine zonder returnwaarde. Aanroep met <code>GASUB naam</code>. <code>END</code> keert terug naar de regel na de aanroep. Geneste aanroepen zijn toegestaan.</p>
 
 <pre>[label] SUB naam
   [opdrachten]
 [label] END</pre>
 
+<p>Aanroep:</p>
+<pre>[label] GASUB naam</pre>
+
 <p>Voorbeeld:</p>
-<pre>10 druk af
+<pre>10 GASUB druk_af
 20 KLAAR
-30 SUB druk af
+30 SUB druk_af
 40   TEKST := "hallo"
 50   NR
 60 END</pre>
 
-<p>Geen RIJ-reserveringen en geen SUB-beschrijvingen binnen een SUB. Een SUB-roep mag vóór de beschrijving in de tekst staan (forward reference). SUB-definitieregels worden bij normale uitvoering overgeslagen.</p>
+<p>Geen RIJ-reserveringen en geen SUB-beschrijvingen binnen een SUB. Een <code>GASUB</code>-aanroep mag vóór de beschrijving in de tekst staan (forward reference). SUB-definitieregels worden bij normale uitvoering overgeslagen.</p>
+
+<p><strong>Bemerking (afwijking van de 1973-beschrijving):</strong> In het origineel zijn subroutinenamen vrij te kiezen. In deze implementatie gelden dezelfde naamregels als voor variabelen en functies: kleine letters, cijfers en underscores, niet beginnend met een cijfer. Spaties in namen zijn niet toegestaan.</p>
 
 <h2>Functies: FUN</h2>
 

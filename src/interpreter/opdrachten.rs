@@ -1,11 +1,32 @@
 use std::collections::BTreeMap;
 use web_sys::js_sys;
 use crate::interpreter::EcolMachine;
+use crate::interpreter::functions::FunDef;
 use crate::interpreter::helpers::{extract_variabele_naam, format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud, SprongDoel};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
+pub(super) struct SubDef {
+    regels: BTreeMap<u16, LineInhoud>
+}
+impl SubDef {
+    fn new() -> Self {
+        Self {
+            regels: BTreeMap::new(),
+        }
+    }
+    fn get_sub_def(&self) -> &BTreeMap<u16, LineInhoud> {
+        &self.regels
+    }
+    pub(crate) fn clone(&self) -> SubDef {
+        let mut nieuw = SubDef::new();
+        for (regelnummer, regel_inhoud) in self.regels.iter() {
+            nieuw.regels.insert(*regelnummer, regel_inhoud.clone());
+        }
+        nieuw
+    }
+}
 impl EcolMachine {
     pub(super) fn execute_help(&self) -> Result<String, String> {
         if let Some(window) = web_sys::window() {
@@ -137,29 +158,48 @@ impl EcolMachine {
         let mut current = 0;
         let start_tijd = js_sys::Date::now();
         let mut stappen: u32 = 0;
-        let programma = running_program.extract_functie_definities(self.programma())?;
+        let mut programma = running_program.extract_functie_definities(self.programma())?;
+        programma = running_program.extract_sub_definities(&programma)?;
+        let mut in_sub = false;
+        let mut subroutine: Vec<BTreeMap<u16, LineInhoud>> = Vec::new();
+        let mut regelnummer: u16;
+        let mut current_regel: &LineInhoud;
 
         loop{
             stappen += 1;
             if stappen % 1000 == 0 && js_sys::Date::now() - start_tijd > 5000.0 {
                 return Err("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string());
             }
-            let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
-                return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string());
-            };
+            if !in_sub {
+                let Some((&regelnum, current_reg)) = programma.range(current..).next() else {
+                    return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string());
+                };
+                regelnummer = regelnum;
+                current_regel = current_reg;
+            } else {
+                let Some(current_routine) = subroutine.last() else { return Err("Interne fout: geen subroutine actief".to_string()); };
+                let Some((&regelnum, current_reg)) = current_routine.range(current..).next() else {
+                    return Err("FOUTMELDING: Subroutine eindigt niet met END.".to_string());
+                };
+                regelnummer = regelnum;
+                current_regel = current_reg;
+            }
+
+
             current = regelnummer + 1;
 
             match current_regel {
                 LineInhoud::Als { vergelijking, dan, anders } => {
+                    let ctx = subroutine.last().unwrap_or(&programma);
                     if running_program.parseer_vergelijking(vergelijking)? {
-                        match running_program.execute_naar(&programma, dan, &current)? {
+                        match running_program.execute_naar(ctx, dan, &current)? {
                             Some(regel) => current = regel,
                             None => {
                                 break;
                             }
                         }
                     } else if let Some(anders_regel) = anders {
-                        match running_program.execute_naar(&programma, anders_regel, &current)? {
+                        match running_program.execute_naar(ctx, anders_regel, &current)? {
                             Some(regel) => current = regel,
                             None => {
                                 break;
@@ -167,8 +207,31 @@ impl EcolMachine {
                         }
                     }
                 }
+                LineInhoud::End { .. } => {
+                    if in_sub {
+                        current = running_program.return_from_sub()?;
+                        subroutine.pop();
+                        if subroutine.is_empty() {
+                            in_sub = false;
+                        }
+                        continue;
+                    } else {
+                        return Err(format!("FOUTMELDING in regel {}: END kan niet in een programma (interne fout).", regelnummer));
+                    }
+
+                }
                 LineInhoud::FunStart { .. } => {
                     return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een programma (interne fout).", regelnummer));
+                }
+                LineInhoud::GaSub { sub_naam } => {
+                    if let Some(subdef) = running_program.lees_subregister(sub_naam).map(|s| s.clone()) {
+                        running_program.start_sub(sub_naam, current)?;
+                        in_sub = true;
+                        subroutine.push(subdef.regels);
+                        current = 0;
+                    }  else {
+                        return Err(format!("FOUTMELDING in regel {}: Onbekende subroutine '{}'.", regelnummer, sub_naam));
+                    }
                 }
                 LineInhoud::FunEind { .. } => {
                     return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een programma (interne fout).", regelnummer));
@@ -179,7 +242,8 @@ impl EcolMachine {
                 LineInhoud::Herhaal {} => {
                     let Some( sprong) = running_program.teller_herhaal()? else { continue };
                     let doel = SprongDoel::Regel( sprong );
-                    match running_program.execute_naar(&programma, &doel, &current)? {
+                    let ctx = subroutine.last().unwrap_or(&programma);
+                    match running_program.execute_naar(ctx, &doel, &current)? {
                         Some(regel) => current = regel,
                         None => {
                             return Err("Interne FOUT bij HERHAAL-opdracht..".to_string());
@@ -196,22 +260,34 @@ impl EcolMachine {
                     return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", regelnummer));
                 },
                 LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
-                    let Some((&volgende_regelnummer, _)) = &programma.range(current..).next() else {
-                        return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
+                    let volgende_regelnummer = if in_sub {
+                        let Some(current_routine) = subroutine.last() else { return Err("Interne fout: geen subroutine actief".to_string()); };
+                        let Some((&volgende_regelnum, _)) = current_routine.range(current..).next() else {
+                            return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
+                        };
+                        volgende_regelnum
+                    } else {
+                        let Some((&volgende_regelnum, _)) = &programma.range(current..).next() else {
+                            return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
+                        };
+                        volgende_regelnum
                     };
+
                     let regel = running_program.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
                         .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
                     match regel {
                         Some(_) => { continue; },
                         None => {
-                            current = EcolMachine::teller_naar_herhaal(&programma, &current)?;
+                            let ctx = subroutine.last().unwrap_or(&programma);
+                            current = EcolMachine::teller_naar_herhaal(ctx, &current)?;
                             continue;
                         }
                     }
 
                 },
                 LineInhoud::Naar { sprong_doel } => {
-                    match running_program.execute_naar(&programma, sprong_doel, &current)? {
+                    let ctx = subroutine.last().unwrap_or(&programma);
+                    match running_program.execute_naar(ctx, sprong_doel, &current)? {
                         Some(regel) => current = regel,
                         None => {
                             break;
@@ -285,6 +361,9 @@ impl EcolMachine {
                     if !regel.is_empty() {
                         output(&regel);
                     }
+                },
+                LineInhoud::Sub { .. } => {
+                    return Err(format!("FOUTMELDING in regel {}: Sub definitie kan niet in een programma (interne fout).", regelnummer));
                 },
                 LineInhoud::Toekennen {variabele_naam, argument, expressie} => {
                     let regel = running_program.execute_toekennen(variabele_naam, argument, expressie)
@@ -380,5 +459,41 @@ impl EcolMachine {
                 _ => { continue },
             }
         }
+    }
+    pub(super) fn extract_sub_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, String> {
+        let mut nieuwe_programma: BTreeMap<u16, LineInhoud> = BTreeMap::new();
+        let mut in_sub_definitie = false;
+        let mut subdef = SubDef::new();
+        let mut naam_van_sub: &str = "";
+
+        for (regelnummer, regel) in volledige_programma.iter() {
+            match regel {
+                LineInhoud::Sub { sub_naam} => {
+                    in_sub_definitie = true;
+                    naam_van_sub = sub_naam;
+
+                    subdef = SubDef::new();
+                }
+                LineInhoud::End { } => {
+                    if in_sub_definitie {
+                        subdef.regels.insert(*regelnummer, regel.clone());
+                        self.schrijf_subregister(naam_van_sub, subdef.clone())?;
+                        naam_van_sub = "";
+                        in_sub_definitie = false;
+                    } else {
+                        nieuwe_programma.insert(*regelnummer, regel.clone());
+                    }
+                }
+                _ => {
+                    if in_sub_definitie {
+                        subdef.regels.insert(*regelnummer, regel.clone());
+                    } else {
+                        nieuwe_programma.insert(*regelnummer, regel.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(nieuwe_programma)
     }
 }

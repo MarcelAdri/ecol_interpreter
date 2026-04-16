@@ -78,6 +78,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
 use crate::interpreter::helpers::{result_to_string};
+use crate::interpreter::opdrachten::{SubDef};
 use crate::interpreter::parsers::{parseer_regel};
 use super::functions::{FunDef};
 use super::waarden::{VariabeleType, Waarde};
@@ -208,6 +209,8 @@ pub struct EcolMachine {
     actieve_tellers: Vec<String>,
     functie_register: HashMap<String, FunDef>,
     functie_recursie_diepte: u16,
+    sub_register: HashMap<String, SubDef>,
+    sub_return_stack: Vec<u16>,
     seed: u64,
 }
 impl EcolMachine {
@@ -219,8 +222,35 @@ impl EcolMachine {
             actieve_tellers: Vec::new(),
             functie_register: HashMap::new(),
             functie_recursie_diepte: 0,
+            sub_register: HashMap::new(),
+            sub_return_stack: Vec::new(),
             seed: js_sys::Date::now() as u64,
         }
+    }
+    pub(super) fn schrijf_subregister(&mut self, naam: &str, definitie: SubDef) -> Result<(), String> {
+
+        if self.sub_register.insert(naam.to_string(), definitie).is_some() {
+            return Err(format!("Interne fout: Subroutine met naam '{}' bestaat al", naam));
+        };
+        Ok(())
+    }
+    pub(super) fn lees_subregister(&self, naam: &str) -> Option<&SubDef> {
+        self.sub_register.get(naam)
+    }
+    pub(super) fn is_sub(&self, naam: &str) -> bool {
+        self.sub_register.contains_key(naam)
+    }
+    pub(super) fn return_from_sub(&mut self) -> Result<u16, String> {
+        let Some(reply) = self.sub_return_stack.pop() else {return Err("Geen subroutine om uit terug te keren.".to_string())};
+
+        Ok(reply)
+    }
+    pub(super) fn start_sub(&mut self, naam: &str, regelnummer: u16) -> Result<(), String> {
+        if !self.is_sub(naam) {
+            return Err(format!("Subroutine met naam '{}' bestaat niet", naam));
+        };
+        self.sub_return_stack.push(regelnummer);
+        Ok(())
     }
 
     pub(super) fn var_type_van(&self, naam: &str) -> Option<VariabeleType> {
@@ -230,8 +260,11 @@ impl EcolMachine {
         self.variabelen_opslag.lees_waarde(naam)
     }
     pub(super) fn var_schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), String> {
-        if self.functie_register.contains_key(naam) {
+        if self.is_fun(naam) {
             return Err(format!("Ongeldige variabele naam: '{}' is gedefinieerd als FUN.", naam))
+        }
+        if self.is_sub(naam) {
+            return Err(format!("Ongeldige variabele naam: '{}' is gedefinieerd als SUB.", naam))
         }
         self.variabelen_opslag.schrijf_waarde(naam, waarde)
     }
@@ -360,6 +393,10 @@ impl EcolMachine {
         &self.functie_register
     }
 
+    pub(super) fn is_fun(&self, naam: &str) -> bool {
+        self.functie_register.contains_key(naam)
+    }
+
     pub(super) fn volgende_willekeurig(&mut self, laag: f32, hoog: f32) -> f32 {
         self.seed ^= self.seed << 13;
         self.seed ^= self.seed >> 7;
@@ -378,10 +415,16 @@ impl EcolMachine {
                         LineInhoud::Als { .. } => {
                             reply = "".to_string();
                         }
+                        LineInhoud::End {} => {
+                            reply = "".to_string();
+                        }
                         LineInhoud::FunStart { .. } => {
                             reply = "".to_string();
                         }
                         LineInhoud::FunEind { .. } => {
+                            reply = "".to_string();
+                        }
+                        LineInhoud::GaSub { .. } => {
                             reply = "".to_string();
                         }
                         LineInhoud::Help { } => {
@@ -432,6 +475,9 @@ impl EcolMachine {
                         },
                         LineInhoud::Start { } => {
                             reply = result_to_string(self.execute_start(output));
+                        }
+                        LineInhoud::Sub { .. } => {
+                            reply = "".to_string();
                         }
                         LineInhoud::Tekst { expressie } => {
                             reply = result_to_string(self.execute_tekst(expressie));

@@ -248,6 +248,12 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             }
 
         },
+        Sleutelwoord::END => {
+            if regelnummer == 0 {
+                return Err("END kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
+            }
+            Ok(Line::new(regelnummer, LineInhoud::End {}))
+        },
         Sleutelwoord::FUNstart => {
             if regelnummer == 0 {
                 return Err("FUN definitie kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string())
@@ -265,6 +271,12 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             let expressie = geen_spaties(rest_na_wordt_teken);
 
             Ok(Line::new(regelnummer, LineInhoud::FunEind { expressie }))
+        }
+        Sleutelwoord::GASUB => {
+            if regelnummer == 0 {
+                return Err("Een subroutine aanroepen kan alleen in een programma (regelnummer verplicht).".to_string())
+            }
+            Ok(Line::new(regelnummer, LineInhoud::GaSub { sub_naam: geen_spaties(rest_na_keyword) }))
         }
         Sleutelwoord::HELP => {
             if regelnummer == 0 {
@@ -415,6 +427,16 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, String> {
             } else {
                 Err("START kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string())
             }
+        },
+        Sleutelwoord::SUB => {
+            if regelnummer == 0 {
+                return Err("Een subroutine definiëren kan alleen in een programma (regelnummer verplicht).".to_string())
+            }
+            let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else { return Err("Variabele naam ontbreekt.".to_string()) };
+            if !geen_spaties(rest_na_variabele).is_empty() {
+                return Err("SUB verwacht geen argumenten na de naam van de subroutine.".to_string())
+            }
+            Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam) }))
         }
     }
 
