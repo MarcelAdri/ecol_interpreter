@@ -36,7 +36,7 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 | Bestand | Inhoud |
 |---|---|
 | `interpreter.rs` | `EcolMachine` struct + `execute()` + `VariabelenOpslag` + `RegelBuffer` |
-| `opdrachten.rs` | `impl EcolMachine` — `execute_help/lijst/nr/schrijf/tekst/toekennen` |
+| `opdrachten.rs` | `impl EcolMachine` — `execute_help/lijst/nr/schrijf/tekst/toekennen`; vrije functie `execute_all`; enums `Context` (Direct/Programma/Subroutine/Functie) en `WhatsNext` (Continue/Break) |
 | `expressies.rs` | `impl EcolMachine` — `solve_expression`, `bereken_expressie`, `bereken_operatoren`, `bereken_tussen_haakjes`, `vervang_variabelen/functies_in_expressie` |
 | `functions.rs` | `impl EcolMachine` — `execute_function`, `execute_function_g/abs/wrtl/sin/cos/arctan/ln/log/exp/gok/gokc/ps` |
 | `parsers.rs` | Vrije functies: `parseer_regel`, `parseer_argumenten`, `parseer_functie`, `parseer_variabele`, `parse_f32/i32/string` |
@@ -61,7 +61,7 @@ There is no `cargo test` — all tests run via `wasm-pack test` because the crat
 ```
 User types input → keydown Enter → JS calls machine.execute(line)
   → parseer_regel() (parsers.rs) parses into Line { regelnummer, inhoud }
-  → if regelnummer == 0: execute immediately (opdrachten.rs)
+  → if regelnummer == 0: execute immediately via execute_all(Context::Direct) (opdrachten.rs)
   → if regelnummer > 0:  store in programma (Programma::regel_toevoegen)
   → execute_tekst / execute_schrijf / execute_toekennen call solve_expression (expressies.rs)
   → solve_expression() → Result<f32, String>

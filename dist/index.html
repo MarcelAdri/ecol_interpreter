@@ -14,7 +14,7 @@
             .prompt { font-weight: bold; }
         </style>
         
-    <link rel="modulepreload" href="/ecol/ecol_interpreter-588c39daece50299.js" crossorigin="anonymous" integrity="sha384-syHEWpFuuGfgEHM3QfmqGVhwSDN7+vtDFJFp3FztJCs73kYY7mVTbQjj9O8Rizds"><link rel="preload" href="/ecol/ecol_interpreter-588c39daece50299_bg.wasm" crossorigin="anonymous" integrity="sha384-81x+sJylLfCx7I3unuNu9tt8Fe4qyEnUf4dRnuUgPJNDOKe7cqTC0FvP+l1BWeXj" as="fetch" type="application/wasm"></head>
+    <link rel="modulepreload" href="/ecol/ecol_interpreter-4820155c4487e2c8.js" crossorigin="anonymous" integrity="sha384-XdXHy5Befz2T+cNtgtKVQ7+dw2wmE7yk81Hpc11aVubM22IP+2C3d59ZBqR8vWCf"><link rel="preload" href="/ecol/ecol_interpreter-4820155c4487e2c8_bg.wasm" crossorigin="anonymous" integrity="sha384-7ElKyr5qAn3NQXjTKwGOF7Dzj3b0fZx1FiigZ8IIQdjNF1IX/E4EIbpxnmtjujr9" as="fetch" type="application/wasm"></head>
     <body>
     <div id="terminal">
         <div id="history"></div>
@@ -24,8 +24,8 @@
     </div>
 
 <script type="module">
-import init, * as bindings from '/ecol/ecol_interpreter-588c39daece50299.js';
-const wasm = await init({ module_or_path: '/ecol/ecol_interpreter-588c39daece50299_bg.wasm' });
+import init, * as bindings from '/ecol/ecol_interpreter-4820155c4487e2c8.js';
+const wasm = await init({ module_or_path: '/ecol/ecol_interpreter-4820155c4487e2c8_bg.wasm' });
 
 
 window.wasmBindings = bindings;

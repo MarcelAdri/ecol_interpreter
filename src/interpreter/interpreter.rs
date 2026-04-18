@@ -78,7 +78,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
 use crate::interpreter::helpers::{result_to_string};
-use crate::interpreter::opdrachten::{SubDef};
+use crate::interpreter::opdrachten::{execute_all, Context, SubDef, WhatsNext};
 use crate::interpreter::parsers::{parseer_regel};
 use super::functions::{FunDef};
 use super::waarden::{VariabeleType, Waarde};
@@ -406,98 +406,22 @@ impl EcolMachine {
     }
 
     pub fn execute(&mut self, input: &str, output: &mut dyn FnMut(&str)) -> String {
-        let reply: String;
+        let reply: Option<String>;
 
         match parseer_regel(&input){
             Ok(regel) => {
                 if regel.regelnummer() == 0 {
-                    match &regel.inhoud() {
-                        LineInhoud::Als { .. } => {
-                            reply = "".to_string();
-                        }
-                        LineInhoud::End {} => {
-                            reply = "".to_string();
-                        }
-                        LineInhoud::FunStart { .. } => {
-                            reply = "".to_string();
-                        }
-                        LineInhoud::FunEind { .. } => {
-                            reply = "".to_string();
-                        }
-                        LineInhoud::GaSub { .. } => {
-                            reply = "".to_string();
-                        }
-                        LineInhoud::Help { } => {
-                            reply = result_to_string(self.execute_help());
-                        },
-                        LineInhoud::Herhaal { } => {
-                            reply = "".to_string();
-                        },
-                        LineInhoud::Klaar { } => {
-                            //No action needed, just return an empty string.
-                            reply = "".to_string();
-                        },
-                        LineInhoud::LegeRegel { } => {
-                            reply = "".to_string();
-                        },
-                        LineInhoud::Lijst { } => {
-                            reply = result_to_string(self.execute_lijst());
-                        },
-                        LineInhoud::Met { .. } => {
-                            reply = "".to_string();
-                        },
-                        LineInhoud::Naar { .. } => {
-                            reply = "".to_string();
-                        },
-                        LineInhoud::NP { } => {
-                            reply = result_to_string(self.execute_np( output));
-                        },
-                        LineInhoud::NR { aantal } => {
-                            reply =  result_to_string(self.execute_nr( aantal ));
-                        },
-                        LineInhoud::Rij { start, eind, variabele_naam } => {
-                            reply = result_to_string(self.execute_rij(start, eind, variabele_naam));
-                        },
-                        LineInhoud::Rijsym { start, eind, variabele_naam } => {
-                            reply = result_to_string(self.execute_rijsym(start, eind, variabele_naam));
-                        },
-                        LineInhoud::Schrijf { breedte, decimalen, expressie } => {
-                            reply = result_to_string(self.execute_schrijf(*breedte, *decimalen, expressie));
-                        },
-                        LineInhoud::Schrijfsym { expressie } => {
-                            reply = result_to_string(self.execute_schrijfsym(expressie));
-                        },
-                        LineInhoud::Schrijm { expressie } => {
-                            reply = result_to_string(self.execute_schrijm(expressie));
-                        },
-                        LineInhoud::Spatie { aantal } => {
-                            reply = result_to_string(self.execute_spatie(aantal));
-                        },
-                        LineInhoud::Start { } => {
-                            reply = result_to_string(self.execute_start(output));
-                        }
-                        LineInhoud::Sub { .. } => {
-                            reply = "".to_string();
-                        }
-                        LineInhoud::Tekst { expressie } => {
-                            reply = result_to_string(self.execute_tekst(expressie));
-                        },
-                        LineInhoud::Toekennen {variabele_naam, argument,  expressie} => {
-                            reply = result_to_string(self.execute_toekennen(variabele_naam, argument, expressie));
-                        },
-                        LineInhoud::Verwijderen { } => {
-                            reply = "Verwijderen van een ongenummerde regel is niet mogelijk.".to_string();
-                        },
-                    }
+                    let programma = BTreeMap::new();
+                    reply = match execute_all(&regel, self, &programma, Context::Direct, output) {
+                        Ok((r, _, _)) => r,
+                        Err(e) => Some(e),
+                    };
                 } else {
                     if regel.inhoud().as_str() == "Verwijderen" {
                         let verwijder_resultaat = self.programma.regel_verwijderen(regel.regelnummer());
-                        match verwijder_resultaat {
-                            Some( reactie) => reply = reactie,
-                            None => reply = "Geen regel om te verwijderen.".to_string(),
-                        }
+                        reply = Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()));
                     } else {
-                        reply = self.programma.regel_toevoegen(regel);
+                        reply = Some(self.programma.regel_toevoegen(regel));
                     }
                 }
             }
@@ -506,7 +430,7 @@ impl EcolMachine {
             }
         }
        
-        reply
+        reply.unwrap_or("".to_string())
     }
 
     // fn lees_getal_variabele_argument(&mut self, naam: &str) -> Result<&Waarde, String> {

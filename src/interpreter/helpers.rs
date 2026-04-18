@@ -19,9 +19,9 @@ pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
     if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
         let (variabele, rest_na_variabele) = extract_variabele_naam(werkstring).unwrap_or(("", werkstring.trim_start()));
         if variabele.is_empty() { return None };
-        if rest_na_variabele.trim_start().starts_with(":") { return Some((Sleutelwoord::TOEKENNEN, werkstring)); }
+        if geen_spaties(rest_na_variabele).is_empty() { return Some((Sleutelwoord::GASUB, variabele)); }
 
-        return Some((Sleutelwoord::GASUB, variabele));
+        return Some((Sleutelwoord::TOEKENNEN, rest_na_variabele.trim_start()));
     }
     let position = werkstring.find(|c: char| !c.is_ascii_uppercase()).unwrap_or(werkstring.len());
     let (keyword_string, rest) = werkstring.split_at(position);

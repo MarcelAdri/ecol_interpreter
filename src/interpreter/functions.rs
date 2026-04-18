@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
-use web_sys::js_sys;
 use crate::interpreter::EcolMachine;
 use crate::interpreter::helpers::{geen_spaties, grens_bewaking};
-use crate::interpreter::program::{LineInhoud, Programma, SprongDoel};
+use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
+use crate::interpreter::program::{Line, LineInhoud};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
@@ -218,121 +218,46 @@ impl EigenFunctie {
                 return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. FUN := niet aangetroffen.".to_string());
             };
             current = regelnummer + 1;
+            let regel = Line::new(current, current_regel.clone());
 
             match current_regel {
-                LineInhoud::Als { vergelijking, dan, anders } => {
-                    if machine.functie_omgeving.parseer_vergelijking(vergelijking)? {
-                        match machine.functie_omgeving.execute_naar(&programma, dan, &current)? {
-                            Some(regel) => current = regel,
-                            None => return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
-                        }
-                    } else if let Some(anders_regel) = anders {
-                        match machine.functie_omgeving.execute_naar(&programma, anders_regel, &current)? {
-                            Some(regel) => current = regel,
-                            None => return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
-                        }
-                    }
+                LineInhoud::FunEind { expressie} => {
+                    return Ok(machine.functie_omgeving.solve_expression(&expressie)?);
                 },
-                LineInhoud::End {} => {
-                    return Err(format!("FOUTMELDING in regel {}: END kan niet in een FUN definitie.", regelnummer));
-                }
-                LineInhoud::FunStart { .. } => {
-                    return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een andere functie definitie.", regelnummer));
-                },
-                LineInhoud::FunEind { expressie } => {
-                    return Ok(machine.functie_omgeving.solve_expression(expressie)?);
-                },
-                LineInhoud::GaSub { .. } => {
-                    return Err(format!("FOUTMELDING in regel {}: Vanuit een functie kan een subroutine niet aangeroepen worden.", regelnummer));
-                },
-                LineInhoud::Help {} => {
-                    return Err(format!("FOUTMELDING in regel {}: HELP kan niet in een FUN definitie.", regelnummer));
-                },
-                LineInhoud::Herhaal {} => {
-                    let Some(sprong) = machine.functie_omgeving.teller_herhaal()? else { continue };
-                    let doel = SprongDoel::Regel(sprong);
-                    match machine.functie_omgeving.execute_naar(&programma, &doel, &current)? {
-                        Some(regel) => current = regel,
-                        None => return Err(format!("Interne fout in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
-                    }
-                },
-                LineInhoud::Klaar { } =>{
-                    return Err(format!("FOUTMELDING in regel {}: KLAAR kan niet in een FUN definitie.", regelnummer));
-                },
-                LineInhoud::LegeRegel { } => {
-                    continue;
-                },
-                LineInhoud::Lijst { } => {
-                    return Err(format!("FOUTMELDING in regel {}: LIJST kan niet in een FUN definitie.", regelnummer));
-                },
-                LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
-                    let Some((&volgende_regelnummer, _)) = &programma.range(current..).next() else {
-                        return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
-                    };
-                    let regel = machine.functie_omgeving.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    match regel {
-                        Some(_) => { continue; },
-                        None => {
-                            current = EcolMachine::teller_naar_herhaal(&programma, &current)?;
-                            continue;
-                        }
+                _ => {
+                    let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie,  &mut |_| {})?;
+                    match reply_option {
+                        Some(reply) => {
+                            return Ok(reply.parse::<f32>().map_err(|_| "FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string())?);
+                        },
+                        None => {},
                     }
 
-                },
-                LineInhoud::Naar { sprong_doel } => {
-                    match machine.functie_omgeving.execute_naar(&programma, sprong_doel, &current)? {
-                        Some(regel) => current = regel,
-                        None => return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regelnummer)),
+                    match nextline_option {
+                        Some(nextline) => {
+                            current = nextline;
+                            continue;
+                        },
+                        None => {},
                     }
-                },
-                LineInhoud::NP { } => {
-                    return Err(format!("FOUTMELDING in regel {}: NP kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::NR { aantal } => {
-                    return Err(format!("FOUTMELDING in regel {}: NR kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::Rij { start, eind, variabele_naam } => {
-                    let _ = machine.functie_omgeving.execute_rij(start, eind, variabele_naam)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                },
-                LineInhoud::Rijsym { start, eind, variabele_naam } => {
-                    let _ = machine.functie_omgeving.execute_rijsym(start, eind, variabele_naam)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                },
-                LineInhoud::Schrijf { breedte, decimalen, expressie } => {
-                    return Err(format!("FOUTMELDING in regel {}: SCHRIJF kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::Schrijfsym { expressie } => {
-                    return Err(format!("FOUTMELDING in regel {}: SCHRIJFSYM kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::Schrijm { expressie } => {
-                    return Err(format!("FOUTMELDING in regel {}: SCHRIJM kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::Spatie { aantal } => {
-                    return Err(format!("FOUTMELDING in regel {}: SPATIE kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::Start { } => {
-                    return Err(format!("FOUTMELDING in regel {}: START kan niet in een FUN definitie.", regelnummer));
-                },
-                LineInhoud::Sub { .. } => {
-                    return Err(format!("FOUTMELDING in regel {}: SUB kan niet in een FUN definitie.", regelnummer));
+
+                    match whatsnext_option {
+                        Some(whatsnext) => {
+                            match whatsnext {
+                                WhatsNext::Break => break,
+                                WhatsNext::Continue => continue,
+                            }
+                        },
+                        None => {},
+                    }
                 }
-                LineInhoud::Tekst { expressie } => {
-                    return Err(format!("FOUTMELDING in regel {}: TEKST kan niet in een FUN definitie (geen uitvoer-apparaat).", regelnummer));
-                },
-                LineInhoud::Toekennen {variabele_naam, argument, expressie} => {
-                    //panic!("expressie: {}", expressie);
-                    let _ = machine.functie_omgeving.execute_toekennen(variabele_naam, argument, expressie)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                },
-                LineInhoud::Verwijderen { } => {
-                    //Kan niet voorkomen in een programma
-                },
             }
+
+
+
         }
 
-        //Ok(1f32)
+        Err("FOUTMELDING: FUNctie  eindigde zonder resultaat".to_string())
     }
 }
 

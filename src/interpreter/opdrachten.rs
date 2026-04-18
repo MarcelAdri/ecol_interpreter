@@ -1,12 +1,23 @@
 use std::collections::BTreeMap;
 use web_sys::js_sys;
 use crate::interpreter::EcolMachine;
-use crate::interpreter::functions::FunDef;
-use crate::interpreter::helpers::{extract_variabele_naam, format_getal, get_sym_value, literal_to_string};
+use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string, result_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud, SprongDoel};
+use crate::interpreter::program::LineInhoud::Verwijderen;
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
+pub(super) enum Context {
+    Direct,
+    Programma,
+    Subroutine,
+    Functie,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum WhatsNext {
+    Continue,
+    Break,
+}
 pub(super) struct SubDef {
     regels: BTreeMap<u16, LineInhoud>
 }
@@ -160,221 +171,37 @@ impl EcolMachine {
         let mut stappen: u32 = 0;
         let mut programma = running_program.extract_functie_definities(self.programma())?;
         programma = running_program.extract_sub_definities(&programma)?;
-        let mut in_sub = false;
-        let mut subroutine: Vec<BTreeMap<u16, LineInhoud>> = Vec::new();
         let mut regelnummer: u16;
         let mut current_regel: &LineInhoud;
+        let mut whatsnext: Option<WhatsNext> = None;
 
-        loop{
+        loop {
             stappen += 1;
             if stappen % 1000 == 0 && js_sys::Date::now() - start_tijd > 5000.0 {
                 return Err("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string());
             }
-            if !in_sub {
-                let Some((&regelnum, current_reg)) = programma.range(current..).next() else {
-                    return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string());
-                };
-                regelnummer = regelnum;
-                current_regel = current_reg;
-            } else {
-                let Some(current_routine) = subroutine.last() else { return Err("Interne fout: geen subroutine actief".to_string()); };
-                let Some((&regelnum, current_reg)) = current_routine.range(current..).next() else {
-                    return Err("FOUTMELDING: Subroutine eindigt niet met END.".to_string());
-                };
-                regelnummer = regelnum;
-                current_regel = current_reg;
-            }
 
+            let Some((&regelnum, current_reg)) = programma.range(current..).next() else {
+                return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string());
+            };
+            regelnummer = regelnum;
+            current_regel = current_reg;
 
             current = regelnummer + 1;
+            let line = Line::new(current, current_regel.clone());
+            let current_option: Option<u16>;
 
-            match current_regel {
-                LineInhoud::Als { vergelijking, dan, anders } => {
-                    let ctx = subroutine.last().unwrap_or(&programma);
-                    if running_program.parseer_vergelijking(vergelijking)? {
-                        match running_program.execute_naar(ctx, dan, &current)? {
-                            Some(regel) => current = regel,
-                            None => {
-                                break;
-                            }
-                        }
-                    } else if let Some(anders_regel) = anders {
-                        match running_program.execute_naar(ctx, anders_regel, &current)? {
-                            Some(regel) => current = regel,
-                            None => {
-                                break;
-                            }
-                        }
-                    }
-                }
-                LineInhoud::End { .. } => {
-                    if in_sub {
-                        current = running_program.return_from_sub()?;
-                        subroutine.pop();
-                        if subroutine.is_empty() {
-                            in_sub = false;
-                        }
-                        continue;
-                    } else {
-                        return Err(format!("FOUTMELDING in regel {}: END kan niet in een programma (interne fout).", regelnummer));
-                    }
-
-                }
-                LineInhoud::FunStart { .. } => {
-                    return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een programma (interne fout).", regelnummer));
-                }
-                LineInhoud::GaSub { sub_naam } => {
-                    if let Some(subdef) = running_program.lees_subregister(sub_naam).map(|s| s.clone()) {
-                        running_program.start_sub(sub_naam, current)?;
-                        in_sub = true;
-                        subroutine.push(subdef.regels);
-                        current = 0;
-                    }  else {
-                        return Err(format!("FOUTMELDING in regel {}: Onbekende subroutine '{}'.", regelnummer, sub_naam));
-                    }
-                }
-                LineInhoud::FunEind { .. } => {
-                    return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een programma (interne fout).", regelnummer));
-                }
-                LineInhoud::Help {} => {
-                    return Err(format!("FOUTMELDING in regel {}: HELP mag niet in een programma (interpreter-besturing).", regelnummer));
-                }
-                LineInhoud::Herhaal {} => {
-                    let Some( sprong) = running_program.teller_herhaal()? else { continue };
-                    let doel = SprongDoel::Regel( sprong );
-                    let ctx = subroutine.last().unwrap_or(&programma);
-                    match running_program.execute_naar(ctx, &doel, &current)? {
-                        Some(regel) => current = regel,
-                        None => {
-                            return Err("Interne FOUT bij HERHAAL-opdracht..".to_string());
-                        }
-                    }
-                }
-                LineInhoud::Klaar { } =>{
-                    break;
+            (_, current_option, whatsnext) = execute_all(&line, &mut running_program, &programma, Context::Programma, output)?;
+            match current_option {
+                Some(next_line) => {
+                    current = next_line;
                 },
-                LineInhoud::LegeRegel { } => {
-                    continue;
-                },
-                LineInhoud::Lijst { } => {
-                    return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", regelnummer));
-                },
-                LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
-                    let volgende_regelnummer = if in_sub {
-                        let Some(current_routine) = subroutine.last() else { return Err("Interne fout: geen subroutine actief".to_string()); };
-                        let Some((&volgende_regelnum, _)) = current_routine.range(current..).next() else {
-                            return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
-                        };
-                        volgende_regelnum
-                    } else {
-                        let Some((&volgende_regelnum, _)) = &programma.range(current..).next() else {
-                            return Err("FOUTMELDING: geen regels na MET-opdracht..".to_string());
-                        };
-                        volgende_regelnum
-                    };
-
-                    let regel = running_program.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    match regel {
-                        Some(_) => { continue; },
-                        None => {
-                            let ctx = subroutine.last().unwrap_or(&programma);
-                            current = EcolMachine::teller_naar_herhaal(ctx, &current)?;
-                            continue;
-                        }
-                    }
-
-                },
-                LineInhoud::Naar { sprong_doel } => {
-                    let ctx = subroutine.last().unwrap_or(&programma);
-                    match running_program.execute_naar(ctx, sprong_doel, &current)? {
-                        Some(regel) => current = regel,
-                        None => {
-                            break;
-                        },
-                    }
-
-
-                },
-                LineInhoud::NP { } => {
-                    let regel = running_program.execute_np( output )
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::NR { aantal } => {
-                    let regel = running_program.execute_nr( aantal )
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Rij { start, eind, variabele_naam } => {
-                    let regel = running_program.execute_rij(start, eind, variabele_naam)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Rijsym { start, eind, variabele_naam } => {
-                    let regel = running_program.execute_rijsym(start, eind, variabele_naam)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Schrijf { breedte, decimalen, expressie } => {
-                    let regel = running_program.execute_schrijf(*breedte, *decimalen, expressie)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Schrijfsym { expressie } => {
-                    let regel = running_program.execute_schrijfsym(expressie)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Schrijm { expressie } => {
-                    let regel = running_program.execute_schrijm(expressie)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Spatie { aantal } => {
-                    let regel = running_program.execute_spatie(aantal)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Start { } => {
-                    return Err(format!("FOUTMELDING in regel {}: START mag niet in een programma (interpreter-besturing).", regelnummer));
-                },
-                LineInhoud::Tekst { expressie } => {
-                    let regel = running_program.execute_tekst(expressie)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Sub { .. } => {
-                    return Err(format!("FOUTMELDING in regel {}: Sub definitie kan niet in een programma (interne fout).", regelnummer));
-                },
-                LineInhoud::Toekennen {variabele_naam, argument, expressie} => {
-                    let regel = running_program.execute_toekennen(variabele_naam, argument, expressie)
-                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", regelnummer, e))?;
-                    if !regel.is_empty() {
-                        output(&regel);
-                    }
-                },
-                LineInhoud::Verwijderen { } => {
-                    //Kan niet voorkomen in een programma
-                },
+                None => { }
+            }
+            match whatsnext {
+                Some(WhatsNext::Break) => break,
+                Some(WhatsNext::Continue) => continue,
+                None => { }
             }
         }
 
@@ -496,4 +323,433 @@ impl EcolMachine {
 
         Ok(nieuwe_programma)
     }
+
+
+}
+pub(super) fn execute_all (
+    opdracht: &Line,
+    machine: &mut EcolMachine,
+    programma: &BTreeMap<u16, LineInhoud>,
+    context: Context,
+    output: &mut dyn FnMut(&str)) -> Result<(Option<String>, Option<u16>, Option<WhatsNext>), String> {
+    let no_reply_string: Option<String> = None;
+    let no_whats_next: Option<WhatsNext> = None;
+    let no_next_line: Option<u16> = None;
+    let no_reply = (None, None, None);
+
+    let (reply, nextline, whats_next) = match opdracht.inhoud() {
+        LineInhoud::Als { vergelijking, dan, anders } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma  => {
+                    if machine.parseer_vergelijking(vergelijking)? {
+                        match machine.execute_naar(programma, dan, &opdracht.regelnummer())? {
+                            Some(regel) => {
+                                (no_reply_string, Some(regel), no_whats_next)
+                            },
+                            None => {
+                                (no_reply_string, no_next_line, Some(WhatsNext::Break))
+                            }
+                        }
+                    } else if let Some(anders_regel) = anders {
+                        match machine.execute_naar(programma, anders_regel, &opdracht.regelnummer())? {
+                            Some(regel) => {
+                                (no_reply_string, Some(regel), no_whats_next)
+                            },
+                            None => {
+                                (no_reply_string, no_next_line, Some(WhatsNext::Break))
+                            }
+                        }
+                    } else {
+                        no_reply
+                    }
+                },
+                Context::Subroutine | Context::Functie => {
+                    if machine.parseer_vergelijking(vergelijking)? {
+                        match machine.execute_naar(programma, dan, &opdracht.regelnummer())? {
+                            Some(regel) => {
+                                (no_reply_string, Some(regel), no_whats_next)
+                            },
+                            None => {
+                                return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", opdracht.regelnummer() - 1));
+                            }
+                        }
+                    } else if let Some(anders_regel) = anders {
+                        match machine.execute_naar(programma, anders_regel, &opdracht.regelnummer())? {
+                            Some(regel) => {
+                                (no_reply_string, Some(regel), no_whats_next)
+                            },
+                            None => {
+                                return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", opdracht.regelnummer() - 1));
+                            }
+                        }
+                    } else {
+                        no_reply
+                    }
+                },
+            }
+        },
+        LineInhoud::End {} => {
+            match context {
+                Context::Direct | Context::Subroutine => { no_reply },
+                Context::Programma | Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: END kan niet voorkomen in een programma of FUNctie (interne fout).", opdracht.regelnummer()-1));
+                },
+            }
+        },
+        LineInhoud::FunStart { .. } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma | Context::Subroutine => {
+                    return Err(format!("FOUTMELDING in regel {}: Functie kan niet in een programma (interne fout).", opdracht.regelnummer()-1));
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: Functie kan niet in een een andere functie definitie.", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::FunEind { expressie } => {
+            match context {
+                Context::Direct | Context::Functie => { no_reply },
+                Context::Programma | Context::Subroutine => { return Err(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een programma (interne fout).", opdracht.regelnummer()-1)); },
+            }
+        },
+        LineInhoud::GaSub { sub_naam } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma | Context::Subroutine => {
+                    if let Some(subdef) = machine.lees_subregister(sub_naam).map(|s| s.clone()) {
+                        machine.start_sub(sub_naam, opdracht.regelnummer())?;
+
+                        let subroutine = subdef.regels;
+                        let mut sub_current = 0u16;
+                        loop {
+                            let Some((&regelnum, current_reg)) = subroutine.range(sub_current..).next() else {
+                                break;
+                            };
+                            sub_current = regelnum + 1;
+                            let sub_line= Line::new(sub_current, current_reg.clone());
+                            let (_, sub_next_line, whats_next) = execute_all(&sub_line, machine, &subroutine, Context::Subroutine, output)?;
+                            match sub_next_line {
+                                Some(next_line) => {
+                                    sub_current = next_line;
+                                },
+                                None => { }
+                            }
+
+                            match whats_next {
+                                Some(WhatsNext::Continue) => continue,
+                                Some(WhatsNext::Break) => break,
+                                None => {}
+                            }
+                        }
+                        no_reply
+                    }  else {
+                        return Err(format!("FOUTMELDING in regel {}: Onbekende subroutine '{}'.", opdracht.regelnummer(), sub_naam));
+                    }
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: Vanuit een functie kan een subroutine niet aangeroepen worden.", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Help { } => {
+            match context {
+                Context::Direct => { (Some(machine.execute_help()?), no_next_line, no_whats_next)  },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: HELP mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1));
+                }
+
+            }
+        },
+        LineInhoud::Herhaal { } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    let mut next_line = no_next_line;
+                    let sprongdoel = machine.teller_herhaal()?;
+                    match sprongdoel {
+                        Some(sprong) => {
+                            let doel = SprongDoel::Regel( sprong );
+                            match machine.execute_naar(programma, &doel, &opdracht.regelnummer())? {
+                                Some(regel) => next_line = Some(regel),
+                                None => {
+                                    return Err("Interne FOUT bij HERHAAL-opdracht..".to_string());
+                                }
+                            }
+                        },
+                        None => { }
+                    }
+                    (no_reply_string, next_line, no_whats_next)
+                }
+
+            }
+        },
+        LineInhoud::Klaar { } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma => {
+                    (no_reply_string, no_next_line, Some(WhatsNext::Break))
+                },
+                Context::Subroutine | Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: KLAAR mag niet in een subroutine of een FUNctie staan.", opdracht.regelnummer()));
+                },
+
+            }
+        },
+        LineInhoud::LegeRegel { } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    (no_reply_string, no_next_line, Some(WhatsNext::Continue))
+                },
+
+            }
+        },
+        LineInhoud::Lijst { } => {
+            match context {
+                Context::Direct => { (Some(machine.execute_lijst()?), no_next_line, no_whats_next)  },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()));
+                },
+
+            }
+        },
+        LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    let Some((&volgende_regelnummer, _)) = programma.range(opdracht.regelnummer()..).next() else {
+                        return Err(format!("FOUTMELDING in regel {}: FOUTMELDING: geen regels na MET-opdracht.", opdracht.regelnummer()));
+                    };
+
+                    let regel = machine.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer(), e))?;
+                    match regel {
+                        Some(_) => { (no_reply_string, no_next_line, Some(WhatsNext::Continue)) },
+                        None => {
+                            (no_reply_string, Some(EcolMachine::teller_naar_herhaal(programma, &opdracht.regelnummer())?), Some(WhatsNext::Continue))
+                        }
+                    }
+                },
+
+            }
+        },
+        LineInhoud::Naar {sprong_doel } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma  => {
+                    match machine.execute_naar(programma, sprong_doel, &opdracht.regelnummer())? {
+                        Some(regel) => {
+                            (no_reply_string, Some(regel), no_whats_next)
+                        },
+                        None => {
+                            (no_reply_string, no_next_line, Some(WhatsNext::Break))
+                        },
+                    }
+                },
+                Context::Functie | Context::Subroutine => {
+                    match machine.execute_naar(programma, sprong_doel, &opdracht.regelnummer())? {
+                        Some(regel) => {
+                            (no_reply_string, Some(regel), no_whats_next)
+                        },
+                        None => {
+                            return Err(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in  subroutine of functie-definitie.", opdracht.regelnummer()-1));
+                        },
+                    }
+                },
+
+            }
+        },
+        LineInhoud::NP { } => {
+            match context {
+                Context::Direct => {
+                    (Some(machine.execute_np( output)?), no_next_line, no_whats_next)
+                },
+                Context::Programma | Context::Subroutine => {
+                    (Some(machine.execute_np( output)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?), no_next_line, no_whats_next)
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: NP kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::NR { aantal } => {
+            match context {
+                Context::Direct => { (Some(machine.execute_nr( &aantal )?), no_next_line, no_whats_next) },
+                Context::Programma | Context::Subroutine => {
+                    output(&machine.execute_nr( &aantal )
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?);
+                    no_reply
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: NR kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Rij { start, eind, variabele_naam } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_rij(start, eind, variabele_naam)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    _ = machine.execute_rij(&start, &eind, &variabele_naam)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+
+            }
+        },
+        LineInhoud::Rijsym { start, eind, variabele_naam } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_rijsym(start, eind, variabele_naam)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    _ = machine.execute_rijsym(&start, &eind, &variabele_naam)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+
+            }
+        },
+        LineInhoud::Schrijf { breedte, decimalen, expressie } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_schrijf(*breedte, *decimalen, expressie)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine => {
+                    _ = machine.execute_schrijf(*breedte, *decimalen, expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: SCHRIJF kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Schrijfsym { expressie } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_schrijfsym(expressie)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine => {
+                    _ = machine.execute_schrijfsym(expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: SCHRIJFSYM kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Schrijm { expressie } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_schrijm(expressie)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine => {
+                    _ = machine.execute_schrijm(expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: SCHRIJM kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Spatie { aantal } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_spatie(aantal)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine => {
+                    _ = machine.execute_spatie(aantal)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: SPATIE kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Start { } => {
+            match context {
+                Context::Direct => { (Some(machine.execute_start(output)?), no_next_line, no_whats_next) },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: START mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1));
+                },
+
+            }
+        }
+        LineInhoud::Sub { .. } => {
+            match context {
+                Context::Direct => { no_reply },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: fout bij verwerking subroutine (interne fout).", opdracht.regelnummer()-1));
+                },
+            }
+        }
+        LineInhoud::Tekst { expressie } => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_tekst(expressie)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine => {
+                    _ = machine.execute_tekst(expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+                Context::Functie => {
+                    return Err(format!("FOUTMELDING in regel {}: TEKST kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1));
+                },
+
+            }
+        },
+        LineInhoud::Toekennen {variabele_naam, argument,  expressie} => {
+            match context {
+                Context::Direct => {
+                    _ = machine.execute_toekennen(&variabele_naam, &argument, &expressie)?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    _ = machine.execute_toekennen(&variabele_naam, &argument, &expressie)
+                        .map_err(|e| format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e))?;
+                    no_reply
+                },
+
+            }
+        },
+        LineInhoud::Verwijderen { } => {
+            match context {
+                Context::Direct => {
+                    return Err("Verwijderen van een ongenummerde regel is niet mogelijk.".to_string());
+                },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err("Verwijderen van een regel kan niet voorkomen in een programma (interne fout).".to_string());
+                },
+
+            }
+        },
+    };
+
+
+
+    Ok((reply, nextline, whats_next))
 }
