@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use crate::interpreter::functions::EcolFout;
 use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel, WORDT_TEKEN};
 use crate::interpreter::vergelijkingen::Vergelijking;
 
@@ -40,7 +41,7 @@ pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
 
     Some((resultaat, rest.trim_start()))
 }
-pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), String> {
+pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), EcolFout> {
     let restregel: &str;
     let regelnummer: u16;
     let nummer: &str;
@@ -60,7 +61,7 @@ pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), Stri
 
     let Some(resultaat_parsing) = nummer.trim().parse::<u16>().ok() else { return Ok((0u16, input.trim_start(), is_alleen_regelnummer)) };
     regelnummer = resultaat_parsing;
-    if regelnummer > 999u16 { return Err("Regelnummer mag niet groter zijn dan 999".to_string()) };
+    if regelnummer > 999u16 { return Err(EcolFout::FoutMelding("Regelnummer mag niet groter zijn dan 999".to_string())) };
 
 
     Ok((regelnummer, restregel, is_alleen_regelnummer))
@@ -77,7 +78,7 @@ fn vind_top_level_komma(s: &str) -> Option<usize> {
     }
     None
 }
-pub(super) fn extract_stap_expressie(input: &str) -> Result<(String, String), String> {
+pub(super) fn extract_stap_expressie(input: &str) -> Result<(String, String), EcolFout> {
     let werkstring = geen_spaties(input);
 
     match vind_top_level_komma(&werkstring) {
@@ -85,20 +86,20 @@ pub(super) fn extract_stap_expressie(input: &str) -> Result<(String, String), St
             let (stap_tekst, r) = werkstring.split_at(p);
             Ok((stap_tekst.to_string(), r[1..].to_string()))
         },
-        None => Err("Ongeldige syntax voor MET bij de STAP-expressie.".to_string()),
+        None => Err(EcolFout::FoutMelding("Ongeldige syntax voor MET bij de STAP-expressie.".to_string())),
     }
 }
-pub(super) fn extract_start_expressie(input: &str) -> Result<(String, String, String), String> {
+pub(super) fn extract_start_expressie(input: &str) -> Result<(String, String, String), EcolFout> {
     let werkstring = geen_spaties(input);
 
     match vind_top_level_komma(&werkstring) {
         Some(p) => {
             let (toekenning_string, r) = werkstring.split_at(p);
-            let Some((naam, rest_na_variabele)) = extract_variabele_naam(toekenning_string) else { return Err("Ongeldige variabele-naam in MET.".to_string()) };
-            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err("Ongeldig 'wordt'-teken in MET.".to_string()) };
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(toekenning_string) else { return Err(EcolFout::FoutMelding("Ongeldige variabele-naam in MET.".to_string())) };
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken in MET.".to_string())) };
             Ok((naam.to_string(), rest_na_wordt_teken.to_string(), r[1..].to_string()))
         },
-        None => Err("Ongeldige syntax voor MET bij de START-expressie.".to_string()),
+        None => Err(EcolFout::FoutMelding("Ongeldige syntax voor MET bij de START-expressie.".to_string())),
     }
 }
 pub(super) fn extract_variabele_naam(input: &str) -> Option<(&str, &str)> {
@@ -127,7 +128,7 @@ pub(super) fn extract_als(input: &str) -> Option<(&str, &str)> {
     }
 
 }
-pub(super) fn extract_dan(input: &str) -> Result<(SprongDoel, &str), String> {
+pub(super) fn extract_dan(input: &str) -> Result<(SprongDoel, &str), EcolFout> {
     let werkstring = input.trim_start();
     let pos = werkstring.find("ANDERS");
     let dan_reply: SprongDoel;
@@ -149,7 +150,7 @@ pub(super) fn extract_dan(input: &str) -> Result<(SprongDoel, &str), String> {
         }
     }
 }
-pub(super) fn extract_anders(input: &str) -> Result<(SprongDoel, &str), String> {
+pub(super) fn extract_anders(input: &str) -> Result<(SprongDoel, &str), EcolFout> {
     let werkstring = geen_spaties(input);
 
     let anders = SprongDoel::vul(&werkstring)?;
@@ -164,7 +165,7 @@ pub(super) fn first_word(input: &str) -> &str {
     }
     input
 }
-pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Result<String, String> {
+pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Result<String, EcolFout> {
     let mut b = breedte;
     let mut d = decimalen;
     let x = getal;
@@ -184,7 +185,7 @@ pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Resu
     let reply = format!("{:breedte$.decimalen$}", x, breedte = b_totaal, decimalen = d);
 
     if reply.len() > b_totaal {
-        return Err(format!("De opgegeven waarde {} past niet in de opgegeven breedte {}.", x, breedte))
+        return Err(EcolFout::FoutMelding(format!("De opgegeven waarde {} past niet in de opgegeven breedte {}.", x, breedte)))
     }
 
     Ok(reply)
@@ -194,18 +195,18 @@ pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Resu
 pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
-pub(super) fn get_sym_value(getal: &f32) -> Result<u8, String> {
+pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
     if getal.is_nan() || getal < &0.0 || getal > &99.0 {
-        return Err(format!("Waarde {} is ongeldig (xxxSYM verwacht 0–99).", getal));
+        return Err(EcolFout::FoutMelding(format!("Waarde {} is ongeldig (xxxSYM verwacht 0–99).", getal)));
     }
     Ok(*getal as u8)
 }
-pub(super) fn grens_bewaking (getal: &f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, String> {
+pub(super) fn grens_bewaking (getal: &f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, EcolFout> {
     if getal.fract() != 0.0 && alleen_hele_getallen {
-        return Err("LN functie kan alleen hele getallen accepteren.".to_string());
+        return Err(EcolFout::FoutMelding("LN functie kan alleen hele getallen accepteren.".to_string()));
     }
     if *getal <= 0f32 && alleen_positieve_getallen {
-        return Err(format!("Getal moet positief zijn, maar is {}", getal));
+        return Err(EcolFout::FoutMelding(format!("Getal moet positief zijn, maar is {}", getal)));
     }
 
     Ok(*getal)
@@ -241,11 +242,11 @@ pub(super) fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
 
     true
 }
-pub(super) fn is_alleen_keyword(input: &str, regelnummer: u16, keyword: Sleutelwoord) -> Result<Line, String> {
+pub(super) fn is_alleen_keyword(input: &str, regelnummer: u16, keyword: Sleutelwoord) -> Result<Line, EcolFout> {
     if input.trim() == keyword.to_string() {
         Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)?))
     } else {
-        Err(syntaxis_foutmelding(keyword.to_string()))
+        Err(EcolFout::FoutMelding(syntaxis_foutmelding(keyword.to_string())))
     }
 }
 pub(super) fn is_geldig_wordt_teken(input: &str) -> Option<&str> {
@@ -257,21 +258,21 @@ pub(super) fn is_geldige_variabele_naam(naam: &str) -> bool {
 
 
 }
-pub(super) fn literal_to_string (literal: &str) -> Result<String, String> {
+pub(super) fn literal_to_string (literal: &str) -> Result<String, EcolFout> {
     let werk_string = literal.trim();
 
     if !werk_string.starts_with('"') {
-        return Err("Tekstblok moet beginnen met een aanhalingsteken.".to_string());
+        return Err(EcolFout::FoutMelding("Tekstblok moet beginnen met een aanhalingsteken.".to_string()));
     }
 
     if !werk_string.ends_with('"') {
-        return Err("Tekstblok moet eindigen met een aanhalingsteken.".to_string());
+        return Err(EcolFout::FoutMelding("Tekstblok moet eindigen met een aanhalingsteken.".to_string()));
     }
 
     let inhoud = &werk_string[1..werk_string.len() - 1];
 
     if inhoud.contains('"') {
-        return Err("Slechts één aaneengesloten tekstblok toegestaan.".to_string());
+        return Err(EcolFout::FoutMelding("Slechts één aaneengesloten tekstblok toegestaan.".to_string()));
     }
 
     Ok(inhoud.to_string())

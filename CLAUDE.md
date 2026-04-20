@@ -100,9 +100,8 @@ Currently implemented:
 - `MET <stap>, <var> := <begin>, <einde>` / `HERHAAL` — counted loop; stap/begin/einde are arbitrary expressions (including function calls); negative stap counts down; loop variable readable and writable during loop body; nested loops supported via LIFO stack (`actieve_tellers`); after loop, variable retains the first out-of-bounds value
 - `FUN naam(param, …) … FUN := expressie` — user-defined numeric functions; parameters are passed by value; names and labels are fully local; forward references supported; definition lines are skipped during normal execution
 - `SUB naam … END` — user-defined subroutines without return value; called by writing the name as a standalone statement (a lowercase name without `:=` is parsed as a subroutine call, mapped internally to `Sleutelwoord::GASUB`); subroutine names follow the same rules as variable names (lowercase ASCII letters, digits, underscores; must not start with a digit); forward references supported; nested calls supported via LIFO stack (`sub_return_stack`); definition lines are skipped during normal execution
-
-Not yet implemented:
-- `variabele := LEES` — read input as a value
+- `variabele := LEES` — reads a decimal number from the user; execution pauses until Enter is pressed; full machine state (variables, loop counters, line buffer) is preserved in `LeesGeheugen` during the wait; `LEES` may appear inside expressions
+- `variabele := LEESSYM` — reads a single symbol from the user and returns its internal value (see symbol table); same pause/resume mechanism as `LEES`
 
 ### Deliberate deviations from the 1973 spec
 
@@ -112,6 +111,7 @@ Not yet implemented:
 - **FUN: function names always reserved as variable names** — the 1973 spec only forbids using a function name as a local variable when that function is recursively called from within itself; this implementation forbids using any function name as a variable name anywhere in the program.
 - **FUN: return value always used** — the 1973 spec allows calling a FUN as a standalone statement (discarding the return value); this implementation only allows FUN calls inside expressions.
 - **SUB: subroutine names follow variable naming rules** — the 1973 spec places no restriction on SUB names; this implementation requires lowercase ASCII letters, digits, and underscores, not starting with a digit (same as variables and functions).
+- **LEES/LEESSYM: interactive instead of sequential** — the 1973 spec read input sequentially from a punch tape or card prepared in advance; this implementation pauses execution and prompts the user for live keyboard input, resuming when Enter is pressed.
 
 ### Variable Naming Rules
 

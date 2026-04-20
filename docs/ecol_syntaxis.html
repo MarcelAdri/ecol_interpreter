@@ -273,25 +273,32 @@ a := naam(index)</pre>
 
 <h2>Invoer</h2>
 
-<span class="tag hist">historisch</span> <span class="tag todo">gepland</span>
-
-<p>Origineel las ECOL van ponsband of schrapkaart. In deze interpreter leest <code>LEES</code> van gebruikersinvoer.</p>
+<span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span>
 
 <table>
-  <tr><th>Opdracht</th><th>Beschrijving</th></tr>
+  <tr><th>Opdracht</th><th>Beschrijving</th><th>Status</th></tr>
   <tr>
     <td><code>&lt;var&gt; := LEES</code></td>
-    <td>Leest het volgende getal. <code>LEES</code> mag ook in uitdrukkingen voorkomen.</td>
+    <td>Leest een decimaal getal van de gebruiker. <code>LEES</code> mag ook midden in een uitdrukking voorkomen, bijv. <code>a := LEES + LEES</code>.</td>
+    <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
     <td><code>&lt;var&gt; := LEESSYM</code></td>
-    <td>Leest het volgende symbool en geeft de interne waarde terug (zie symboltabel).</td>
+    <td>Leest één symbool van de gebruiker en geeft de interne waarde terug (zie symboltabel).</td>
+    <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
     <td><code>SKIP</code></td>
     <td>Sla symbolen over tot en met het einde-tekst-symbool <code>]</code> (waarde 99).</td>
+    <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
   </tr>
 </table>
+
+<div class="impl">
+  <strong>Implementatie — afwijking van de 1973-beschrijving:</strong>
+  In het originele ECOL las <code>LEES</code> sequentieel van een <em>ponsband</em> of <em>schrapkaart</em>: alle invoer was van tevoren op de band gezet en werd bij uitvoering één voor één gelezen. Er was geen interactie tijdens het draaien van het programma.<br><br>
+  In deze interpreter is <code>LEES</code> <strong>interactief</strong>: zodra een <code>LEES</code> of <code>LEESSYM</code> wordt uitgevoerd, <em>pauzeert</em> het programma en wacht op een regel invoer van de gebruiker. De volledige machinestatus (variabelen, lustelders, regelbuffer) blijft bewaard tijdens het wachten. Na de invoer hervat het programma precies waar het gebleven was.
+</div>
 
 <h2>Rekenkundige uitdrukkingen</h2>
 

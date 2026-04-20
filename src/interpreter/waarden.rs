@@ -1,5 +1,5 @@
+use crate::interpreter::functions::EcolFout;
 use crate::interpreter::helpers::get_sym_value;
-use crate::interpreter::vergelijkingen::Vergelijking;
 
 pub(super) struct VariabeleAanroep {
     variabele_naam: String,
@@ -36,12 +36,12 @@ pub(super) struct EcolRij {
     value: Vec<f32>,
 }
 impl EcolRij {
-    fn new(start: usize, einde: usize) -> Result<Self, String> {
+    fn new(start: usize, einde: usize) -> Result<Self, EcolFout> {
         if start < 1 {
-            return Err("De index van een RIJ kan niet lager zijn dan 1.".to_string());
+            return Err(EcolFout::FoutMelding("De index van een RIJ kan niet lager zijn dan 1.".to_string()));
         }
         if start > einde{
-            return Err(format!("Een RIJ moet tenminste 2 waarden  bevatten (start={}, eind={}).", start, einde));
+            return Err(EcolFout::FoutMelding(format!("Een RIJ moet tenminste 2 waarden  bevatten (start={}, eind={}).", start, einde)));
         }
 
         let lengte = einde - start + 1;
@@ -49,14 +49,14 @@ impl EcolRij {
         Ok(EcolRij { start, einde, value })
     }
 
-    fn set_value(&mut self, positie: usize, value: f32) -> Result<(), String>{
+    fn set_value(&mut self, positie: usize, value: f32) -> Result<(), EcolFout>{
         let index = self.get_index(positie)?;
 
         self.value[index] = value;
         Ok(())
     }
 
-    fn get_value(&self, positie: usize) -> Result<f32, String> {
+    fn get_value(&self, positie: usize) -> Result<f32, EcolFout> {
         let index = self.get_index(positie)?;
         Ok(self.value[index])
     }
@@ -64,9 +64,9 @@ impl EcolRij {
         (self.start, self.einde)
     }
 
-    fn get_index(&self, positie: usize) -> Result<usize, String> {
+    fn get_index(&self, positie: usize) -> Result<usize, EcolFout> {
         if positie < self.start || positie > self.einde {
-            return Err(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, self.start, self.einde))
+            return Err(EcolFout::FoutMelding(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, self.start, self.einde)))
         }
         let index = positie - self.start;
 
@@ -80,12 +80,12 @@ pub(super) struct EcolRijsym {
     value: Vec<u8>,
 }
 impl EcolRijsym {
-    fn new(start: usize, einde: usize) -> Result<Self, String> {
+    fn new(start: usize, einde: usize) -> Result<Self, EcolFout> {
         if start < 1 {
-            return Err("De index van een RIJSYM kan niet lager zijn dan 1.".to_string());
+            return Err(EcolFout::FoutMelding("De index van een RIJSYM kan niet lager zijn dan 1.".to_string()));
         }
         if start > einde{
-            return Err(format!("Een RIJSYM moet tenminste 2 waarden  bevatten (start={}, eind={}).", start, einde));
+            return Err(EcolFout::FoutMelding(format!("Een RIJSYM moet tenminste 2 waarden  bevatten (start={}, eind={}).", start, einde)));
         }
 
         let lengte = einde - start + 1;
@@ -93,7 +93,7 @@ impl EcolRijsym {
         Ok(EcolRijsym { start, einde, value })
     }
 
-    fn set_value(&mut self, positie: usize, value: f32) -> Result<(), String>{
+    fn set_value(&mut self, positie: usize, value: f32) -> Result<(), EcolFout>{
 
         let small_value: u8 = get_sym_value(&value)?;
         let index = self.get_index(positie)?;
@@ -102,7 +102,7 @@ impl EcolRijsym {
         Ok(())
     }
 
-    fn get_value(&self, positie: usize) -> Result<f32, String> {
+    fn get_value(&self, positie: usize) -> Result<f32, EcolFout> {
         let index = self.get_index(positie)?;
         Ok(self.value[index] as f32)
     }
@@ -110,10 +110,10 @@ impl EcolRijsym {
         (self.start, self.einde)
     }
 
-    fn get_index(&self, positie: usize) -> Result<usize, String> {
+    fn get_index(&self, positie: usize) -> Result<usize, EcolFout> {
 
         if positie < self.start || positie > self.einde {
-            return Err(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, self.start, self.einde))
+            return Err(EcolFout::FoutMelding(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, self.start, self.einde)))
         }
         let index = positie - self.start;
 
@@ -184,10 +184,10 @@ impl Waarde {
     pub(super) fn new_getal(value: f32) -> Self {
         Waarde::Getal(value)
     }
-    pub(super) fn new_rij(start: usize, einde: usize) -> Result<Self, String> {
+    pub(super) fn new_rij(start: usize, einde: usize) -> Result<Self, EcolFout> {
         Ok(Waarde::Rij(EcolRij::new(start, einde)?))
     }
-    pub(super) fn new_rijsym(start: usize, einde: usize) -> Result<Self, String> {
+    pub(super) fn new_rijsym(start: usize, einde: usize) -> Result<Self, EcolFout> {
         Ok(Waarde::Rijsym(EcolRijsym::new(start, einde)?))
     }
     pub(super) fn new_teller(stap: f32, start: f32, stop: f32) -> Self {
@@ -202,11 +202,11 @@ impl Waarde {
             Waarde::NogNietBepaald => None,
         }
     }    
-    pub(super) fn rij_set_value(&mut self, value: f32, positie: usize) -> Result<(), String> {
+    pub(super) fn rij_set_value(&mut self, value: f32, positie: usize) -> Result<(), EcolFout> {
         match self {
             Waarde::Rij(x) => { x.set_value(positie, value) },
             Waarde::Rijsym(x) => { x.set_value(positie, value)},
-            _ => Err("Waarde is geen RIJ of RIJSYM".to_string()),
+            _ => Err(EcolFout::FoutMelding("Waarde is geen RIJ of RIJSYM".to_string())),
         }
     }
     pub(super) fn rij_haal_grenswaarden(&self) -> (usize, usize) {
@@ -216,77 +216,56 @@ impl Waarde {
             _ => (0, 0),
         }
     }
-    pub(super) fn haal_getal(&self, positie: usize) -> Result<f32, String> {
+    pub(super) fn haal_getal(&self, positie: usize) -> Result<f32, EcolFout> {
         match self {
             Waarde::Getal(x) => Ok(*x),
             Waarde::Rij(x) => { Ok(x.get_value(positie)?) }
             Waarde::Rijsym(x) => { Ok(x.get_value(positie)?) }
             Waarde::Teller(x) => Ok(x.haal_waarde()),
-            Waarde::NogNietBepaald => Err("Waarde is nog niet bepaald".to_string()),
+            Waarde::NogNietBepaald => Err(EcolFout::FoutMelding("Waarde is nog niet bepaald".to_string())),
         }
     }
-    pub(super) fn teller_is_klaar(&self, new_current: f32) -> Result<bool, String> {
+    pub(super) fn teller_is_klaar(&self, new_current: f32) -> Result<bool, EcolFout> {
         match self {
             Waarde::Teller(x) => {
                 Ok(x.klaar(new_current))
             }
-            _ => Err("Waarde is geen teller".to_string()),
+            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
         }
     }
-    pub(super) fn teller_schrijf_regel(&mut self, regel: u16) -> Result<(), String> {
+    pub(super) fn teller_schrijf_regel(&mut self, regel: u16) -> Result<(), EcolFout> {
         match self {
             Waarde::Teller(x) => {
                 x.schrijf_regel(regel);
                 Ok(())
             }
-            _ => Err("Waarde is geen teller".to_string()),
+            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
         }
     }
-    pub(super) fn teller_lees_regel(&self) -> Result<u16, String> {
+    pub(super) fn teller_lees_regel(&self) -> Result<u16, EcolFout> {
         match self {
             Waarde::Teller(x) => {
                 Ok(x.lees_regel())
             }
-            _ => Err("Waarde is geen teller".to_string()),
+            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
         }
     }
-    pub(super) fn teller_lees_stap(&self) -> Result<f32, String> {
+    pub(super) fn teller_lees_stap(&self) -> Result<f32, EcolFout> {
         match self {
             Waarde::Teller(x) => {
                 Ok(x.lees_stap())
             }
-            _ => Err("Waarde is geen teller".to_string()),
+            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
         }
     }
-    pub(super) fn teller_schrijf_current(&mut self, current: f32) -> Result<(), String> {
+    pub(super) fn teller_schrijf_current(&mut self, current: f32) -> Result<(), EcolFout> {
         match self {
             Waarde::Teller(x) => {
                 x.schrijf_current(current);
                 Ok(())
             }
-            _ => Err("Waarde is geen teller".to_string()),
+            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
         }
     }
 
 }
-
-//Helpers
-// fn escape_char(c: char) -> Option<&'static str> {
-//     match c {
-//         '"' => Some("\\\""),
-//         '\\' => Some("\\\\"),
-//         '\n' => Some("\\n"),
-//         '\r' => Some("\\r"),
-//         '\t' => Some("\\t"),
-//         '\0' => Some("\\0"),
-//         _ => None,
-//     }
-// }
-
-// pub(super) fn haal_data(token: &Waarde, positie: usize) -> Result<String, String> {
-//
-//     match token {
-//         Waarde::Getal(x) => Ok(format_getal(*x)),
-//         Waarde::Rij(x) => Ok(format_getal(x.get_value(positie)?))
-//     }
-// }

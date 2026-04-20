@@ -8,4 +8,4 @@ mod expressies;
 mod functions;
 mod vergelijkingen;
 
-pub use interpreter::{EcolMachine};
+pub use interpreter::{EcolMachine, LeesGeheugen};

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
+use crate::interpreter::functions::EcolFout;
 use crate::interpreter::helpers::geen_spaties;
-use crate::interpreter::waarden::EcolTeller;
 
 pub(super) const WORDT_TEKEN: &str = ":=";
 
@@ -228,14 +228,15 @@ impl SprongDoel {
         }
     }
 
-    pub(super) fn vul(bron: &str) -> Result<Self, String> {
+    pub(super) fn vul(bron: &str) -> Result<Self, EcolFout> {
         let reply: SprongDoel;
         if geen_spaties(bron) == "STOP" {
             reply = SprongDoel::Stop;
         } else {
-            let regelnummer = bron.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal.".to_string())?;
+            let regelnummer = bron.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal.".to_string())
+                .map_err(|e| EcolFout::FoutMelding(e))?;
             if regelnummer <1 || regelnummer > 999 {
-                return Err("Regelnummer moet tussen 1 en 999 (inclusief) liggen.".to_string());
+                return Err(EcolFout::FoutMelding("Regelnummer moet tussen 1 en 999 (inclusief) liggen.".to_string()));
             }
             reply = SprongDoel::Regel(regelnummer);
 
@@ -304,7 +305,7 @@ pub(super) enum LineInhoud {
     Verwijderen {},
 }
 impl LineInhoud {
-    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Result<Self, String> {
+    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Result<Self, EcolFout> {
         match sleutelwoord {
             Sleutelwoord::END => Ok(Self::End {}),
             Sleutelwoord::HELP => Ok(Self::Help {}),
@@ -314,7 +315,7 @@ impl LineInhoud {
             Sleutelwoord::NP => Ok(Self::NP {}),
             Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string() }),
             Sleutelwoord::START => Ok(Self::Start {}),
-            _ => Err("Incomplete syntax".to_string()),
+            _ => Err(EcolFout::FoutMelding("Incomplete syntax".to_string())),
         }
     }
     pub(super) fn as_str(&self) -> &str {
@@ -387,14 +388,14 @@ impl Operator {
         ])
     }
 
-    pub(super) fn bereken(&self, links: f32, rechts: f32) -> Result<f32, String> {
+    pub(super) fn bereken(&self, links: f32, rechts: f32) -> Result<f32, EcolFout> {
         match self {
             Self::Plus => Ok(links + rechts),
             Self::Min => Ok(links - rechts),
             Self::Vermenigvuldig => Ok(links * rechts),
             Self::Deel => {
                 if rechts == 0.0 {
-                    return Err("Deel door 0 is niet toegestaan".to_string());
+                    return Err(EcolFout::FoutMelding("Deel door 0 is niet toegestaan".to_string()));
                 }
                 Ok(links / rechts)
             },

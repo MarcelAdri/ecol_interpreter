@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
-use crate::interpreter::EcolMachine;
+use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::helpers::{geen_spaties, grens_bewaking};
 use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
 use crate::interpreter::program::{Line, LineInhoud};
@@ -8,6 +8,22 @@ use crate::interpreter::waarden::{VariabeleType, Waarde};
 pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
 pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
 
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum EcolFout {
+    FoutMelding(String),
+    WachtOpLees(u16),
+    WachtOpLeessym(u16),
+}
+
+impl EcolFout {
+    pub(super) fn to_string(&self) -> String {
+        match self {
+            EcolFout::FoutMelding(melding) => format!("{}", melding),
+            EcolFout::WachtOpLees(regel) => format!("Wachten op LEES regel {}.", regel),
+            EcolFout::WachtOpLeessym(regel) => format!("Wachten op LEESSYM regel {}.", regel),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum FunctieNaam {
     ABS,
@@ -18,6 +34,8 @@ pub(super) enum FunctieNaam {
     G,
     GOK,
     GOKC,
+    LEES,
+    LEESSYM,
     LN,
     LOG,
     ONDIN,
@@ -37,6 +55,8 @@ impl FunctieNaam {
             "G" => Some(Self::G),
             "GOK" => Some(Self::GOK),
             "GOKC" => Some(Self::GOKC),
+            "LEES" => Some(Self::LEES),
+            "LEESSYM" => Some(Self::LEESSYM),
             "LN" => Some(Self::LN),
             "LOG" => Some(Self::LOG),
             "ONDIN" => Some(Self::ONDIN),
@@ -57,6 +77,8 @@ impl FunctieNaam {
             Self::G => "G".to_string(),
             Self::GOK => "GOK".to_string(),
             Self::GOKC => "GOKC".to_string(),
+            Self::LEES => "LEES".to_string(),
+            Self::LEESSYM => "LEESSYM".to_string(),
             Self::LN => "LN".to_string(),
             Self::LOG => "LOG".to_string(),
             Self::ONDIN => "ONDIN".to_string(),
@@ -76,6 +98,8 @@ impl FunctieNaam {
             Self::G => 1,
             Self::GOK => 2,
             Self::GOKC => 0,
+            Self::LEES => 0,
+            Self::LEESSYM => 0,
             Self::LN => 1,
             Self::LOG => 1,
             Self::ONDIN => 0,
@@ -98,6 +122,8 @@ pub(super) enum Functie {
     G { getal: f32 },
     GOK { laag: f32, hoog: f32 },
     GOKC { },
+    LEES { },
+    LEESSYM { },
     LN { getal: f32 },
     LOG { getal: f32 },
     ONDIN { variabele_naam: String },
@@ -106,9 +132,9 @@ pub(super) enum Functie {
     WRTL { getal: f32 },
 }
 impl Functie {
-    pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, rij_naam: &str) -> Result<Self, String> {
+    pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, rij_naam: &str) -> Result<Self, EcolFout> {
         if argumenten.len() != functienaam.verwacht_argumenten() {
-            return Err(format!("Verkeerd aantal argumenten voor '{}'", functienaam.to_string()));
+            return Err(EcolFout::FoutMelding(format!("Verkeerd aantal argumenten voor '{}'", functienaam.to_string())));
         }
         match functienaam {
             FunctieNaam::ABS => Ok(Functie::ABS { getal: argumenten[0] }),
@@ -119,6 +145,8 @@ impl Functie {
             FunctieNaam::G => Ok(Functie::G { getal: argumenten[0] }),
             FunctieNaam::GOK => Ok(Functie::GOK { laag: argumenten[0], hoog: argumenten[1] }),
             FunctieNaam::GOKC => Ok(Functie::GOKC { }),
+            FunctieNaam::LEES => Ok(Functie::LEES { }),
+            FunctieNaam::LEESSYM => Ok(Functie::LEESSYM { }),
             FunctieNaam::LN => Ok(Functie::LN { getal: argumenten[0] }),
             FunctieNaam::LOG => Ok(Functie::LOG { getal: argumenten[0] }),
             FunctieNaam::ONDIN => Ok(Functie::ONDIN { variabele_naam: rij_naam.to_string() }),
@@ -138,6 +166,8 @@ impl Functie {
             Functie::G { .. } => Some(FunctieNaam::G),
             Functie::GOK { .. } => Some(FunctieNaam::GOK),
             Functie::GOKC { .. } => Some(FunctieNaam::GOKC),
+            Functie::LEES { .. } => Some(FunctieNaam::LEES),
+            Functie::LEESSYM { .. } => Some(FunctieNaam::LEESSYM),
             Functie::LN { .. } => Some(FunctieNaam::LN),
             Functie::LOG { .. } => Some(FunctieNaam::LOG),
             Functie::ONDIN { .. } => Some(FunctieNaam::ONDIN),
@@ -174,14 +204,14 @@ impl EigenFunctie {
         EigenFunctie { functie_omgeving: EcolMachine::new() }
     }
 
-    fn eigen_functie(functies: &HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16) -> Result<f32, String> {
+    fn eigen_functie(functies: &HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if diepte > 100 {
-            return Err("Maximum recursie-diepte overschreden (100).".to_string());
+            return Err(EcolFout::FoutMelding("Maximum recursie-diepte overschreden (100).".to_string()));
         }
         let mut machine = Self::new();
         machine.functie_omgeving.stel_functie_diepte_in(diepte);
         if argumenten.len() != functie.parameters.len() {
-            return Err(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters.len(), argumenten.len()));
+            return Err(EcolFout::FoutMelding(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters.len(), argumenten.len())));
         }
         machine.functie_omgeving.laad_programma(&functie.body);
         machine.functie_omgeving.laad_functies(functies);
@@ -191,20 +221,20 @@ impl EigenFunctie {
             if geen_spaties(&naam).starts_with("RIJSYM") {
                 naam = geen_spaties(&naam[6..]);
                 if argumenten[index].type_van() != Some(VariabeleType::Rijsym) {
-                    return Err(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string()));
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string())));
                 }
                 let (begin, einde) = argumenten[index].rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
             } else if geen_spaties(&naam).starts_with("RIJ") {
                 naam = geen_spaties(&naam[3..]);
                 if argumenten[index].type_van() != Some(VariabeleType::Rij) {
-                    return Err(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string()));
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string())));
                 }
                 let (begin, einde) = argumenten[index].rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
             } else {
                 if argumenten[index].type_van() != Some(VariabeleType::Getal) {
-                    return Err(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string()));
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string())));
                 }
             }
             machine.functie_omgeving.var_schrijf_waarde(&naam, argumenten[index].clone())?;
@@ -215,20 +245,20 @@ impl EigenFunctie {
         loop {
 
             let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
-                return Err("FOUTMELDING: Er zijn geen regels meer om uit te voeren. FUN := niet aangetroffen.".to_string());
+                return Err(EcolFout::FoutMelding("FOUTMELDING: Er zijn geen regels meer om uit te voeren. FUN := niet aangetroffen.".to_string()));
             };
             current = regelnummer + 1;
             let regel = Line::new(current, current_regel.clone());
 
             match current_regel {
                 LineInhoud::FunEind { expressie} => {
-                    return Ok(machine.functie_omgeving.solve_expression(&expressie)?);
+                    return Ok(machine.functie_omgeving.solve_expression(&expressie, lees_geheugen)?);
                 },
                 _ => {
-                    let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie,  &mut |_| {})?;
+                    let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie, lees_geheugen, &mut |_| {})?;
                     match reply_option {
                         Some(reply) => {
-                            return Ok(reply.parse::<f32>().map_err(|_| "FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string())?);
+                            return Ok(reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()))?);
                         },
                         None => {},
                     }
@@ -257,12 +287,12 @@ impl EigenFunctie {
 
         }
 
-        Err("FOUTMELDING: FUNctie  eindigde zonder resultaat".to_string())
+        Err(EcolFout::FoutMelding("FOUTMELDING: FUNctie  eindigde zonder resultaat".to_string()))
     }
 }
 
 impl EcolMachine {
-    pub(super) fn execute_function(&mut self, functie: &Functie) -> Result<f32, String> {
+    pub(super) fn execute_function(&mut self, lees_geheugen: &mut LeesGeheugen, functie: &Functie) -> Result<f32, EcolFout> {
 
         let result = match functie {
             Functie::ABS { getal } => { let uitkomst = self.execute_function_abs(getal)?; Ok(uitkomst) },
@@ -273,6 +303,8 @@ impl EcolMachine {
             Functie::G { getal } => { let uitkomst = self.execute_function_g(getal)?; Ok(uitkomst) },
             Functie::GOK { laag, hoog } => { let uitkomst = self.execute_function_gok(laag, hoog)?; Ok(uitkomst) },
             Functie::GOKC { } => { let uitkomst = self.execute_function_gokc()?; Ok(uitkomst) },
+            Functie::LEES { } => { let uitkomst = self.execute_function_lees(lees_geheugen)?; Ok(uitkomst) },
+            Functie::LEESSYM { } => { let uitkomst = self.execute_function_leessym(lees_geheugen)?; Ok(uitkomst) },
             Functie::LN { getal } => { let uitkomst = self.execute_function_ln(getal)?; Ok(uitkomst) },
             Functie::LOG { getal } => { let uitkomst = self.execute_function_log(getal)?; Ok(uitkomst) },
             Functie::ONDIN { variabele_naam } => { let uitkomst = self.execute_function_ondin(&variabele_naam)?; Ok(uitkomst) },
@@ -283,93 +315,118 @@ impl EcolMachine {
 
         result
     }
-    fn execute_function_abs(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_abs(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.abs())
     }
-    fn execute_function_arctan(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_arctan(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.atan())
     }
-    fn execute_function_bovin(&self, variabele_naam: &str) -> Result<f32, String> {
-        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(format!("De variabele '{}' bestaat niet", variabele_naam));};
+    fn execute_function_bovin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
+        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{}' bestaat niet", variabele_naam)));};
         match waarde.type_van() {
             Some(VariabeleType::Rij) | Some(VariabeleType::Rijsym) => {}
-            _ => return Err(format!("'{}' is geen RIJ of RIJSYM variabele", variabele_naam)),
+            _ => return Err(EcolFout::FoutMelding(format!("'{}' is geen RIJ of RIJSYM variabele", variabele_naam))),
         }
         let (_, result) = waarde.rij_haal_grenswaarden();
         Ok(result as f32)
     }
-    fn execute_function_cos(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_cos(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.cos())
     }
-    fn execute_function_exp(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_exp(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.exp())
     }
-    fn execute_function_g(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_g(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.floor())
     }
-    fn execute_function_gok(&mut self, laag: &f32, hoog: &f32) -> Result<f32, String> {
+    fn execute_function_gok(&mut self, laag: &f32, hoog: &f32) -> Result<f32, EcolFout> {
         let laag = grens_bewaking(laag, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         let hoog = grens_bewaking(hoog, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         if laag >= hoog {
-            return Err(format!("De lage waarde van de GOK ({}) mag niet groter zijn dan de hoge waarde ({})", laag, hoog));
+            return Err(EcolFout::FoutMelding(format!("De lage waarde van de GOK ({}) mag niet groter zijn dan de hoge waarde ({})", laag, hoog)));
         }
 
         Ok(self.volgende_willekeurig(laag, hoog).round())
     }
-    fn execute_function_gokc(&mut self) -> Result<f32, String> {
+    fn execute_function_gokc(&mut self) -> Result<f32, EcolFout> {
         Ok(self.volgende_willekeurig(0.0, 1.0))
     }
+    fn execute_function_lees(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+        if lees_geheugen.wacht_op_lees() {
+            let Some(getal) = lees_geheugen.lees_waarde() else {
+                return Err(EcolFout::FoutMelding("Geen waarde na LEES(SYM) (interne fout).".to_string()));
+            };
+            lees_geheugen.lees_hervat_none();
+            //panic!("Getal {} ", getal);
+            Ok(getal)
+        } else {
+            Err(EcolFout::WachtOpLees(0))
+        }
+    }
 
-    fn execute_function_ln(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_leessym(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+        if lees_geheugen.wacht_op_leessym() {
+            let Some(getal) = lees_geheugen.leessym_waarde() else {
+                return Err(EcolFout::FoutMelding("Geen waarde na LEES(SYM) (interne fout).".to_string()));
+            };
+            //self.wacht_op_lees_none();
+            lees_geheugen.leessym_hervat_none();
+
+            Ok(getal)
+        } else {
+            Err(EcolFout::WachtOpLeessym(0))
+        }
+    }
+    fn execute_function_ln(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.ln())
     }
-    fn execute_function_log(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_log(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.log10())
     }
-    fn execute_function_ondin(&self, variabele_naam: &str) -> Result<f32, String> {
-        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(format!("De variabele '{}' bestaat niet", variabele_naam));};
+    fn execute_function_ondin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
+        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{}' bestaat niet", variabele_naam)));};
         match waarde.type_van() {
             Some(VariabeleType::Rij) | Some(VariabeleType::Rijsym) => {}
-            _ => return Err(format!("'{}' is geen RIJ of RIJSYM variabele", variabele_naam)),
+            _ => return Err(EcolFout::FoutMelding(format!("'{}' is geen RIJ of RIJSYM variabele", variabele_naam))),
         }
         let (result, _) = waarde.rij_haal_grenswaarden();
         Ok(result as f32)
     }
 
-    fn execute_function_ps(&self) -> Result<f32, String> {
+    fn execute_function_ps(&self) -> Result<f32, EcolFout> {
         let werk = self.lees_regel();
         Ok(werk.len() as f32)
     }
-    fn execute_function_sin(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_sin(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.sin())
     }
-    fn execute_function_wrtl(&self, getal: &f32) -> Result<f32, String> {
+    fn execute_function_wrtl(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.sqrt())
     }
-    pub(super) fn execute_eigen_functie(&self, naam: &str, argumenten: Vec<Waarde>) -> Result<f32, String> {
+    pub(super) fn execute_eigen_functie(&self, naam: &str, argumenten: Vec<Waarde>, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         let definitie = self.haal_functiedefinitie(naam)
-            .ok_or_else(|| format!("Functie '{}' bestaat niet", naam))?
+            .ok_or_else(|| EcolFout::FoutMelding(format!("Functie '{}' bestaat niet", naam)))?
             .clone();
         let diepte = self.functie_diepte() + 1;
-        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte)
+        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte, lees_geheugen)
     }
     pub(super) fn get_fundef_parameters(&self, naam: &str) -> Option<Vec<String>> {
         let definitie = self.haal_functiedefinitie(naam)?;
@@ -380,7 +437,7 @@ impl EcolMachine {
         Some(definitie.get_body().clone())
     }
 
-    pub(super) fn extract_functie_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, String> {
+    pub(super) fn extract_functie_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, EcolFout> {
         let mut nieuwe_programma: BTreeMap<u16, LineInhoud> = BTreeMap::new();
         let mut in_functie_definitie = false;
         let mut fundef = FunDef::new();

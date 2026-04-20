@@ -1,5 +1,7 @@
 use crate::EcolMachine;
+use crate::interpreter::functions::EcolFout;
 use crate::interpreter::helpers::geen_spaties;
+use crate::interpreter::LeesGeheugen;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Vergelijking {
@@ -98,7 +100,7 @@ impl Vergelijking {
 }
 
 impl EcolMachine {
-    pub(super) fn parseer_vergelijking(&mut self, expressie: &str) -> Result<bool, String> {
+    pub(super) fn parseer_vergelijking(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<bool, EcolFout> {
         let werk_expressie = geen_spaties(expressie);
 
         // OF heeft lagere prioriteit dan EN: splits eerst op OF (buitenste knoop),
@@ -124,11 +126,11 @@ impl EcolMachine {
         }
 
         let links = if Vergelijking::is_simpele_vergelijking(links_expressie) {
-            self.parse_simpele_vergelijking(links_expressie)?
+            self.parse_simpele_vergelijking(links_expressie, lees_geheugen)?
         } else if rechts_expressie.is_empty() {
-            return Err(format!("Ongeldige vergelijkingsexpressie: '{}'", links_expressie));
+            return Err(EcolFout::FoutMelding(format!("Ongeldige vergelijkingsexpressie: '{}'", links_expressie)));
         } else {
-            self.parseer_vergelijking(links_expressie)?
+            self.parseer_vergelijking(links_expressie, lees_geheugen)?
         };
 
         if rechts_expressie.is_empty() {
@@ -136,14 +138,14 @@ impl EcolMachine {
         }
 
         let rechts = if Vergelijking::is_simpele_vergelijking(rechts_expressie) {
-            self.parse_simpele_vergelijking(rechts_expressie)?
+            self.parse_simpele_vergelijking(rechts_expressie, lees_geheugen)?
         } else {
-            self.parseer_vergelijking(rechts_expressie)?
+            self.parseer_vergelijking(rechts_expressie, lees_geheugen)?
         };
 
         Ok(samenvoeg_teken.voeg_samen(links, rechts))
     }
-    pub(super) fn parse_simpele_vergelijking(&mut self, expressie: &str) -> Result<bool, String> {
+    pub(super) fn parse_simpele_vergelijking(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<bool, EcolFout> {
         let mut links: &str = "";
         let mut rechts: &str = "";
         let mut operator_teken: Vergelijking = Vergelijking::Gelijk;
@@ -162,15 +164,16 @@ impl EcolMachine {
             }
         }
 
-        if links.is_empty() || rechts.is_empty() { return Err("Ongeldige vergelijking".to_string()); }
+        if links.is_empty() || rechts.is_empty() {
+            return Err(EcolFout::FoutMelding("Ongeldige vergelijking".to_string())); }
 
-        let links_getal = self.solve_expression(links)?;
-        let rechts_getal = self.solve_expression(rechts)?;
+        let links_getal = self.solve_expression(links, lees_geheugen)?;
+        let rechts_getal = self.solve_expression(rechts, lees_geheugen)?;
 
         Ok(operator_teken.vergelijk(links_getal, rechts_getal))
     }
 
-    pub(super) fn parseer_operator(&mut self, input: &str) -> Result<(Vergelijking, f32), String> {
+    pub(super) fn parseer_operator(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen) -> Result<(Vergelijking, f32), EcolFout> {
         let mut rechts: &str = "";
         let mut operator_teken: Vergelijking = Vergelijking::Gelijk;
 
@@ -186,8 +189,9 @@ impl EcolMachine {
                 None => continue,
             }
         }
-        if rechts.is_empty() { return Err("Ongeldige vergelijking: geen rechterkant".to_string()); }
-        let rechts_getal = self.solve_expression(rechts)?;
+        if rechts.is_empty() {
+            return Err(EcolFout::FoutMelding("Ongeldige vergelijking: geen rechterkant".to_string())); }
+        let rechts_getal = self.solve_expression(rechts, lees_geheugen)?;
 
         Ok((operator_teken, rechts_getal))
     }
