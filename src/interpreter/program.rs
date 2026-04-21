@@ -354,6 +354,7 @@ pub(super) enum Operator {
     Min,
     Vermenigvuldig,
     Deel,
+    Machtsverheffen,
 }
 impl Operator {
     pub(super) fn from_char(c: char) -> Option<Self> {
@@ -362,6 +363,7 @@ impl Operator {
             '-' => Some(Self::Min),
             '*' => Some(Self::Vermenigvuldig),
             '/' => Some(Self::Deel),
+            'M' => Some(Self::Machtsverheffen),
             _ => None,
         }
     }
@@ -372,35 +374,104 @@ impl Operator {
             Self::Min => '-',
             Self::Vermenigvuldig => '*',
             Self::Deel => '/',
+            Self::Machtsverheffen => 'M',
+        }
+    }
+
+    fn from_string(s: &str) -> Option<Self> {
+        match s {
+            "+" => Some(Self::Plus),
+            "-" => Some(Self::Min),
+            "*" => Some(Self::Vermenigvuldig),
+            "/" => Some(Self::Deel),
+            "M" => Some(Self::Machtsverheffen),
+            _ => None,
         }
     }
 
     pub(super) fn is_operator_char(c: char) -> bool {
         Self::from_char(c).is_some()
     }
+    pub(super) fn is_operator_string(s: &str) -> bool {
+        Self::from_string(s).is_some()
+    }
 
     pub(super) fn operator_volgorde() -> impl Iterator<Item = Self> {
         IntoIterator::into_iter([
+            Self::Machtsverheffen,
             Self::Vermenigvuldig,
             Self::Deel,
             Self::Plus,
             Self::Min,
         ])
     }
+    pub(super) fn operator_prioriteiten() -> Vec<Vec<Self>> {
+        vec![
+            vec![Self::Machtsverheffen],
+            vec![Self::Vermenigvuldig, Self::Deel],
+            vec![Self::Plus, Self::Min],
+        ]
+    }
 
     pub(super) fn bereken(&self, links: f32, rechts: f32) -> Result<f32, EcolFout> {
         match self {
-            Self::Plus => Ok(links + rechts),
-            Self::Min => Ok(links - rechts),
-            Self::Vermenigvuldig => Ok(links * rechts),
-            Self::Deel => {
-                if rechts == 0.0 {
-                    return Err(EcolFout::FoutMelding("Deel door 0 is niet toegestaan".to_string()));
-                }
-                Ok(links / rechts)
-            },
+            Self::Plus => plus(links, rechts),
+            Self::Min => min(links, rechts),
+            Self::Vermenigvuldig => maal(links, rechts),
+            Self::Deel => deel(links, rechts),
+            Self::Machtsverheffen => macht(links, rechts),
+
         }
     }
+}
+fn plus(links: f32, rechts: f32) -> Result<f32, EcolFout> {
+    let resultaat = links + rechts;
+    if resultaat.is_infinite() || resultaat.is_nan() {
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} + {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+    }
+    Ok(resultaat)
+}
+fn min(links: f32, rechts: f32) -> Result<f32, EcolFout> {
+    let resultaat = links - rechts;
+    if resultaat.is_infinite() || resultaat.is_nan() {
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} - {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+    }
+    Ok(resultaat)
+}
+fn maal(links: f32, rechts: f32) -> Result<f32, EcolFout> {
+    let resultaat = links * rechts;
+    if resultaat.is_infinite() || resultaat.is_nan() {
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} * {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+    }
+    Ok(resultaat)
+}
+fn deel(links: f32, rechts: f32) -> Result<f32, EcolFout> {
+    if rechts == 0.0 {
+        return Err(EcolFout::FoutMelding("Delen door nul is niet toegestaan in ECOL.".to_string()));
+    }
+    let resultaat = links / rechts;
+    if resultaat.is_infinite() || resultaat.is_nan() {
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} / {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+    }
+    Ok(resultaat)
+}
+fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
+    if links < 0.0 && rechts.fract() != 0.0 {
+        return Err(EcolFout::FoutMelding(format!("Machtsverheffen met een negatieve basis en een niet-gehele exponent is niet toegestaan in ECOL ({} M {}).", links, rechts)));
+    }
+    if rechts.abs() > 1000000.0 {
+        return Err(EcolFout::FoutMelding(format!("Exponent {} is te groot voor machtsverheffen in ECOL ({} M {}).", rechts, links, rechts)));
+    }
+    let resultaat: f32;
+    if rechts.fract() == 0.0 {
+        resultaat = links.powi(rechts as i32)
+    } else {
+        resultaat = links.powf(rechts);
+    }
+    if resultaat.is_infinite() || resultaat.is_nan() {
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} M {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+    }
+    Ok(resultaat)
 }
 pub(super) struct Programma {
     programma: BTreeMap<u16, LineInhoud>

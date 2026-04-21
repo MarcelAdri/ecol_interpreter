@@ -290,7 +290,7 @@ a := naam(index)</pre>
   <tr>
     <td><code>SKIP</code></td>
     <td>Sla symbolen over tot en met het einde-tekst-symbool <code>]</code> (waarde 99).</td>
-    <td><span class="tag hist">historisch</span> <span class="tag todo">gepland</span></td>
+    <td><span class="tag hist">historisch</span> <span class="tag nee">niet gepland</span></td>
   </tr>
 </table>
 
@@ -308,7 +308,7 @@ a := naam(index)</pre>
 
 <table>
   <tr><th>Operator</th><th>Betekenis</th><th>Status</th><th>Voorbeeld</th></tr>
-  <tr><td><code>M</code></td><td>Machtsverheffing (ook: <code>xx</code> voor kwadraat)</td><td><span class="tag nee">niet gepland</span></td><td>gebruik <code>EXP(u)</code></td></tr>
+  <tr><td><code>M</code></td><td>Machtsverheffing (ook: <code>xx</code> voor kwadraat)</td><td><span class="tag ok">geïmpl.</span></td><td><code>2 M 8</code></td></tr>
   <tr><td><code>×</code></td><td>Vermenigvuldigen (originele ECOL-notatie)</td><td><span class="tag nee">niet gepland</span></td><td>gebruik <code>*</code></td></tr>
   <tr><td><code>*</code></td><td>Vermenigvuldigen</td><td><span class="tag ok">geïmpl.</span></td><td><code>a * b</code></td></tr>
   <tr><td><code>/</code></td><td>Delen</td><td><span class="tag ok">geïmpl.</span></td><td><code>a / b</code></td></tr>
@@ -317,7 +317,7 @@ a := naam(index)</pre>
   <tr><td><code>(</code> <code>)</code></td><td>Haakjes doorbreken de prioriteit</td><td><span class="tag ok">geïmpl.</span></td><td><code>a * (b + c)</code></td></tr>
 </table>
 
-<p><strong>Prioriteit:</strong> huidige volgorde is <code>* /</code> boven <code>+ -</code>. Dit wordt in een toekomstige versie aangepast naar de originele ECOL-prioriteit, waarbij <code>*</code> en <code>/</code> onderling gelijke prioriteit hebben, en <code>+</code> en <code>-</code> ook (alles links-naar-rechts).</p>
+<p><strong>Prioriteit:</strong> <code>M</code> heeft de hoogste prioriteit, daarna <code>* /</code>, dan <code>+ -</code>. Operatoren met gelijke prioriteit worden links-naar-rechts geëvalueerd: <code>6/2*3</code> geeft <code>9</code>.</p>
 
 <p><strong>Unaire min:</strong> <code>a * -b</code> werkt in deze interpreter.</p>
 

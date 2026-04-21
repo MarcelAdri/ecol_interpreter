@@ -156,43 +156,47 @@ impl EcolMachine {
 
 pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout> {
     let mut werk_expressie = expressie.to_string();
-    let mut search_from = 0;
-
-    for o in Operator::operator_volgorde() {
+    
+    for groep in Operator::operator_prioriteiten() {
         loop {
-            let Some(rel_pos) = werk_expressie[search_from..].find(o.to_char()) else { break; };
-            let operator_positie = search_from + rel_pos;
-
-            let links_pos = vind_operand_links(werk_expressie.as_str(), operator_positie);
-
-            if links_pos == operator_positie {
-                // Unaire min — geen linkeroperand, sla deze positie over
-                search_from = operator_positie + 1;
-                continue;
+            let mut gevonden: Option<(usize, Operator)> = None;
+            let mut i = 0usize;
+            while i < werk_expressie.len() {
+                let c = werk_expressie.as_bytes()[i] as char;
+                if let Some(o) = Operator::from_char(c) {
+                    if groep.contains(&o) {
+                        let links_pos = vind_operand_links(&werk_expressie, i);
+                        if links_pos < i {
+                            gevonden = Some((i, o));
+                            break;
+                        }
+                    }
+                }
+                i += 1;
             }
+            let Some((operator_positie, o)) = gevonden else { break; };
 
-            let rechts_pos = vind_operand_rechts(werk_expressie.as_str(), operator_positie);
-
+            let links_pos = vind_operand_links(&werk_expressie, operator_positie);
+            let rechts_pos = vind_operand_rechts(&werk_expressie, operator_positie);
             let links_deel = &werk_expressie[links_pos..operator_positie];
             let rechts_deel = &werk_expressie[operator_positie + 1..rechts_pos];
-
             let links_poging = f32::from_str(links_deel);
             let rechts_poging = f32::from_str(rechts_deel);
 
             match (links_poging, rechts_poging) {
                 (Ok(links), Ok(rechts)) => {
                     let uitkomst = o.bereken(links, rechts)?.to_string();
-
-                    werk_expressie.replace_range(
-                        links_pos..rechts_pos,
-                        &uitkomst,
-                    );
+                    werk_expressie.replace_range(links_pos..rechts_pos, &uitkomst);
                 }
-                _ => return Err(EcolFout::FoutMelding("Ongeldige tekens in numerieke expressie".to_string())),
+                _ => return Err(EcolFout::FoutMelding(
+                    "Ongeldige tekens in numerieke expressie".to_string()
+                )),
             }
-            search_from = 0;
         }
     }
+
+
+    
 
     *expressie = werk_expressie;
     Ok(())

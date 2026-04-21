@@ -552,7 +552,7 @@ pub(super) fn execute_all (
                     };
 
                     let regel = machine.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer(), e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer()))?;
                     match regel {
                         Some(_) => { (no_reply_string, no_next_line, Some(WhatsNext::Continue)) },
                         None => {
@@ -595,8 +595,8 @@ pub(super) fn execute_all (
                     (Some(machine.execute_np( output)?), no_next_line, no_whats_next)
                 },
                 Context::Programma | Context::Subroutine => {
-                    (Some(machine.execute_np( output)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?), no_next_line, no_whats_next)
+                    (Some(machine.execute_np(output)
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?), no_next_line, no_whats_next)
                 },
                 Context::Functie => {
                     return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: NP kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
@@ -609,7 +609,7 @@ pub(super) fn execute_all (
                 Context::Direct => { (Some(machine.execute_nr(&aantal, lees_geheugen)?), no_next_line, no_whats_next) },
                 Context::Programma | Context::Subroutine => {
                     output(&machine.execute_nr(&aantal, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?);
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?);
                     no_reply
                 },
                 Context::Functie => {
@@ -626,7 +626,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
                     _ = machine.execute_rij(&start, &eind, &variabele_naam, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
 
@@ -640,7 +640,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
                     _ = machine.execute_rijsym(&start, &eind, &variabele_naam, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
 
@@ -654,7 +654,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine => {
                     _ = machine.execute_schrijf(*breedte, *decimalen, expressie, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
                 Context::Functie => {
@@ -671,7 +671,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine => {
                     _ = machine.execute_schrijfsym(expressie, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
                 Context::Functie => {
@@ -688,7 +688,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine => {
                     _ = machine.execute_schrijm(expressie, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
                 Context::Functie => {
@@ -705,7 +705,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine => {
                     _ = machine.execute_spatie(aantal, lees_geheugen)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
                 Context::Functie => {
@@ -739,7 +739,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine => {
                     _ = machine.execute_tekst(expressie)
-                        .map_err(|e| EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e.to_string())))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
                 Context::Functie => {
@@ -756,10 +756,7 @@ pub(super) fn execute_all (
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
                     _ = machine.execute_toekennen(&variabele_naam, &argument, &expressie, lees_geheugen)
-                        .map_err(|e| match e {
-                            EcolFout::FoutMelding(e) => EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", opdracht.regelnummer() -1, e)),
-                            _ => e
-                        })?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
 

@@ -13,7 +13,7 @@ use crate::interpreter::helpers::{
     ,is_alleen_keyword
     ,is_geldig_wordt_teken
     ,is_geldige_variabele_naam};
-use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel};
+use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel};
 use crate::interpreter::functions::{EcolFout, FunDef, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleAanroep};
 
@@ -124,6 +124,9 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
         .unwrap_or(expressie.len());
 
     let functienaam = &expressie[start_naam..einde_naam];
+    if Operator::is_operator_string(functienaam) {
+        return Ok(None);
+    }
     let Some(functie) = FunctieNaam::from_str(functienaam) else {
         return Err(EcolFout::FoutMelding(format!("Ongeldige functienaam: '{}'", functienaam)));
     };

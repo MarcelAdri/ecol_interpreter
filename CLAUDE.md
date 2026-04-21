@@ -84,7 +84,7 @@ Currently implemented:
 - `SPATIE (n)` — n spaties naar regelbuffer
 - `NR(n)` — regelbuffer dumpen + n regeleindes (standaard 1)
 - `NP` — scherm wissen
-- Numeric expressions: `+`, `-`, `*`, `/`, operator precedence, parentheses
+- Numeric expressions: `+`, `-`, `*`, `/`, `M` (exponentiation); precedence: `M` > `*/` > `+-`; equal-priority operators evaluate left-to-right; parentheses
 - Numeric functions: `G`, `ABS`, `WRTL`, `SIN`, `COS`, `ARCTAN`, `LN`, `LOG`, `EXP`, `GOK`, `GOKC`, `PS`
 - Random number generation: xorshift64 seeded from `Date::now()`, state stored in `EcolMachine.seed`
 - `RIJ(m,n) naam` — 1D numeric array (f32, 1-based; start ≥ 1); element access via `naam(index)`; redefinition reinitialises the array

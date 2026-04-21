@@ -23,6 +23,12 @@ impl EcolFout {
             EcolFout::WachtOpLeessym(regel) => format!("Wachten op LEESSYM regel {}.", regel),
         }
     }
+    pub(super) fn met_regel(self, regel: u16) -> Self {
+        match self {
+            EcolFout::FoutMelding(m) => EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", regel, m)),
+            other => other,
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum FunctieNaam {
