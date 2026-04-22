@@ -92,6 +92,7 @@ Currently implemented:
 - `ONDIN(naam)` — lower bound of a RIJ or RIJSYM array; error if argument is not an array
 - `BOVIN(naam)` — upper bound of a RIJ or RIJSYM array; error if argument is not an array
 - `n:` — empty program line (valid jump target, no statement)
+- `; tekst` — inline comment; may appear at the end of any statement; stored in the AST but ignored during execution
 - `NAAR <regelnummer>` — unconditional jump; backward jump triggers rollback of RIJ/RIJSYM declarations between target and jump site; program aborted after 5 s (infinite loop guard)
 - Comparison operators: `=`, `<>` / `≠`, `>`, `<`, `>=` / `≥`, `<=` / `≤`
 - Logical operators: `EN` (AND), `OF` (OR); OF has lower precedence than EN

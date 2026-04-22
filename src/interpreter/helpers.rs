@@ -1,7 +1,5 @@
-use std::convert::TryFrom;
 use crate::interpreter::functions::EcolFout;
 use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel, WORDT_TEKEN};
-use crate::interpreter::vergelijkingen::Vergelijking;
 
 pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<String>, &str)> {
     let werkstring = input.trim_start();
@@ -157,6 +155,24 @@ pub(super) fn extract_anders(input: &str) -> Result<(SprongDoel, &str), EcolFout
     
     Ok((anders, ""))
 }
+pub(super) fn extract_opmerking(input: &str) -> (String, String) {
+    let deel_voor_opmerking: String;
+    let opmerking: String;
+
+    let rp = input.find(";");
+    match rp {
+        Some(p) => {
+            deel_voor_opmerking = geen_spaties(&input[..p]);
+            opmerking = input[p..].to_string();
+        }
+        None => {
+            deel_voor_opmerking = geen_spaties(input);
+            opmerking = "".to_string();
+        }
+    }
+
+    (deel_voor_opmerking, opmerking)
+}
 pub(super) fn first_word(input: &str) -> &str {
     for (i, c) in input.char_indices() {
         if Operator::is_operator_char(c) || c == '(' {
@@ -191,7 +207,9 @@ pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Resu
     Ok(reply)
 
 }
-
+pub(super) fn geen_rest_gewenst() -> EcolFout {
+    EcolFout::FoutMelding("FOUTMELDING: Tekst aangetroffen na complete programmaregel.".to_string())
+}
 pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
@@ -243,11 +261,7 @@ pub(super) fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     true
 }
 pub(super) fn is_alleen_keyword(input: &str, regelnummer: u16, keyword: Sleutelwoord) -> Result<Line, EcolFout> {
-    if input.trim() == keyword.to_string() {
-        Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword)?))
-    } else {
-        Err(EcolFout::FoutMelding(syntaxis_foutmelding(keyword.to_string())))
-    }
+    Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword, input)?))
 }
 pub(super) fn is_geldig_wordt_teken(input: &str) -> Option<&str> {
     let rest = input.strip_prefix(WORDT_TEKEN)?;
@@ -278,6 +292,7 @@ pub(super) fn literal_to_string (literal: &str) -> Result<String, EcolFout> {
     Ok(inhoud.to_string())
 
 }
+
 pub(super) fn result_to_string (result: Result<String, String>) -> String {
     match result {
         Ok(value) => format!("{}", value),
@@ -297,4 +312,13 @@ pub(super) fn verbijzonder_argumenten(werk_expressie: &str) -> String {
         }
     }
     argumenten
+}
+pub(super) fn vind_opmerking(input: &str) -> Result<Option<String>, EcolFout> {
+    if input.trim().is_empty() {
+        Ok(None)
+    } else if input.trim_start().starts_with(';') {
+        Ok(Some(input.trim_start().trim_start_matches(';').trim_start().to_string()))
+    } else {
+        Err(geen_rest_gewenst())
+    }
 }

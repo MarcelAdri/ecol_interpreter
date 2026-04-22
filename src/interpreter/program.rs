@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use crate::interpreter::functions::EcolFout;
-use crate::interpreter::helpers::geen_spaties;
+use crate::interpreter::helpers::{extract_opmerking, geen_spaties, vind_opmerking};
 
 pub(super) const WORDT_TEKEN: &str = ":=";
 
@@ -21,18 +21,18 @@ impl Line {
     pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
         match &self.inhoud {
             LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
-            LineInhoud::End { } => Some(Sleutelwoord::END),
+            LineInhoud::End { .. } => Some(Sleutelwoord::END),
             LineInhoud::FunStart { .. } => Some(Sleutelwoord::FUNstart),
             LineInhoud::FunEind { .. } => Some(Sleutelwoord::FUNeind),
             LineInhoud::GaSub { .. } => Some(Sleutelwoord::GASUB),
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
-            LineInhoud::Herhaal {} => Some(Sleutelwoord::HERHAAL),
-            LineInhoud::Klaar {} => Some(Sleutelwoord::KLAAR),
-            LineInhoud::LegeRegel { } => None,
+            LineInhoud::Herhaal { .. } => Some(Sleutelwoord::HERHAAL),
+            LineInhoud::Klaar { .. } => Some(Sleutelwoord::KLAAR),
+            LineInhoud::LegeRegel { .. } => None,
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
             LineInhoud::Met { .. } => Some(Sleutelwoord::MET),
             LineInhoud::Naar { .. } => Some(Sleutelwoord::NAAR),
-            LineInhoud::NP {} => Some(Sleutelwoord::NP),
+            LineInhoud::NP { .. } => Some(Sleutelwoord::NP),
             LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
             LineInhoud::Rij { .. } => Some(Sleutelwoord::RIJ),
             LineInhoud::Rijsym { .. } => Some(Sleutelwoord::RIJSYM),
@@ -55,136 +55,176 @@ impl Line {
             regelnummer = format!("{:>4} ", self.regelnummer);
         }
         match &self.inhoud {
-            LineInhoud::Als { vergelijking, dan, anders } => {
+            LineInhoud::Als { vergelijking, dan, anders, opm } => {
                 match anders {
-                    Some( x ) => format!("{}ALS {} DAN {} ANDERS {}"
+                    Some( x ) => format!("{}ALS {} DAN {} ANDERS {}{}"
                                          ,regelnummer
                                          ,vergelijking
                                          ,dan.to_string()
-                                         ,x.to_string())
+                                         ,x.to_string()
+                                         ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                         .trim_start()
                         .to_string(),
-                    None => format!("{}ALS {} DAN {}"
+                    None => format!("{}ALS {} DAN {}{}"
                                     ,regelnummer
                                     ,vergelijking
-                                    ,dan.to_string())
+                                    ,dan.to_string()
+                                    ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                         .trim_start()
                         .to_string(),
                 }
             }
-            LineInhoud::End { } => {
-                format!("{}END", regelnummer)
+            LineInhoud::End { opm } => {
+                format!("{}END{}"
+                        ,regelnummer
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string()
             }
-            LineInhoud::FunStart { variabele_naam, argumenten } => {
-                format!("{}FUN {}({})"
+            LineInhoud::FunStart { variabele_naam, argumenten, opm } => {
+                format!("{}FUN {}({}){}"
                         ,regelnummer
                         ,variabele_naam
-                        ,argumenten)
+                        ,argumenten
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string()
             },
-            LineInhoud::FunEind { expressie } => {
-                format!("{}FUN := {}", regelnummer, expressie)
+            LineInhoud::FunEind { expressie, opm } => {
+                format!("{}FUN := {}{}"
+                        ,regelnummer
+                        ,expressie
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string()
             },
-            LineInhoud::GaSub { sub_naam } => {
-                format!("{}{}", regelnummer, sub_naam)
+            LineInhoud::GaSub { sub_naam, opm } => {
+                format!("{}{}{}"
+                        ,regelnummer
+                        ,sub_naam
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string()
             },
             LineInhoud::Help {} => format!("{}HELP", regelnummer)
                 .trim_start()
                 .to_string(),
-            LineInhoud::Herhaal {} => format!("{}HERHAAL", regelnummer)
+            LineInhoud::Herhaal { opm } => format!("{}HERHAAL{}"
+                                                   ,regelnummer
+                                                   ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::Klaar {} => format!("{}KLAAR", regelnummer)
+            LineInhoud::Klaar { opm } => format!("{}KLAAR{}"
+                                                 ,regelnummer
+                                                 ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::LegeRegel { } => format!("{}:", regelnummer)
+            LineInhoud::LegeRegel { opm } => format!("{}:{}"
+                                                     ,regelnummer
+                                                     ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
             LineInhoud::Lijst {} => format!("{}LIJST", regelnummer)
                 .trim_start()
                 .to_string(),
-            LineInhoud::Met { stap_expressie, start_expressie, stop_expressie, variabele_naam } => {
-                format!("{}MET {}, {} := {}, {}", regelnummer, stap_expressie, variabele_naam, start_expressie, stop_expressie)
+            LineInhoud::Met { stap_expressie, start_expressie, stop_expressie, variabele_naam, opm } => {
+                format!("{}MET {}, {} := {}, {}{}"
+                        ,regelnummer
+                        ,stap_expressie
+                        ,variabele_naam
+                        ,start_expressie
+                        ,stop_expressie
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string() },
-            LineInhoud::Naar { sprong_doel } => format!("{}NAAR {}", regelnummer, sprong_doel.to_string())
+            LineInhoud::Naar { sprong_doel, opm } => format!("{}NAAR {}{}"
+                                                             ,regelnummer
+                                                             ,sprong_doel.to_string()
+                                                             ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::NP {} => format!("{}NP", regelnummer)
+            LineInhoud::NP { opm } => format!("{}NP{}"
+                                              ,regelnummer
+                                              ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::NR { aantal } =>
-                format!("{}NR({})"
+            LineInhoud::NR { aantal, opm } =>
+                format!("{}NR({}){}"
                         ,regelnummer
-                        ,aantal)
+                        ,aantal
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::Rij { start, eind, variabele_naam } =>
-                format!("{}RIJ({}, {}) {}"
-                        ,regelnummer
-                        ,start
-                        ,eind
-                        ,variabele_naam)
-                .trim_start()
-                .to_string(),
-            LineInhoud::Rijsym { start, eind, variabele_naam } =>
-                format!("{}RIJSYM({}, {}) {}"
+            LineInhoud::Rij { start, eind, variabele_naam, opm } =>
+                format!("{}RIJ({}, {}) {}{}"
                         ,regelnummer
                         ,start
                         ,eind
-                        ,variabele_naam)
+                        ,variabele_naam
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::Schrijf { breedte, decimalen, expressie } =>
-                format!("{}SCHRIJF({}, {}) := {}"
+            LineInhoud::Rijsym { start, eind, variabele_naam, opm } =>
+                format!("{}RIJSYM({}, {}) {}{}"
+                        ,regelnummer
+                        ,start
+                        ,eind
+                        ,variabele_naam
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                .trim_start()
+                .to_string(),
+            LineInhoud::Schrijf { breedte, decimalen, expressie, opm } =>
+                format!("{}SCHRIJF({}, {}) := {}{}"
                         ,regelnummer
                         ,breedte
                         ,decimalen
-                        ,expressie)
+                        ,expressie
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string(),
-            LineInhoud::Schrijfsym { expressie } =>
-                format!("{}SCHRIJFSYM := {}"
+            LineInhoud::Schrijfsym { expressie, opm } =>
+                format!("{}SCHRIJFSYM := {}{}"
                         ,regelnummer
-                        ,expressie)
+                        ,expressie
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string(),
-            LineInhoud::Schrijm { expressie } =>
-                format!("{}SCHRIJM := {}"
+            LineInhoud::Schrijm { expressie, opm } =>
+                format!("{}SCHRIJM := {}{}"
                         ,regelnummer
-                        ,expressie)
+                        ,expressie
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string(),
-            LineInhoud::Spatie { aantal } =>
-                format!("{}SPATIE({})"
+            LineInhoud::Spatie { aantal, opm } =>
+                format!("{}SPATIE({}){}"
                         ,regelnummer
-                        ,aantal)
+                        ,aantal
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string(),
             LineInhoud::Start { } => "".to_string(),
-            LineInhoud::Sub { sub_naam} =>
-                format!("{}SUB {}", regelnummer, sub_naam)
-                    .trim_start()
-                    .to_string(),
-            LineInhoud::Tekst { expressie } =>
-                format!("{}TEKST := {}"
+            LineInhoud::Sub { sub_naam, opm} =>
+                format!("{}SUB {}{}"
                         ,regelnummer
-                        ,expressie)
+                        ,sub_naam
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                     .trim_start()
                     .to_string(),
-            LineInhoud::Toekennen { variabele_naam, argument, expressie } =>
+            LineInhoud::Tekst { expressie, opm } =>
+                format!("{}TEKST := {}{}"
+                        ,regelnummer
+                        ,expressie
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                    .trim_start()
+                    .to_string(),
+            LineInhoud::Toekennen { variabele_naam, argument, expressie,opm } =>
                 if *argument == "" {
-                    format!("{}{} := {}"
+                    format!("{}{} := {}{}"
                             ,regelnummer
                             ,variabele_naam
-                            ,expressie)
+                            ,expressie
+                            ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                         .trim_start()
                         .to_string()
                 } else {
@@ -247,73 +287,85 @@ impl SprongDoel {
 
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
-    Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>},
-    End {},
-    FunStart {variabele_naam: String, argumenten: String},
-    FunEind {expressie: String },
-    GaSub { sub_naam: String },
+    Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>, opm: Option<String>},
+    End { opm: Option<String>},
+    FunStart {variabele_naam: String, argumenten: String, opm: Option<String>},
+    FunEind {expressie: String, opm: Option<String> },
+    GaSub { sub_naam: String, opm: Option<String> },
     Help {},
-    Herhaal {},
-    Klaar {},
+    Herhaal { opm: Option<String>},
+    Klaar { opm: Option<String>},
     Met {
         variabele_naam: String,
         stap_expressie: String,
         start_expressie: String,
         stop_expressie: String,
+        opm: Option<String>,
     },
-    LegeRegel {},
+    LegeRegel {opm: Option<String>},
     Lijst {},
-    Naar {sprong_doel: SprongDoel},
-    NP {},
+    Naar {sprong_doel: SprongDoel, opm: Option<String>},
+    NP {opm: Option<String>},
     NR {
-        aantal: String
+        aantal: String,
+        opm: Option<String>,
     },
     Rij {
         start: String,
         eind: String,
         variabele_naam: String,
+        opm: Option<String>,
     },
     Rijsym {
         start: String,
         eind: String,
         variabele_naam: String,
+        opm: Option<String>,
     },
     Schrijf {
         breedte: usize,
         decimalen: usize,
         expressie: String,
+        opm: Option<String>,
     },
     Schrijfsym {
         expressie: String,
+        opm: Option<String>,
     },
     Schrijm {
         expressie: String,
+        opm: Option<String>,
     },
     Spatie {
         aantal: String,
+        opm: Option<String>,
     },
     Start {},
-    Sub { sub_naam: String},
+    Sub { sub_naam: String, opm: Option<String>},
     Tekst {
         expressie: String,
+        opm: Option<String>,
     },
     Toekennen {
         variabele_naam: String,
         argument: String,
         expressie: String,
+        opm: Option<String>,
     },
     Verwijderen {},
 }
 impl LineInhoud {
-    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord) -> Result<Self, EcolFout> {
+    pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord, input: &str) -> Result<Self, EcolFout> {
+        let (_, opm) = extract_opmerking(input);
+
         match sleutelwoord {
-            Sleutelwoord::END => Ok(Self::End {}),
-            Sleutelwoord::HELP => Ok(Self::Help {}),
-            Sleutelwoord::HERHAAL => Ok(Self::Herhaal {}),
-            Sleutelwoord::KLAAR => Ok(Self::Klaar {}),
+            Sleutelwoord::END => Ok(Self::End { opm: vind_opmerking(&opm)? }),
+            Sleutelwoord::HELP => Ok(Self::Help { }),
+            Sleutelwoord::HERHAAL => Ok(Self::Herhaal { opm: vind_opmerking(&opm)? }),
+            Sleutelwoord::KLAAR => Ok(Self::Klaar { opm: vind_opmerking(&opm)? }),
             Sleutelwoord::LIJST => Ok(Self::Lijst {}),
-            Sleutelwoord::NP => Ok(Self::NP {}),
-            Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string() }),
+            Sleutelwoord::NP => Ok(Self::NP { opm: vind_opmerking(&opm)?}),
+            Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string(), opm: vind_opmerking(&opm)? }),
             Sleutelwoord::START => Ok(Self::Start {}),
             _ => Err(EcolFout::FoutMelding("Incomplete syntax".to_string())),
         }
@@ -321,18 +373,18 @@ impl LineInhoud {
     pub(super) fn as_str(&self) -> &str {
         match self {
             LineInhoud::Als { .. } => "Als",
-            LineInhoud::End { } => "End",
+            LineInhoud::End { .. } => "End",
             LineInhoud::FunStart { .. } => "FunStart",
             LineInhoud::FunEind { .. } => "FunEind",
             LineInhoud::GaSub { .. } => "GaSub",
             LineInhoud::Help { } => "Help",
-            LineInhoud::Herhaal { } => "Herhaal",
-            LineInhoud::Klaar { } => "Klaar",
-            LineInhoud::LegeRegel { } => "",
+            LineInhoud::Herhaal { .. } => "Herhaal",
+            LineInhoud::Klaar { .. } => "Klaar",
+            LineInhoud::LegeRegel { .. } => "",
             LineInhoud::Lijst { } => "Lijst",
             LineInhoud::Met { .. } => "Met",
             LineInhoud::Naar { .. } => "Naar",
-            LineInhoud::NP { } => "NP",
+            LineInhoud::NP { .. } => "NP",
             LineInhoud::NR { .. } => "NR",
             LineInhoud::Rij { .. } => "Rij",
             LineInhoud::Rijsym { .. } => "Rijsym",

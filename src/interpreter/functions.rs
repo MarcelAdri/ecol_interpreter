@@ -257,7 +257,7 @@ impl EigenFunctie {
             let regel = Line::new(current, current_regel.clone());
 
             match current_regel {
-                LineInhoud::FunEind { expressie} => {
+                LineInhoud::FunEind { expressie, ..} => {
                     return Ok(machine.functie_omgeving.solve_expression(&expressie, lees_geheugen)?);
                 },
                 _ => {
@@ -451,7 +451,7 @@ impl EcolMachine {
 
         for (regelnummer, regel) in volledige_programma.iter() {
             match regel {
-                LineInhoud::FunStart { variabele_naam, argumenten } => {
+                LineInhoud::FunStart { variabele_naam, argumenten, .. } => {
                     in_functie_definitie = true;
                     naam_van_functie = variabele_naam;
                     let parameters = argumenten.split(',')
@@ -463,7 +463,7 @@ impl EcolMachine {
                     fundef = FunDef::new();
                     fundef.parameters = parameters;
                 }
-                LineInhoud::FunEind { expressie } => {
+                LineInhoud::FunEind {  .. } => {
                     if in_functie_definitie {
                         fundef.body.insert(*regelnummer, regel.clone());
                         self.schrijf_nieuwe_functie(naam_van_functie, &fundef)?;

@@ -402,7 +402,7 @@ impl EcolMachine {
                     met_diepte += 1;
                     continue;
                 }
-                LineInhoud::Herhaal {} => {
+                LineInhoud::Herhaal { .. } => {
                     if met_diepte == 0 {
                         return Ok(current)
                     }

@@ -302,8 +302,8 @@ impl EcolMachine {
             current_line = regelnummer + 1;
 
             match current_regel {
-                LineInhoud::Rij { start, eind, variabele_naam } |
-                LineInhoud::Rijsym { start, eind, variabele_naam } => {
+                LineInhoud::Rij { variabele_naam, .. } |
+                LineInhoud::Rijsym { variabele_naam, .. } => {
                     self.var_wis(variabele_naam)
                 },
                 _ => { continue },
@@ -318,13 +318,13 @@ impl EcolMachine {
 
         for (regelnummer, regel) in volledige_programma.iter() {
             match regel {
-                LineInhoud::Sub { sub_naam} => {
+                LineInhoud::Sub { sub_naam, ..} => {
                     in_sub_definitie = true;
                     naam_van_sub = sub_naam;
 
                     subdef = SubDef::new();
                 }
-                LineInhoud::End { } => {
+                LineInhoud::End { .. } => {
                     if in_sub_definitie {
                         subdef.regels.insert(*regelnummer, regel.clone());
                         self.schrijf_subregister(naam_van_sub, subdef.clone())?;
@@ -362,7 +362,7 @@ pub(super) fn execute_all (
     let no_reply = (None, None, None);
 
     let (reply, nextline, whats_next) = match opdracht.inhoud() {
-        LineInhoud::Als { vergelijking, dan, anders } => {
+        LineInhoud::Als { vergelijking, dan, anders, .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma  => {
@@ -413,7 +413,7 @@ pub(super) fn execute_all (
                 },
             }
         },
-        LineInhoud::End {} => {
+        LineInhoud::End { .. } => {
             match context {
                 Context::Direct | Context::Subroutine => { no_reply },
                 Context::Programma | Context::Functie => {
@@ -433,7 +433,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::FunEind { expressie } => {
+        LineInhoud::FunEind {  .. } => {
             match context {
                 Context::Direct | Context::Functie => { no_reply },
                 Context::Programma | Context::Subroutine => {
@@ -441,7 +441,7 @@ pub(super) fn execute_all (
                 },
             }
         },
-        LineInhoud::GaSub { sub_naam } => {
+        LineInhoud::GaSub { sub_naam, .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine => {
@@ -490,7 +490,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Herhaal { } => {
+        LineInhoud::Herhaal { .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
@@ -513,7 +513,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Klaar { } => {
+        LineInhoud::Klaar { .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma => {
@@ -525,7 +525,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::LegeRegel { } => {
+        LineInhoud::LegeRegel { .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
@@ -543,7 +543,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie } => {
+        LineInhoud::Met { variabele_naam, stap_expressie, start_expressie, stop_expressie, .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
@@ -563,7 +563,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Naar {sprong_doel } => {
+        LineInhoud::Naar {sprong_doel, .. } => {
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma  => {
@@ -589,7 +589,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::NP { } => {
+        LineInhoud::NP { .. } => {
             match context {
                 Context::Direct => {
                     (Some(machine.execute_np( output)?), no_next_line, no_whats_next)
@@ -604,7 +604,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::NR { aantal } => {
+        LineInhoud::NR { aantal, .. } => {
             match context {
                 Context::Direct => { (Some(machine.execute_nr(&aantal, lees_geheugen)?), no_next_line, no_whats_next) },
                 Context::Programma | Context::Subroutine => {
@@ -618,7 +618,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Rij { start, eind, variabele_naam } => {
+        LineInhoud::Rij { start, eind, variabele_naam, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_rij(start, eind, variabele_naam, lees_geheugen)?;
@@ -632,7 +632,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Rijsym { start, eind, variabele_naam } => {
+        LineInhoud::Rijsym { start, eind, variabele_naam, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_rijsym(start, eind, variabele_naam, lees_geheugen)?;
@@ -646,7 +646,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Schrijf { breedte, decimalen, expressie } => {
+        LineInhoud::Schrijf { breedte, decimalen, expressie, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_schrijf(*breedte, *decimalen, expressie, lees_geheugen)?;
@@ -663,7 +663,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Schrijfsym { expressie } => {
+        LineInhoud::Schrijfsym { expressie, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_schrijfsym(expressie, lees_geheugen)?;
@@ -680,7 +680,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Schrijm { expressie } => {
+        LineInhoud::Schrijm { expressie, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_schrijm(expressie, lees_geheugen)?;
@@ -697,7 +697,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Spatie { aantal } => {
+        LineInhoud::Spatie { aantal, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_spatie(aantal, lees_geheugen)?;
@@ -731,7 +731,7 @@ pub(super) fn execute_all (
                 },
             }
         }
-        LineInhoud::Tekst { expressie } => {
+        LineInhoud::Tekst { expressie, .. } => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_tekst(expressie)?;
@@ -748,7 +748,7 @@ pub(super) fn execute_all (
 
             }
         },
-        LineInhoud::Toekennen {variabele_naam, argument,  expressie} => {
+        LineInhoud::Toekennen {variabele_naam, argument,  expressie, ..} => {
             match context {
                 Context::Direct => {
                     _ = machine.execute_toekennen(&variabele_naam, &argument, &expressie, lees_geheugen)?;

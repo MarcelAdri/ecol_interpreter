@@ -1,18 +1,5 @@
 use std::collections::HashMap;
-use crate::interpreter::helpers::{
-    extract_als
-    ,extract_anders
-    ,extract_argumenten
-    ,extract_dan
-    ,extract_keyword
-    ,extract_regelnummer
-    ,extract_stap_expressie
-    ,extract_start_expressie
-    ,extract_variabele_naam
-    ,geen_spaties
-    ,is_alleen_keyword
-    ,is_geldig_wordt_teken
-    ,is_geldige_variabele_naam};
+use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_opmerking, extract_regelnummer, extract_stap_expressie, extract_start_expressie, extract_variabele_naam, geen_rest_gewenst, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, vind_opmerking};
 use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel};
 use crate::interpreter::functions::{EcolFout, FunDef, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleAanroep};
@@ -226,7 +213,9 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         return Ok(Line::new(regelnummer, LineInhoud::Verwijderen {}));
     }
     if rest_na_regelnummer.trim_start().starts_with(':') {
-        return Ok(Line::new(regelnummer, LineInhoud::LegeRegel {}));
+        let rest_na_dubbele_punt = rest_na_regelnummer.trim_start().trim_start_matches(':');
+
+        return Ok(Line::new(regelnummer, LineInhoud::LegeRegel { opm: vind_opmerking(rest_na_dubbele_punt)? }));
     }
 
     let Some((keyword, rest_na_keyword)) = extract_keyword(rest_na_regelnummer) else {
@@ -236,22 +225,28 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
     match keyword {
         Sleutelwoord::ALS => {
             if regelnummer != 0 {
-                let Some((vergelijking_str, rest_na_dan)) = extract_als(rest_na_keyword) else {
+                let Some((vergelijking_str, rest_na_als)) = extract_als(rest_na_keyword) else {
                     return Err(EcolFout::FoutMelding("Geen DAN gevonden na ALS".to_string()))
                 };
                 let vergelijking = vergelijking_str.to_string();
-                let (dan, rest_na_anders) = extract_dan(rest_na_dan)?;
+                let (dan, rest_na_dan) = extract_dan(rest_na_als)?;
                 let anders: Option<SprongDoel>;
-                if rest_na_anders == "" {
+                let rest_tekst: &str;
+                if geen_spaties(rest_na_dan).is_empty() {
+                    rest_tekst = rest_na_dan;
+                    anders = None;
+                } else if rest_na_dan.trim_start().starts_with(';') {
+                    rest_tekst = rest_na_dan;
                     anders = None;
                 } else {
-                    let (anders_getal, _rest_na_dan) = extract_anders(rest_na_anders)?;
+                    let (anders_getal, rest) = extract_anders(rest_na_dan)?;
+                    rest_tekst = rest;
                     anders = Some(anders_getal);
                 }
 
-                Ok(Line::new(regelnummer, LineInhoud::Als { vergelijking, dan, anders }))
+                Ok(Line::new(regelnummer, LineInhoud::Als { vergelijking, dan, anders, opm: vind_opmerking(rest_tekst)? }))
             } else {
-                Err(EcolFout::FoutMelding("KLAAR kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                Err(EcolFout::FoutMelding("ALS kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
             }
 
         },
@@ -259,7 +254,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             if regelnummer == 0 {
                 return Err(EcolFout::FoutMelding("END kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
             }
-            Ok(Line::new(regelnummer, LineInhoud::End {}))
+
+            Ok(Line::new(regelnummer, LineInhoud::End { opm: vind_opmerking(rest_na_keyword)?}))
         },
         Sleutelwoord::FUNstart => {
             if regelnummer == 0 {
@@ -269,8 +265,13 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
             let parameters = rest_na_variabele.trim().trim_start_matches("(").trim_end_matches(")");
+            let rest_na_parameters = rest_na_variabele
+                .find(')')
+                .map(|i| &rest_na_variabele[i + 1..])
+                .unwrap_or("");
 
-            Ok(Line::new(regelnummer, LineInhoud::FunStart { variabele_naam: variabele_naam.to_string() , argumenten: parameters.to_string() }))
+
+            Ok(Line::new(regelnummer, LineInhoud::FunStart { variabele_naam: variabele_naam.to_string() , argumenten: parameters.to_string(), opm: vind_opmerking(rest_na_parameters)? }))
         },
         Sleutelwoord::FUNeind => {
             if regelnummer == 0 {
@@ -279,40 +280,42 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
-            let expressie = geen_spaties(rest_na_wordt_teken);
-
-            Ok(Line::new(regelnummer, LineInhoud::FunEind { expressie }))
+            let (expressie, rest_na_expressie) = extract_opmerking(rest_na_wordt_teken);
+            
+            Ok(Line::new(regelnummer, LineInhoud::FunEind { expressie: geen_spaties(&expressie), opm: vind_opmerking(&rest_na_expressie)? }))
         }
         Sleutelwoord::GASUB => {
             if regelnummer == 0 {
                 return Err(EcolFout::FoutMelding("Een subroutine aanroepen kan alleen in een programma (regelnummer verplicht).".to_string()))
             }
-            Ok(Line::new(regelnummer, LineInhoud::GaSub { sub_naam: geen_spaties(rest_na_keyword) }))
+            let (subroutine, rest_na_subroutine) = extract_opmerking(rest_na_keyword);
+            
+            Ok(Line::new(regelnummer, LineInhoud::GaSub { sub_naam: geen_spaties(&subroutine), opm: vind_opmerking(&rest_na_subroutine)? }))
         }
         Sleutelwoord::HELP => {
             if regelnummer == 0 {
-                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
                 Err(EcolFout::FoutMelding("HELP kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
             }
         },
         Sleutelwoord::HERHAAL => {
             if regelnummer != 0 {
-                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
                 Err(EcolFout::FoutMelding("HERHAAL kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
             }
         },
         Sleutelwoord::KLAAR => {
             if regelnummer != 0 {
-                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
                 Err(EcolFout::FoutMelding("KLAAR kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
             }
         },
         Sleutelwoord::LIJST => {
             if regelnummer == 0 {
-                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
                 Err(EcolFout::FoutMelding("LIJST kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
             }
@@ -322,12 +325,14 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("MET kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
             }
             let (stap_expressie, rest_na_stap) = extract_stap_expressie(rest_na_keyword)?;
-            let (variabele_naam, start_expressie, stop_expressie) = extract_start_expressie(&rest_na_stap)?;
+            let (variabele_naam, start_expressie, rest_na_start) = extract_start_expressie(&rest_na_stap)?;
+            let (stop_expressie, opm) = extract_opmerking(&rest_na_start);
 
-            Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie }))
+            Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie, opm: vind_opmerking(&opm)? }))
         },
         Sleutelwoord::NAAR => {
-            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(rest_na_keyword)? }))
+            let (sprongdoel, opmerking) = extract_opmerking(rest_na_keyword);
+            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(&sprongdoel)?, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::NP => {
             is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
@@ -340,11 +345,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             if argumenten.len() == 0 {
                 argumenten.push("1".to_string());
             }
-            let expressie = rest_na_argumenten.to_string();
-            if !expressie.is_empty() {
-                return Err(EcolFout::FoutMelding("NR verwacht geen argumenten na de aantal-aanduiding.".to_string()));
-            }
-            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone()}))
+
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(&rest_na_argumenten)? }))
         },
         Sleutelwoord::RIJ => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -355,12 +357,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
-            let expressie = rest_na_variabele.to_string();
-            if !expressie.is_empty() {
-                return Err(EcolFout::FoutMelding("RIJ verwacht geen argumenten na de naam van de variabele.".to_string()));
-            }
 
-            Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string() }))
+            Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(&rest_na_variabele)? }))
         },
         Sleutelwoord::RIJSYM => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -371,12 +369,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
-            let expressie = rest_na_variabele.to_string();
-            if !expressie.is_empty() {
-                return Err(EcolFout::FoutMelding("RIJSYM verwacht geen argumenten na de naam van de variabele.".to_string()));
-            }
 
-            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string() }))
+            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(&rest_na_variabele)? }))
         }
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else {
@@ -394,16 +388,17 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
-            let expressie = rest_na_wordt_teken.to_string();
-            let variabele_naam = variabele_naam.to_string();
-            Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam, argument, expressie }))
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+            //panic!("expressie: {}, opmerking: {}, input: {}", expressie, opmerking, rest_na_wordt_teken);
+            Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam: variabele_naam.to_string(), argument, expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::TEKST => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
-            let expressie = rest_na_wordt_teken.to_string();
-            Ok(Line::new(regelnummer, LineInhoud::Tekst{ expressie }))
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Tekst{ expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::SCHRIJF => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -427,22 +422,25 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
 
-            let expressie = rest_na_wordt_teken.to_string();
-            Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie }))
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::SCHRIJFSYM => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
-            let expressie = rest_na_wordt_teken.to_string();
-            Ok(Line::new(regelnummer, LineInhoud::Schrijfsym{ expressie }))
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Schrijfsym{ expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::SCHRIJM => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
-            let expressie = rest_na_wordt_teken.to_string();
-            Ok(Line::new(regelnummer, LineInhoud::Schrijm{ expressie }))
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Schrijm{ expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::SPATIE => {
             let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -452,11 +450,9 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             if argumenten.len() == 0 {
                 argumenten.push("1".to_string());
             }
-            let expressie = rest_na_argumenten.to_string();
-            if !expressie.is_empty() {
-                return Err(EcolFout::FoutMelding("SPATIE verwacht geen argumenten na de aantal-aanduiding.".to_string()));
-            }
-            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone() }))
+            let (expressie, opmerking) = extract_opmerking(rest_na_argumenten);
+
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::START => {
             if regelnummer == 0 {
@@ -472,10 +468,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
-            if !geen_spaties(rest_na_variabele).is_empty() {
-                return Err(EcolFout::FoutMelding("SUB verwacht geen argumenten na de naam van de subroutine.".to_string()))
-            }
-            Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam) }))
+
+            Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam), opm: vind_opmerking(&rest_na_variabele)? }))
         }
     }
 
