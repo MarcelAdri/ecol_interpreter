@@ -224,6 +224,7 @@ pub struct LeesGeheugen {
     leessym_buffer: VecDeque<u8>,
     lopende_machine: Option<EcolMachine>,
     lopend_programma: Option<BTreeMap<u16, LineInhoud>>,
+    wacht_op_laad: bool,
 }
 
 impl LeesGeheugen {
@@ -235,6 +236,7 @@ impl LeesGeheugen {
             leessym_buffer: VecDeque::new(),
             lopende_machine: None,
             lopend_programma: None,
+            wacht_op_laad: false,
         }
     }
     pub fn wacht_op_lees(&self) -> bool {
@@ -275,6 +277,15 @@ impl LeesGeheugen {
     }
     pub(super) fn schrijf_leessym_waarde(&mut self, waarde: f32) {
         self.leessym_buffer.push_back(waarde as u8);
+    }
+    pub fn wacht_op_laad(&self) -> bool {
+        self.wacht_op_laad
+    }
+    pub fn reset_laad(&mut self) {
+        self.wacht_op_laad = false;
+    }
+    pub(super) fn stel_laad_in(&mut self) {
+        self.wacht_op_laad = true;
     }
     pub(super) fn neem_lopende_toestand(&mut self) -> Option<(EcolMachine, BTreeMap<u16, LineInhoud>)> {
         match (self.lopende_machine.take(), self.lopend_programma.take()) {
@@ -510,7 +521,7 @@ impl EcolMachine {
                 match self.execute_start(Some(regel), lees_geheugen, output) {
                     Ok(r) => reply = Some(r),
                     Err(EcolFout::FoutMelding(e)) => reply = Some(e),
-                    Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) => reply = None
+                    Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) | Err(EcolFout::WachtOpLaad) => reply = None
                 }
 
             } else {
@@ -532,7 +543,7 @@ impl EcolMachine {
                     match self.execute_start(Some(regel), lees_geheugen, output) {
                         Ok(r) => reply = Some(r),
                         Err(EcolFout::FoutMelding(e)) => reply = Some(e),
-                        Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) => reply = None
+                        Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) | Err(EcolFout::WachtOpLaad) => reply = None
                     }
 
                 },
@@ -561,6 +572,10 @@ impl EcolMachine {
                                     lees_geheugen.leessym_hervat_bij_op_regel(r);
                                     None
                                 }
+                            },
+                            Err(EcolFout::WachtOpLaad) => {
+                                lees_geheugen.stel_laad_in();
+                                None
                             },
                         };
                     } else {

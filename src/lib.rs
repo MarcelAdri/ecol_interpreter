@@ -36,6 +36,7 @@ pub fn start() -> Result<(), JsValue> {
     let hist_cb = hist.clone();          // ← extra clone voor de output-callback
     let win_cb = win_keydown.clone();
     let prompt = prompt_label.clone();
+    let doc = document.clone();
 
     let keydown_closure = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
         if event.key() == "Enter" {
@@ -66,6 +67,43 @@ pub fn start() -> Result<(), JsValue> {
                 }
                 win_cb.scroll_to_with_x_and_y(0.0, 1_000_000.0);
             });
+
+            if l.wacht_op_laad() {
+                l.reset_laad();
+                let m_laad = m.clone();
+                let hist_laad = hist.clone();
+                let input = doc.create_element("input").unwrap()
+                    .dyn_into::<web_sys::HtmlInputElement>().unwrap();
+                input.set_type("file");
+                input.set_attribute("accept", ".ecol").unwrap();
+                let input_inner = input.clone();
+                let onchange = Closure::wrap(Box::new(move |_: wasm_bindgen::JsValue| {
+                    let Some(files) = input_inner.files() else { return; };
+                    let Some(file) = files.get(0) else { return; };
+                    let reader = web_sys::FileReader::new().unwrap();
+                    let r2 = reader.clone();
+                    let m2 = m_laad.clone();
+                    let hist2 = hist_laad.clone();
+                    let onload = Closure::wrap(Box::new(move |_: wasm_bindgen::JsValue| {
+                        let Ok(result) = r2.result() else { return; };
+                        let tekst = result.as_string().unwrap_or_default();
+                        let mut lees_nieuw = LeesGeheugen::new();
+                        for regel in tekst.lines() {
+                            if !regel.trim().is_empty() {
+                                m2.borrow_mut().execute(regel, &mut lees_nieuw, &mut |_| {});
+                            }
+                        }
+                        let oude = hist2.inner_html();
+                        hist2.set_inner_html(&format!("{}{}<br/>", oude, "Programma geladen."));
+                    }) as Box<dyn FnMut(wasm_bindgen::JsValue)>);
+                    reader.set_onload(Some(onload.as_ref().unchecked_ref()));
+                    onload.forget();
+                    reader.read_as_text(&file).unwrap();
+                }) as Box<dyn FnMut(wasm_bindgen::JsValue)>);
+                input.set_onchange(Some(onchange.as_ref().unchecked_ref()));
+                onchange.forget();
+                input.click();
+            }
 
             if !resultaat.is_empty() {
                 let resultaat_html = resultaat.replace('\n', "<br/>");

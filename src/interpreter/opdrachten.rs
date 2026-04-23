@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 use web_sys::js_sys;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::functions::EcolFout;
@@ -50,6 +52,37 @@ impl EcolMachine {
         } else {
             Err(EcolFout::FoutMelding("Kon het help-document niet openen.".to_string()))
         }
+    }
+
+    pub(super) fn execute_bewaar(&self) -> Result<String, EcolFout> {
+        let tekst = self.execute_lijst()?;
+        if tekst.is_empty() {
+            return Ok("Programma is leeg, niets op te slaan.".to_string());
+        }
+        let window = web_sys::window()
+            .ok_or_else(|| EcolFout::FoutMelding("Geen browservenster.".to_string()))?;
+        let document = window.document()
+            .ok_or_else(|| EcolFout::FoutMelding("Geen document.".to_string()))?;
+
+        let array = js_sys::Array::new();
+        array.push(&JsValue::from_str(&tekst));
+        let blob = web_sys::Blob::new_with_str_sequence(&JsValue::from(array))
+            .map_err(|_| EcolFout::FoutMelding("Kon geen bestand aanmaken.".to_string()))?;
+        let url = web_sys::Url::create_object_url_with_blob(&blob)
+            .map_err(|_| EcolFout::FoutMelding("Kon geen URL aanmaken.".to_string()))?;
+
+        let link = document.create_element("a")
+            .map_err(|_| EcolFout::FoutMelding("Kon geen download-link aanmaken.".to_string()))?;
+        link.set_attribute("href", &url).unwrap();
+        link.set_attribute("download", "programma.ecol").unwrap();
+        link.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+        web_sys::Url::revoke_object_url(&url).unwrap();
+
+        Ok("Programma opgeslagen als 'programma.ecol'.".to_string())
+    }
+
+    pub(super) fn execute_laad(&self) -> Result<(), EcolFout> {
+        Err(EcolFout::WachtOpLaad)
     }
 
     pub(super) fn execute_lijst(&self) -> Result<String, EcolFout> {
@@ -214,6 +247,9 @@ impl EcolMachine {
                 Err(EcolFout::WachtOpLeessym(_)) => {
                     lees_geheugen.sla_lopende_toestand_op(running_program, programma);
                     return Err(WachtOpLeessym(old_current));
+                }
+                Err(EcolFout::WachtOpLaad) => {
+                    return Err(EcolFout::FoutMelding("Interne fout: LAAD in programma.".to_string()));
                 }
             }
 
@@ -479,6 +515,25 @@ pub(super) fn execute_all (
                     return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Vanuit een functie kan een subroutine niet aangeroepen worden.", opdracht.regelnummer()-1)));
                 },
 
+            }
+        },
+        LineInhoud::Bewaar { } => {
+            match context {
+                Context::Direct => (Some(machine.execute_bewaar()?), no_next_line, no_whats_next),
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: BEWAAR mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1)));
+                }
+            }
+        },
+        LineInhoud::Laad { } => {
+            match context {
+                Context::Direct => {
+                    machine.execute_laad()?;
+                    no_reply
+                },
+                Context::Programma | Context::Subroutine | Context::Functie => {
+                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: LAAD mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1)));
+                }
             }
         },
         LineInhoud::Help { } => {

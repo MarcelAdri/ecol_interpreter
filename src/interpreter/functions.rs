@@ -13,6 +13,7 @@ pub(super) enum EcolFout {
     FoutMelding(String),
     WachtOpLees(u16),
     WachtOpLeessym(u16),
+    WachtOpLaad,
 }
 
 impl EcolFout {
@@ -21,6 +22,7 @@ impl EcolFout {
             EcolFout::FoutMelding(melding) => format!("{}", melding),
             EcolFout::WachtOpLees(regel) => format!("Wachten op LEES regel {}.", regel),
             EcolFout::WachtOpLeessym(regel) => format!("Wachten op LEESSYM regel {}.", regel),
+            EcolFout::WachtOpLaad => "Wachten op LAAD.".to_string(),
         }
     }
     pub(super) fn met_regel(self, regel: u16) -> Self {

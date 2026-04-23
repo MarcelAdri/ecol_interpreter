@@ -21,6 +21,7 @@ impl Line {
     pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
         match &self.inhoud {
             LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
+            LineInhoud::Bewaar { } => Some(Sleutelwoord::BEWAAR),
             LineInhoud::End { .. } => Some(Sleutelwoord::END),
             LineInhoud::FunStart { .. } => Some(Sleutelwoord::FUNstart),
             LineInhoud::FunEind { .. } => Some(Sleutelwoord::FUNeind),
@@ -28,6 +29,7 @@ impl Line {
             LineInhoud::Help {} => Some(Sleutelwoord::HELP),
             LineInhoud::Herhaal { .. } => Some(Sleutelwoord::HERHAAL),
             LineInhoud::Klaar { .. } => Some(Sleutelwoord::KLAAR),
+            LineInhoud::Laad { } => Some(Sleutelwoord::LAAD),
             LineInhoud::LegeRegel { .. } => None,
             LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
             LineInhoud::Met { .. } => Some(Sleutelwoord::MET),
@@ -106,12 +108,18 @@ impl Line {
                     .trim_start()
                     .to_string()
             },
+            LineInhoud::Bewaar {} => format!("{}BEWAAR", regelnummer)
+                .trim_start()
+                .to_string(),
             LineInhoud::Help {} => format!("{}HELP", regelnummer)
                 .trim_start()
                 .to_string(),
             LineInhoud::Herhaal { opm } => format!("{}HERHAAL{}"
                                                    ,regelnummer
                                                    ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                .trim_start()
+                .to_string(),
+            LineInhoud::Laad {} => format!("{}LAAD", regelnummer)
                 .trim_start()
                 .to_string(),
             LineInhoud::Klaar { opm } => format!("{}KLAAR{}"
@@ -288,6 +296,7 @@ impl SprongDoel {
 #[derive(Debug, Clone)]
 pub(super) enum LineInhoud {
     Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>, opm: Option<String>},
+    Bewaar {},
     End { opm: Option<String>},
     FunStart {variabele_naam: String, argumenten: String, opm: Option<String>},
     FunEind {expressie: String, opm: Option<String> },
@@ -295,6 +304,7 @@ pub(super) enum LineInhoud {
     Help {},
     Herhaal { opm: Option<String>},
     Klaar { opm: Option<String>},
+    Laad {},
     Met {
         variabele_naam: String,
         stap_expressie: String,
@@ -359,10 +369,12 @@ impl LineInhoud {
         let (_, opm) = extract_opmerking(input);
 
         match sleutelwoord {
+            Sleutelwoord::BEWAAR => Ok(Self::Bewaar {}),
             Sleutelwoord::END => Ok(Self::End { opm: vind_opmerking(&opm)? }),
             Sleutelwoord::HELP => Ok(Self::Help { }),
             Sleutelwoord::HERHAAL => Ok(Self::Herhaal { opm: vind_opmerking(&opm)? }),
             Sleutelwoord::KLAAR => Ok(Self::Klaar { opm: vind_opmerking(&opm)? }),
+            Sleutelwoord::LAAD => Ok(Self::Laad {}),
             Sleutelwoord::LIJST => Ok(Self::Lijst {}),
             Sleutelwoord::NP => Ok(Self::NP { opm: vind_opmerking(&opm)?}),
             Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string(), opm: vind_opmerking(&opm)? }),
@@ -373,6 +385,7 @@ impl LineInhoud {
     pub(super) fn as_str(&self) -> &str {
         match self {
             LineInhoud::Als { .. } => "Als",
+            LineInhoud::Bewaar { } => "Bewaar",
             LineInhoud::End { .. } => "End",
             LineInhoud::FunStart { .. } => "FunStart",
             LineInhoud::FunEind { .. } => "FunEind",
@@ -380,6 +393,7 @@ impl LineInhoud {
             LineInhoud::Help { } => "Help",
             LineInhoud::Herhaal { .. } => "Herhaal",
             LineInhoud::Klaar { .. } => "Klaar",
+            LineInhoud::Laad { } => "Laad",
             LineInhoud::LegeRegel { .. } => "",
             LineInhoud::Lijst { } => "Lijst",
             LineInhoud::Met { .. } => "Met",
@@ -564,6 +578,7 @@ impl Programma {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     ALS,
+    BEWAAR,
     END,
     FUNstart,
     FUNeind,
@@ -571,6 +586,7 @@ pub(super) enum Sleutelwoord {
     HELP,
     HERHAAL,
     KLAAR,
+    LAAD,
     LIJST,
     MET,
     NAAR,
@@ -592,10 +608,12 @@ impl Sleutelwoord {
     pub(super) fn from_string(input: &str) -> Option<Self> {
         match input {
             "ALS" => Some(Sleutelwoord::ALS),
+            "BEWAAR" => Some(Sleutelwoord::BEWAAR),
             "END" => Some(Sleutelwoord::END),
             "HELP" => Some(Sleutelwoord::HELP),
             "HERHAAL" => Some(Sleutelwoord::HERHAAL),
             "KLAAR" => Some(Sleutelwoord::KLAAR),
+            "LAAD" => Some(Sleutelwoord::LAAD),
             "LIJST" => Some(Sleutelwoord::LIJST),
             "MET" => Some(Sleutelwoord::MET),
             "NAAR" => Some(Sleutelwoord::NAAR),
@@ -622,6 +640,7 @@ impl Sleutelwoord {
     pub(super) fn to_string(&self) -> &str {
         match self {
             Sleutelwoord::ALS => "ALS",
+            Sleutelwoord::BEWAAR => "BEWAAR",
             Sleutelwoord::END => "END",
             Sleutelwoord::FUNstart => "FUN",
             Sleutelwoord::FUNeind => "FUN",
@@ -629,6 +648,7 @@ impl Sleutelwoord {
             Sleutelwoord::HELP => "HELP",
             Sleutelwoord::HERHAAL => "HERHAAL",
             Sleutelwoord::KLAAR => "KLAAR",
+            Sleutelwoord::LAAD => "LAAD",
             Sleutelwoord::LIJST => "LIJST",
             Sleutelwoord::MET => "MET",
             Sleutelwoord::NAAR => "NAAR",

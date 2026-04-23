@@ -454,6 +454,20 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
 
             Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(&opmerking)? }))
         },
+        Sleutelwoord::BEWAAR => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::FoutMelding("BEWAAR kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+            }
+        },
+        Sleutelwoord::LAAD => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::FoutMelding("LAAD kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+            }
+        },
         Sleutelwoord::START => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)

@@ -103,6 +103,8 @@ Currently implemented:
 - `SUB naam … END` — user-defined subroutines without return value; called by writing the name as a standalone statement (a lowercase name without `:=` is parsed as a subroutine call, mapped internally to `Sleutelwoord::GASUB`); subroutine names follow the same rules as variable names (lowercase ASCII letters, digits, underscores; must not start with a digit); forward references supported; nested calls supported via LIFO stack (`sub_return_stack`); definition lines are skipped during normal execution
 - `variabele := LEES` — reads a decimal number from the user; execution pauses until Enter is pressed; full machine state (variables, loop counters, line buffer) is preserved in `LeesGeheugen` during the wait; `LEES` may appear inside expressions
 - `variabele := LEESSYM` — reads a single symbol from the user and returns its internal value (see symbol table); same pause/resume mechanism as `LEES`
+- `BEWAAR` — interpreter control only (no line number); serialises the stored program via `execute_lijst()`, creates a Blob URL, and triggers a browser download as `programma.ecol`; only valid in `Context::Direct`
+- `LAAD` — interpreter control only; raises `EcolFout::WachtOpLaad`, caught in `lib.rs` which opens a native file picker (`<input type="file">`); on file selection a fresh `LeesGeheugen` is used to feed each non-empty line through `execute()`; only valid in `Context::Direct`
 
 ### Deliberate deviations from the 1973 spec
 

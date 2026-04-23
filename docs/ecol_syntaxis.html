@@ -150,6 +150,16 @@
     <td>Voer het opgeslagen programma uit.</td>
     <td><span class="tag ok">geïmpl.</span></td>
   </tr>
+  <tr>
+    <td><code>BEWAAR</code></td>
+    <td>Sla het huidige programma op als <code>programma.ecol</code> via een browserdownload. Werkt alleen als er een programma in geheugen is.</td>
+    <td><span class="tag ext">extensie</span> <span class="tag ok">geïmpl.</span></td>
+  </tr>
+  <tr>
+    <td><code>LAAD</code></td>
+    <td>Open een bestandsdialoog om een <code>.ecol</code>-bestand te laden. De regels worden ingelezen alsof de gebruiker ze intypt — bestaande regels met hetzelfde nummer worden vervangen, nieuwe regels worden toegevoegd.</td>
+    <td><span class="tag ext">extensie</span> <span class="tag ok">geïmpl.</span></td>
+  </tr>
 </table>
 
 <h2>Programmastructuur</h2>
@@ -308,7 +318,8 @@ a := naam(index)</pre>
 
 <table>
   <tr><th>Operator</th><th>Betekenis</th><th>Status</th><th>Voorbeeld</th></tr>
-  <tr><td><code>M</code></td><td>Machtsverheffing (ook: <code>xx</code> voor kwadraat)</td><td><span class="tag ok">geïmpl.</span></td><td><code>2 M 8</code></td></tr>
+  <tr><td><code>M</code></td><td>Machtsverheffing</td><td><span class="tag ok">geïmpl.</span></td><td><code>2 M 8</code></td></tr>
+  <tr><td><code>xx</code></td><td>Alias voor <code>M</code> (kwadraat in de originele ECOL-notatie)</td><td><span class="tag nee">niet gepland</span></td><td>gebruik <code>M</code></td></tr>
   <tr><td><code>×</code></td><td>Vermenigvuldigen (originele ECOL-notatie)</td><td><span class="tag nee">niet gepland</span></td><td>gebruik <code>*</code></td></tr>
   <tr><td><code>*</code></td><td>Vermenigvuldigen</td><td><span class="tag ok">geïmpl.</span></td><td><code>a * b</code></td></tr>
   <tr><td><code>/</code></td><td>Delen</td><td><span class="tag ok">geïmpl.</span></td><td><code>a / b</code></td></tr>
@@ -345,7 +356,8 @@ a := naam(index)</pre>
   <tr><th>Functie</th><th>Beschrijving</th><th>Status</th></tr>
   <tr><td><code>G(u)</code></td><td>Gehele deel (floor): G(2.7)=2, G(-2.3)=-3</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>ABS(u)</code></td><td>Absolute waarde</td><td><span class="tag ok">geïmpl.</span></td></tr>
-  <tr><td><code>WRTL(u)</code> / <code>SQRT(u)</code></td><td>Vierkantswortel (u ≥ 0, anders fout)</td><td><span class="tag ok">geïmpl.</span></td></tr>
+  <tr><td><code>WRTL(u)</code></td><td>Vierkantswortel (u ≥ 0, anders fout)</td><td><span class="tag ok">geïmpl.</span></td></tr>
+  <tr><td><code>SQRT(u)</code></td><td>Alias voor <code>WRTL(u)</code> (alternatieve naam in de originele spec) — gebruik <code>WRTL</code></td><td><span class="tag nee">niet gepland</span></td></tr>
   <tr><td><code>SIN(u)</code></td><td>Sinus (u in radialen)</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>COS(u)</code></td><td>Cosinus (u in radialen)</td><td><span class="tag ok">geïmpl.</span></td></tr>
   <tr><td><code>ARCTAN(u)</code></td><td>Boogtangens, uitvoer in [-π/2, π/2]</td><td><span class="tag ok">geïmpl.</span></td></tr>
