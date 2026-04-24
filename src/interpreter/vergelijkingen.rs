@@ -1,5 +1,5 @@
 use crate::EcolMachine;
-use crate::interpreter::functions::EcolFout;
+use crate::interpreter::errors::EcolFout;
 use crate::interpreter::helpers::geen_spaties;
 use crate::interpreter::LeesGeheugen;
 
@@ -29,30 +29,13 @@ impl Vergelijking {
             _ => Err(format!("Ongeldig vergelijkingsteken: {}", tekst)),
         }
     }
-    pub(super) fn to_string(&self) -> String {
-        match self {
-            Self::Gelijk => "=",
-            Self::NietGelijk => "≠",
-            Self::GroterDan => ">",
-            Self::MinderDan => "<",
-            Self::GroterOfGelijk => "≥",
-            Self::MinderOfGelijk => "≤",
-            Self::EN => "EN",
-            Self::OF => "OF",
-        }.to_string()
-    }
-
     fn alle_vergelijking_operatoren() -> Vec<&'static str> {
         vec!["<=", ">=", "<>", "≤", "≥", "≠", "=", ">", "<"]
-    }
-    fn is_vergelijking(&self) -> bool {
-        matches!(self, Self::Gelijk | Self::NietGelijk | Self::GroterDan | Self::MinderDan | Self::GroterOfGelijk | Self::MinderOfGelijk )
     }
     pub(super) fn is_simpele_vergelijking(expressie: &str) -> bool {
         let mut links: &str = "";
         let mut rechts: &str = "";
-        let mut operator_teken: Self = Self::Gelijk;
-
+        
         for operator in Self::alle_vergelijking_operatoren() {
             let positie = expressie.find(operator);
 
@@ -60,7 +43,6 @@ impl Vergelijking {
                 Some(pos) => {
                     links = &expressie[..pos];
                     rechts = &expressie[pos + operator.len()..];
-                    operator_teken = Self::from_string(operator).unwrap();
                     break;
                 }
                 None => continue,
@@ -74,10 +56,6 @@ impl Vergelijking {
         }
 
         true
-    }
-
-    fn is_samenvoeg(&self) -> bool {
-        matches!(self, Self::EN | Self::OF)
     }
     pub(super) fn vergelijk(&self, links: f32, rechts: f32) -> bool {
         match self {
@@ -104,7 +82,7 @@ impl EcolMachine {
         let werk_expressie = geen_spaties(expressie);
 
         // OF heeft lagere prioriteit dan EN: splits eerst op OF (buitenste knoop),
-        // dan pas op EN. Zonder haakjes in vergelijkingsexpressies is deze volgorde vast.
+        // dan pas op EN. Zonder haakjes in vergelijkings-expressies is deze volgorde vast.
         let positie_of = werk_expressie.find("OF");
         let positie_en = werk_expressie.find("EN");
 
@@ -171,28 +149,5 @@ impl EcolMachine {
         let rechts_getal = self.solve_expression(rechts, lees_geheugen)?;
 
         Ok(operator_teken.vergelijk(links_getal, rechts_getal))
-    }
-
-    pub(super) fn parseer_operator(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen) -> Result<(Vergelijking, f32), EcolFout> {
-        let mut rechts: &str = "";
-        let mut operator_teken: Vergelijking = Vergelijking::Gelijk;
-
-        for operator in Vergelijking::alle_vergelijking_operatoren() {
-            let positie = input.find(operator);
-
-            match positie {
-                Some(pos) => {
-                    rechts = &input[pos + operator.len()..];
-                    operator_teken = Vergelijking::from_string(operator).unwrap();
-                    break;
-                }
-                None => continue,
-            }
-        }
-        if rechts.is_empty() {
-            return Err(EcolFout::FoutMelding("Ongeldige vergelijking: geen rechterkant".to_string())); }
-        let rechts_getal = self.solve_expression(rechts, lees_geheugen)?;
-
-        Ok((operator_teken, rechts_getal))
     }
 }

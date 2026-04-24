@@ -7,5 +7,8 @@ mod opdrachten;
 mod expressies;
 mod functions;
 mod vergelijkingen;
+mod errors;
+mod leesgeheugen;
 
-pub use interpreter::{EcolMachine, LeesGeheugen};
+pub use interpreter::{EcolMachine};
+pub use leesgeheugen::{LeesGeheugen};

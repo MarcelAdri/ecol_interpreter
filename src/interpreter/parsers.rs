@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_opmerking, extract_regelnummer, extract_stap_expressie, extract_start_expressie, extract_variabele_naam, geen_rest_gewenst, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, vind_opmerking};
-use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel};
-use crate::interpreter::functions::{EcolFout, FunDef, FunctieNaam};
+use crate::interpreter::errors::EcolFout;
+use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_opmerking, extract_regelnummer, extract_stap_expressie, extract_start_expressie, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, vind_opmerking};
+use crate::interpreter::program::{FunDef, Line, LineInhoud, Operator, Sleutelwoord, SprongDoel};
+use crate::interpreter::functions::{FunctieNaam};
 use crate::interpreter::waarden::{VariabeleAanroep};
 
 pub(super) struct FunctieAanroep {
@@ -32,71 +33,6 @@ impl FunctieAanroep {
         &self.argumenten
     }
 }
-
-pub(super) fn parseer_argumenten(argumenten: &str, aantal_argumenten: usize) -> Result<Vec<String>, EcolFout> {
-    let mut result = Vec::new();
-    let mut tussen_quotes = false;
-    let mut escape = false;
-    let mut start = 0;
-
-    for (i, c) in argumenten.char_indices() {
-        if escape {
-            escape = false;
-            continue;
-        }
-
-        if tussen_quotes && c == '\\' {
-            escape = true;
-            continue;
-        }
-
-        if c == '"' {
-            tussen_quotes = !tussen_quotes;
-            continue;
-        }
-
-        if !tussen_quotes && c == ',' {
-            result.push(argumenten[start..i].trim().to_string());
-            start = i + c.len_utf8();
-        }
-    }
-
-    if escape || tussen_quotes {
-        return Err(EcolFout::FoutMelding("Ongeldige argumentenlijst: quotes zijn niet correct afgesloten".to_string()));
-    }
-
-    if argumenten.is_empty() {
-        if aantal_argumenten == 0 {
-            return Ok(Vec::new());
-        }
-        return Err(EcolFout::FoutMelding(format!(
-            "Verkeerd aantal argumenten: verwacht {}, kreeg 0",
-            aantal_argumenten
-        )));
-    }
-
-    result.push(argumenten[start..].trim().to_string());
-
-    if result.len() != aantal_argumenten {
-        return Err(EcolFout::FoutMelding(format!(
-            "Verkeerd aantal argumenten: verwacht {}, kreeg {}",
-            aantal_argumenten,
-            result.len()
-        )));
-    }
-
-    Ok(result)
-}
-pub(super) fn parse_f32(token: &str) -> f32 {
-    if let Ok(value) = token.parse::<f32>() {
-        value
-    } else if let Ok(value) = token.parse::<i32>() {
-        value as f32
-    } else {
-        0.0
-    }
-}
-
 pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>, EcolFout> {
     // 1. Zoek begin van functienaam (eerste hoofdletter)
     let start_naam = match expressie.find(|c: char| c.is_ascii_uppercase()) {
@@ -198,20 +134,12 @@ fn splits_argumenten(s: &str) -> Vec<String> {
     argumenten.push(s[start..].trim().to_string());
     argumenten
 }
-pub(super) fn parse_i32(token: &str) -> i32 {
-    if let Ok(value) = token.parse::<i32>() {
-        value
-    } else if let Ok(value) = token.parse::<f32>() {
-        value as i32
-    } else {
-        0
-    }
-}
 pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
-    let (regelnummer, rest_na_regelnummer, is_alleen_regelnummer) = extract_regelnummer(input)?;
+    let (regelnummer, rnn, is_alleen_regelnummer) = extract_regelnummer(input)?;
     if is_alleen_regelnummer {
         return Ok(Line::new(regelnummer, LineInhoud::Verwijderen {}));
     }
+    let rest_na_regelnummer: &str = rnn;
     if rest_na_regelnummer.trim_start().starts_with(':') {
         let rest_na_dubbele_punt = rest_na_regelnummer.trim_start().trim_start_matches(':');
 
@@ -232,10 +160,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 let (dan, rest_na_dan) = extract_dan(rest_na_als)?;
                 let anders: Option<SprongDoel>;
                 let rest_tekst: &str;
-                if geen_spaties(rest_na_dan).is_empty() {
-                    rest_tekst = rest_na_dan;
-                    anders = None;
-                } else if rest_na_dan.trim_start().starts_with(';') {
+                if geen_spaties(rest_na_dan).is_empty() || rest_na_dan.trim_start().starts_with(';') {
                     rest_tekst = rest_na_dan;
                     anders = None;
                 } else {
@@ -331,8 +256,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie, opm: vind_opmerking(&opm)? }))
         },
         Sleutelwoord::NAAR => {
-            let (sprongdoel, opmerking) = extract_opmerking(rest_na_keyword);
-            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(&sprongdoel)?, opm: vind_opmerking(&opmerking)? }))
+            let (sprong_doel, opmerking) = extract_opmerking(rest_na_keyword);
+            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(&sprong_doel)?, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::NP => {
             is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
@@ -450,9 +375,8 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             if argumenten.len() == 0 {
                 argumenten.push("1".to_string());
             }
-            let (expressie, opmerking) = extract_opmerking(rest_na_argumenten);
-
-            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(&opmerking)? }))
+            
+            Ok(Line::new(regelnummer, LineInhoud::Spatie{ aantal: argumenten[0].clone(), opm: vind_opmerking(&rest_na_argumenten)? }))
         },
         Sleutelwoord::BEWAAR => {
             if regelnummer == 0 {

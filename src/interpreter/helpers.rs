@@ -1,5 +1,5 @@
-use crate::interpreter::functions::EcolFout;
-use crate::interpreter::program::{Line, LineInhoud, Operator, Sleutelwoord, SprongDoel, WORDT_TEKEN};
+use crate::interpreter::errors::EcolFout;
+use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel, WORDT_TEKEN};
 
 pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<String>, &str)> {
     let werkstring = input.trim_start();
@@ -7,9 +7,12 @@ pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<String>, &str)> {
     let (mut inhoud, rest) = werkstring.split_once(')')?;
     inhoud = inhoud.strip_prefix('(')?;
 
-    let reply = inhoud.split(',').filter_map(|s| { let t = s.trim().to_string(); if t.is_empty() { None } else { Some(t) } }).collect();
-    
+    let reply = argumenten_to_vec(inhoud);
     Some((reply, rest.trim_start()))
+}
+pub(super) fn argumenten_to_vec(input: &str) -> Vec<String> {
+    input.split(',').filter_map(|s| { let t = s.trim().to_string(); if t.is_empty() { None } else { Some(t) } }).collect()
+
 }
 pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
     let werkstring = input.trim_start();
@@ -173,14 +176,6 @@ pub(super) fn extract_opmerking(input: &str) -> (String, String) {
 
     (deel_voor_opmerking, opmerking)
 }
-pub(super) fn first_word(input: &str) -> &str {
-    for (i, c) in input.char_indices() {
-        if Operator::is_operator_char(c) || c == '(' {
-            return &input[..i];
-        }
-    }
-    input
-}
 pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Result<String, EcolFout> {
     let mut b = breedte;
     let mut d = decimalen;
@@ -291,27 +286,6 @@ pub(super) fn literal_to_string (literal: &str) -> Result<String, EcolFout> {
 
     Ok(inhoud.to_string())
 
-}
-
-pub(super) fn result_to_string (result: Result<String, String>) -> String {
-    match result {
-        Ok(value) => format!("{}", value),
-        Err(err) => format!("{}", err),
-    }
-}
-pub(super) fn syntaxis_foutmelding(input: &str) -> String {
-    format!("Onjuiste syntax voor sleutelwoord {}.", input)
-}
-pub(super) fn verbijzonder_argumenten(werk_expressie: &str) -> String {
-    let mut argumenten = "".to_string();
-
-    if let Some(i) = werk_expressie.find('(') {
-        let inhoud = &werk_expressie[i + 1..];
-        if let Some(inhoud) = inhoud.strip_suffix(')') {
-            argumenten.push_str(inhoud);
-        }
-    }
-    argumenten
 }
 pub(super) fn vind_opmerking(input: &str) -> Result<Option<String>, EcolFout> {
     if input.trim().is_empty() {

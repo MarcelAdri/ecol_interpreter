@@ -1,4 +1,4 @@
-use crate::interpreter::functions::EcolFout;
+use crate::interpreter::errors::EcolFout;
 use crate::interpreter::helpers::get_sym_value;
 
 pub(super) struct VariabeleAanroep {
@@ -28,6 +28,14 @@ impl VariabeleAanroep {
     pub(super) fn index(&self) -> Option<&str> {
         self.index.as_deref()
     }
+}
+fn get_index(positie: usize, start: usize, einde: usize) -> Result<usize, EcolFout> {
+    if positie < start || positie > einde {
+        return Err(EcolFout::FoutMelding(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, start, einde)))
+    }
+    let index = positie - start;
+
+    Ok(index)
 }
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct EcolRij {
@@ -65,12 +73,7 @@ impl EcolRij {
     }
 
     fn get_index(&self, positie: usize) -> Result<usize, EcolFout> {
-        if positie < self.start || positie > self.einde {
-            return Err(EcolFout::FoutMelding(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, self.start, self.einde)))
-        }
-        let index = positie - self.start;
-
-        Ok(index)
+        get_index(positie, self.start, self.einde)
     }
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -111,13 +114,7 @@ impl EcolRijsym {
     }
 
     fn get_index(&self, positie: usize) -> Result<usize, EcolFout> {
-
-        if positie < self.start || positie > self.einde {
-            return Err(EcolFout::FoutMelding(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, self.start, self.einde)))
-        }
-        let index = positie - self.start;
-
-        Ok(index)
+        get_index(positie, self.start, self.einde)
     }
 }
 #[derive(Debug, Clone, PartialEq)]

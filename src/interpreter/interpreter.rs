@@ -89,14 +89,15 @@ pub(super) fn symbolen_reverse(symbool: char) -> Option<u8> {
     None
 }
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
-use crate::interpreter::opdrachten::{execute_all, Context, SubDef, WhatsNext};
+use crate::interpreter::errors::EcolFout;
+pub(crate) use crate::interpreter::leesgeheugen::LeesGeheugen;
+use crate::interpreter::opdrachten::{execute_all, Context};
 use crate::interpreter::parsers::{parseer_regel};
-use super::functions::{EcolFout, FunDef};
 use super::waarden::{VariabeleType, Waarde};
-use super::program::{LineInhoud, Programma};
+use super::program::{FunDef, LineInhoud, Programma, SubDef};
 
 enum RegelBuffer {
     Regel(String),
@@ -174,7 +175,7 @@ impl VariabelenOpslag {
     }
 
     fn schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), EcolFout> {
-        let mut doelwaarde: Waarde;
+        let doelwaarde: Waarde;
         if !self.bestaat(naam) {
             if waarde.type_van() == Some(VariabeleType::Rij) {
                 return Err(EcolFout::FoutMelding(format!("RIJ-variabele '{}' is nog niet gedefinieerd.", naam)));
@@ -217,87 +218,7 @@ impl VariabelenOpslag {
     }
 }
 
-pub struct LeesGeheugen {
-    lees_hervat_bij: Option<u16>,
-    lees_buffer: VecDeque<f32>,
-    leessym_hervat_bij: Option<u16>,
-    leessym_buffer: VecDeque<u8>,
-    lopende_machine: Option<EcolMachine>,
-    lopend_programma: Option<BTreeMap<u16, LineInhoud>>,
-    wacht_op_laad: bool,
-}
 
-impl LeesGeheugen {
-    pub fn new() -> Self {
-        LeesGeheugen {
-            lees_hervat_bij: None,
-            lees_buffer: VecDeque::new(),
-            leessym_hervat_bij: None,
-            leessym_buffer: VecDeque::new(),
-            lopende_machine: None,
-            lopend_programma: None,
-            wacht_op_laad: false,
-        }
-    }
-    pub fn wacht_op_lees(&self) -> bool {
-        self.lees_hervat_bij.is_some()
-    }
-    pub(super) fn lees_hervat_bij(&mut self) -> Option<u16> {
-        self.lees_hervat_bij
-    }
-    pub(super) fn lees_hervat_none(&mut self)  {
-        self.lees_hervat_bij = None
-    }
-    pub(super) fn lees_hervat_bij_op_regel(&mut self, regelnummer: u16)  {
-        self.lees_hervat_bij = Some(regelnummer)
-    }
-    pub(super) fn lees_waarde(&mut self) -> Option<f32> {
-        self.lees_buffer.pop_front()
-    }
-    pub(super) fn schrijf_lees_waarde(&mut self, waarde: f32) {
-        self.lees_buffer.push_back(waarde);
-    }
-    pub fn wacht_op_leessym(&self) -> bool {
-        self.leessym_hervat_bij.is_some()
-    }
-    pub(super) fn leessym_hervat_bij(&mut self) -> Option<u16> {
-        self.leessym_hervat_bij
-    }
-    pub(super) fn leessym_hervat_none(&mut self)  {
-        self.leessym_hervat_bij = None
-    }
-    pub(super) fn leessym_hervat_bij_op_regel(&mut self, regelnummer: u16)  {
-        self.leessym_hervat_bij = Some(regelnummer)
-    }
-    pub(super) fn leessym_waarde(&mut self) -> Option<f32> {
-        match self.leessym_buffer.pop_front() {
-            Some(w) => Some(w as f32),
-            None => None,
-        }
-    }
-    pub(super) fn schrijf_leessym_waarde(&mut self, waarde: f32) {
-        self.leessym_buffer.push_back(waarde as u8);
-    }
-    pub fn wacht_op_laad(&self) -> bool {
-        self.wacht_op_laad
-    }
-    pub fn reset_laad(&mut self) {
-        self.wacht_op_laad = false;
-    }
-    pub(super) fn stel_laad_in(&mut self) {
-        self.wacht_op_laad = true;
-    }
-    pub(super) fn neem_lopende_toestand(&mut self) -> Option<(EcolMachine, BTreeMap<u16, LineInhoud>)> {
-        match (self.lopende_machine.take(), self.lopend_programma.take()) {
-            (Some(m), Some(p)) => Some((m, p)),
-            _ => None,
-        }
-    }
-    pub(super) fn sla_lopende_toestand_op(&mut self, machine: EcolMachine, programma: BTreeMap<u16, LineInhoud>) {
-        self.lopende_machine = Some(machine);
-        self.lopend_programma = Some(programma);
-    }
-}
 
 pub struct EcolMachine {
     variabelen_opslag: VariabelenOpslag,
@@ -336,13 +257,6 @@ impl EcolMachine {
     }
     pub(super) fn is_sub(&self, naam: &str) -> bool {
         self.sub_register.contains_key(naam)
-    }
-    pub(super) fn return_from_sub(&mut self) -> Result<u16, EcolFout> {
-        let Some(reply) = self.sub_return_stack.pop() else {
-            return Err(EcolFout::FoutMelding("Geen subroutine om uit terug te keren.".to_string()))
-        };
-
-        Ok(reply)
     }
     pub(super) fn start_sub(&mut self, naam: &str, regelnummer: u16) -> Result<(), EcolFout> {
         if !self.is_sub(naam) {
@@ -450,9 +364,6 @@ impl EcolMachine {
         }
 
     }
-    pub(super) fn var_bestaat(&self, naam: &str) -> bool {
-        self.variabelen_opslag.bestaat(naam)
-    }
     pub(super) fn naar_regel_buffer(&mut self, regel: &str) -> Result<(), EcolFout>{
         self.regel_buffer.naar_regel_buffer(regel)?;
 
@@ -509,30 +420,24 @@ impl EcolMachine {
     }
 
     pub fn execute(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> String {
-        let mut reply: Option<String> = None;
 
-        if lees_geheugen.wacht_op_lees() {
+        let reply: Option<String> = if lees_geheugen.wacht_op_lees() {
             let waarde = input.trim().parse::<f32>();
             if let Ok(waarde) = waarde {
                 lees_geheugen.schrijf_lees_waarde(waarde);
                 let Some(regel) = lees_geheugen.lees_hervat_bij() else {
                     return "Er is een fout opgetreden. Geef opnieuw in.".to_string();
                 };
-                match self.execute_start(Some(regel), lees_geheugen, output) {
-                    Ok(r) => reply = Some(r),
-                    Err(EcolFout::FoutMelding(e)) => reply = Some(e),
-                    Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) | Err(EcolFout::WachtOpLaad) => reply = None
-                }
-
+                self.hervat_uitvoering(regel, lees_geheugen, output)
             } else {
                 return "Alleen numerieke waarden kunnen ingegeven worden. Geef opnieuw in.".to_string();
             }
         } else if lees_geheugen.wacht_op_leessym() {
-            let waarde_input = input;
-            if waarde_input.len() != 1 {
+            //let waarde_input = input;
+            if input.len() != 1 {
                 return "Voor LEESSYM mag slechts één karakter worden ingegeven. Geef opnieuw in.".to_string();
             }
-            let waarde_char = waarde_input.chars().next().unwrap_or_default();
+            let waarde_char = input.chars().next().unwrap_or_default();
             let waarde = symbolen_reverse(waarde_char);
             match waarde {
                 Some(c) => {
@@ -540,12 +445,7 @@ impl EcolMachine {
                     let Some(regel) = lees_geheugen.leessym_hervat_bij() else {
                         return "Er is een fout opgetreden. Geef opnieuw in.".to_string();
                     };
-                    match self.execute_start(Some(regel), lees_geheugen, output) {
-                        Ok(r) => reply = Some(r),
-                        Err(EcolFout::FoutMelding(e)) => reply = Some(e),
-                        Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) | Err(EcolFout::WachtOpLaad) => reply = None
-                    }
-
+                    self.hervat_uitvoering(regel, lees_geheugen, output)
                 },
                 None => return "Alleen symbolen kunnen ingegeven worden. Geef opnieuw in.".to_string(),
             }
@@ -554,7 +454,7 @@ impl EcolMachine {
                 Ok(regel) => {
                     if regel.regelnummer() == 0 {
                         let programma = BTreeMap::new();
-                        reply = match execute_all(&regel, self, &programma, Context::Direct, lees_geheugen, output) {
+                        match execute_all(&regel, self, &programma, Context::Direct, lees_geheugen, output) {
                             Ok((r, _, _)) => r,
                             Err(EcolFout::FoutMelding(e)) => Some(e),
                             Err(EcolFout::WachtOpLees(r)) => {
@@ -577,13 +477,13 @@ impl EcolMachine {
                                 lees_geheugen.stel_laad_in();
                                 None
                             },
-                        };
+                        }
                     } else {
                         if regel.inhoud().as_str() == "Verwijderen" {
                             let verwijder_resultaat = self.programma.regel_verwijderen(regel.regelnummer());
-                            reply = Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()));
+                            Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()))
                         } else {
-                            reply = Some(self.programma.regel_toevoegen(regel));
+                            Some(self.programma.regel_toevoegen(regel))
                         }
                     }
                 }
@@ -591,8 +491,17 @@ impl EcolMachine {
                     return format!("Ongeldige invoer: {}" ,e.to_string());
                 }
             }
-        }
-
-        reply.unwrap_or("".to_string())
+        };
+        reply.unwrap_or_default()
     }
+    fn hervat_uitvoering(&mut self, regel: u16, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> Option<String> {
+        match self.execute_start(Some(regel), lees_geheugen, output) {
+            Ok(r) => Some(r),
+            Err(EcolFout::FoutMelding(e)) => Some(e),
+            Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) | Err(EcolFout::WachtOpLaad) => None,
+        }
+    }
+
 }
+
+

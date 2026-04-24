@@ -1,9 +1,10 @@
 use std::str::FromStr;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
+use crate::interpreter::errors::EcolFout;
 use crate::interpreter::helpers::{geen_spaties};
-use crate::interpreter::parsers::{parseer_eigen_functie, parseer_functie, parseer_variabele};
+use crate::interpreter::parsers::{parseer_eigen_functie, parseer_functie, parseer_variabele, FunctieAanroep};
 use crate::interpreter::program::{Operator};
-use crate::interpreter::functions::{EcolFout, Functie, FunctieNaam};
+use crate::interpreter::functions::{Functie, FunctieNaam};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 
@@ -59,7 +60,8 @@ impl EcolMachine {
     }
     pub(super) fn vervang_functies_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
 
-        while let Some(werk_functie) = parseer_functie(werk_expressie)? {
+        while let Some(w) = parseer_functie(werk_expressie)? {
+            let werk_functie: FunctieAanroep = w;
             let functie_naam = werk_functie.functie().clone();
             let functie: Functie;
 

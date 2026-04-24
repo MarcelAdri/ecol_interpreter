@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use crate::interpreter::functions::EcolFout;
+use crate::interpreter::errors::EcolFout;
 use crate::interpreter::helpers::{extract_opmerking, geen_spaties, vind_opmerking};
 
 pub(super) const WORDT_TEKEN: &str = ":=";
@@ -16,37 +16,6 @@ impl Line {
         Line {
             regelnummer,
             inhoud,
-        }
-    }
-    pub(super) fn extract_sleutelwoord(&self) -> Option<Sleutelwoord> {
-        match &self.inhoud {
-            LineInhoud::Als { .. } => Some(Sleutelwoord::ALS),
-            LineInhoud::Bewaar { } => Some(Sleutelwoord::BEWAAR),
-            LineInhoud::End { .. } => Some(Sleutelwoord::END),
-            LineInhoud::FunStart { .. } => Some(Sleutelwoord::FUNstart),
-            LineInhoud::FunEind { .. } => Some(Sleutelwoord::FUNeind),
-            LineInhoud::GaSub { .. } => Some(Sleutelwoord::GASUB),
-            LineInhoud::Help {} => Some(Sleutelwoord::HELP),
-            LineInhoud::Herhaal { .. } => Some(Sleutelwoord::HERHAAL),
-            LineInhoud::Klaar { .. } => Some(Sleutelwoord::KLAAR),
-            LineInhoud::Laad { } => Some(Sleutelwoord::LAAD),
-            LineInhoud::LegeRegel { .. } => None,
-            LineInhoud::Lijst {} => Some(Sleutelwoord::LIJST),
-            LineInhoud::Met { .. } => Some(Sleutelwoord::MET),
-            LineInhoud::Naar { .. } => Some(Sleutelwoord::NAAR),
-            LineInhoud::NP { .. } => Some(Sleutelwoord::NP),
-            LineInhoud::NR { .. } => Some(Sleutelwoord::NR),
-            LineInhoud::Rij { .. } => Some(Sleutelwoord::RIJ),
-            LineInhoud::Rijsym { .. } => Some(Sleutelwoord::RIJSYM),
-            LineInhoud::Tekst { .. } => Some(Sleutelwoord::TEKST),
-            LineInhoud::Schrijf { .. } => Some(Sleutelwoord::SCHRIJF),
-            LineInhoud::Schrijfsym { .. } => Some(Sleutelwoord::SCHRIJFSYM),
-            LineInhoud::Schrijm { .. } => Some(Sleutelwoord::SCHRIJM),
-            LineInhoud::Spatie { .. } => Some(Sleutelwoord::SPATIE),
-            LineInhoud::Start { } => Some(Sleutelwoord::START),
-            LineInhoud::Sub { .. } => Some(Sleutelwoord::SUB),
-            LineInhoud::Toekennen { .. } => Some(Sleutelwoord::TOEKENNEN),
-            LineInhoud::Verwijderen { } => None,
         }
     }
     pub(super) fn genereer_regel(&self) -> String {
@@ -434,16 +403,6 @@ impl Operator {
         }
     }
 
-    pub(super) fn to_char(&self) -> char {
-        match self {
-            Self::Plus => '+',
-            Self::Min => '-',
-            Self::Vermenigvuldig => '*',
-            Self::Deel => '/',
-            Self::Machtsverheffen => 'M',
-        }
-    }
-
     fn from_string(s: &str) -> Option<Self> {
         match s {
             "+" => Some(Self::Plus),
@@ -462,15 +421,6 @@ impl Operator {
         Self::from_string(s).is_some()
     }
 
-    pub(super) fn operator_volgorde() -> impl Iterator<Item = Self> {
-        IntoIterator::into_iter([
-            Self::Machtsverheffen,
-            Self::Vermenigvuldig,
-            Self::Deel,
-            Self::Plus,
-            Self::Min,
-        ])
-    }
     pub(super) fn operator_prioriteiten() -> Vec<Vec<Self>> {
         vec![
             vec![Self::Machtsverheffen],
@@ -632,41 +582,53 @@ impl Sleutelwoord {
             _ => None
         }
     }
-
-    pub(super) fn is_sleutelwoord(woord: &str) -> bool {
-        Self::from_string(woord).is_some()
+}
+#[derive(Debug, Clone)]
+pub(super) struct FunDef {
+    parameters: Vec<String>,
+    body: BTreeMap<u16, LineInhoud>,
+}
+impl FunDef {
+    pub(super) fn new() -> Self {
+        FunDef { parameters: Vec::new(), body: BTreeMap::new() }
     }
 
-    pub(super) fn to_string(&self) -> &str {
-        match self {
-            Sleutelwoord::ALS => "ALS",
-            Sleutelwoord::BEWAAR => "BEWAAR",
-            Sleutelwoord::END => "END",
-            Sleutelwoord::FUNstart => "FUN",
-            Sleutelwoord::FUNeind => "FUN",
-            Sleutelwoord::GASUB => "GASUB",
-            Sleutelwoord::HELP => "HELP",
-            Sleutelwoord::HERHAAL => "HERHAAL",
-            Sleutelwoord::KLAAR => "KLAAR",
-            Sleutelwoord::LAAD => "LAAD",
-            Sleutelwoord::LIJST => "LIJST",
-            Sleutelwoord::MET => "MET",
-            Sleutelwoord::NAAR => "NAAR",
-            Sleutelwoord::NP => "NP",
-            Sleutelwoord::NR => "NR",
-            Sleutelwoord::RIJ => "RIJ",
-            Sleutelwoord::RIJSYM => "RIJSYM",
-            Sleutelwoord::SCHRIJF => "SCHRIJF",
-            Sleutelwoord::SCHRIJFSYM => "SCHRIJFSYM",
-            Sleutelwoord::SCHRIJM => "SCHRIJM",
-            Sleutelwoord::SPATIE => "SPATIE",
-            Sleutelwoord::START => "START",
-            Sleutelwoord::SUB => "SUB",
-            Sleutelwoord::TEKST => "TEKST",
-            Sleutelwoord::TOEKENNEN => "TOEKENNEN",
+    pub(super) fn parameters(&self) -> &Vec<String> {
+        &self.parameters
+    }
+    pub(super) fn set_parameters(&mut self, parameters: &Vec<String>) {
+        self.parameters = parameters.clone();
+    }
+    pub(super) fn body(&self) -> &BTreeMap<u16, LineInhoud> {
+        &self.body
+    }
+    pub(super) fn body_insert(&mut self, regelnummer: u16, regel: &LineInhoud) {
+        self.body.insert(regelnummer, regel.clone());
+    }
+}
+#[derive(Debug, Clone)]
+pub(super) struct SubDef {
+    regels: BTreeMap<u16, LineInhoud>
+}
+impl SubDef {
+    pub(super) fn new() -> Self {
+        Self {
+            regels: BTreeMap::new(),
         }
     }
-
+    pub(super) fn regels(&self) -> &BTreeMap<u16, LineInhoud> {
+        &self.regels
+    }
+    pub(super) fn regels_insert(&mut self, regelnummer: u16, regel: &LineInhoud) {
+        self.regels.insert(regelnummer, regel.clone());
+    }
+    pub(crate) fn clone(&self) -> SubDef {
+        let mut nieuw = SubDef::new();
+        for (regelnummer, regel_inhoud) in self.regels.iter() {
+            nieuw.regels.insert(*regelnummer, regel_inhoud.clone());
+        }
+        nieuw
+    }
 }
 
 

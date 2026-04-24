@@ -15,7 +15,7 @@ pub fn start() -> Result<(), JsValue> {
     let window = web_sys::window().expect("no window");
     let document = window.document().expect("no doc");
     let machine = Rc::new(RefCell::new(EcolMachine::new()));
-    let mut lees_geheugen = LeesGeheugen::new();
+    let lees_geheugen = LeesGeheugen::new();
 
     let history = document.get_element_by_id("history").unwrap();
     let cursor_line = document.get_element_by_id("cursor-line").unwrap().dyn_into::<web_sys::HtmlElement>()?;
@@ -56,10 +56,10 @@ pub fn start() -> Result<(), JsValue> {
 
             let resultaat = m.borrow_mut().execute(&command, &mut l, &mut |regel| {
                 if regel == "\x0C" {
-                    hist_cb.set_inner_html((&format!(
+                    hist_cb.set_inner_html(&format!(
                         "ECOL INTERPRETER v{}<br/>Typ 'HELP' voor instructies.<br/>",
                         env!("CARGO_PKG_VERSION")
-                    )));   // scherm leegmaken
+                    ));   // scherm leegmaken
                 } else {
                     let regel_html = regel.replace('\n', "<br/>");
                     let oude = hist_cb.inner_html();
@@ -77,14 +77,14 @@ pub fn start() -> Result<(), JsValue> {
                 input.set_type("file");
                 input.set_attribute("accept", ".ecol").unwrap();
                 let input_inner = input.clone();
-                let onchange = Closure::wrap(Box::new(move |_: wasm_bindgen::JsValue| {
+                let onchange = Closure::wrap(Box::new(move |_: JsValue| {
                     let Some(files) = input_inner.files() else { return; };
                     let Some(file) = files.get(0) else { return; };
                     let reader = web_sys::FileReader::new().unwrap();
                     let r2 = reader.clone();
                     let m2 = m_laad.clone();
                     let hist2 = hist_laad.clone();
-                    let onload = Closure::wrap(Box::new(move |_: wasm_bindgen::JsValue| {
+                    let onload = Closure::wrap(Box::new(move |_: JsValue| {
                         let Ok(result) = r2.result() else { return; };
                         let tekst = result.as_string().unwrap_or_default();
                         let mut lees_nieuw = LeesGeheugen::new();
@@ -95,11 +95,11 @@ pub fn start() -> Result<(), JsValue> {
                         }
                         let oude = hist2.inner_html();
                         hist2.set_inner_html(&format!("{}{}<br/>", oude, "Programma geladen."));
-                    }) as Box<dyn FnMut(wasm_bindgen::JsValue)>);
+                    }) as Box<dyn FnMut(JsValue)>);
                     reader.set_onload(Some(onload.as_ref().unchecked_ref()));
                     onload.forget();
                     reader.read_as_text(&file).unwrap();
-                }) as Box<dyn FnMut(wasm_bindgen::JsValue)>);
+                }) as Box<dyn FnMut(JsValue)>);
                 input.set_onchange(Some(onchange.as_ref().unchecked_ref()));
                 onchange.forget();
                 input.click();

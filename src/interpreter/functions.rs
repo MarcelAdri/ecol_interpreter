@@ -1,37 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::helpers::{geen_spaties, grens_bewaking};
+use crate::interpreter::errors::EcolFout;
+use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, grens_bewaking};
 use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
-use crate::interpreter::program::{Line, LineInhoud};
+use crate::interpreter::program::{FunDef, Line, LineInhoud};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
 pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
 
-#[derive(Debug, Clone, PartialEq)]
-pub(super) enum EcolFout {
-    FoutMelding(String),
-    WachtOpLees(u16),
-    WachtOpLeessym(u16),
-    WachtOpLaad,
-}
-
-impl EcolFout {
-    pub(super) fn to_string(&self) -> String {
-        match self {
-            EcolFout::FoutMelding(melding) => format!("{}", melding),
-            EcolFout::WachtOpLees(regel) => format!("Wachten op LEES regel {}.", regel),
-            EcolFout::WachtOpLeessym(regel) => format!("Wachten op LEESSYM regel {}.", regel),
-            EcolFout::WachtOpLaad => "Wachten op LAAD.".to_string(),
-        }
-    }
-    pub(super) fn met_regel(self, regel: u16) -> Self {
-        match self {
-            EcolFout::FoutMelding(m) => EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: {}", regel, m)),
-            other => other,
-        }
-    }
-}
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum FunctieNaam {
     ABS,
@@ -163,46 +140,7 @@ impl Functie {
             FunctieNaam::WRTL => Ok(Functie::WRTL { getal: argumenten[0] }),
         }
     }
-
-    pub(super) fn haal_naam(&self) -> Option<FunctieNaam> {
-        match self {
-            Functie::ABS { .. } => Some(FunctieNaam::ABS),
-            Functie::ARCTAN { .. } => Some(FunctieNaam::ARCTAN),
-            Functie::BOVIN { .. } => Some(FunctieNaam::BOVIN),
-            Functie::COS { .. } => Some(FunctieNaam::COS),
-            Functie::EXP { .. } => Some(FunctieNaam::EXP),
-            Functie::G { .. } => Some(FunctieNaam::G),
-            Functie::GOK { .. } => Some(FunctieNaam::GOK),
-            Functie::GOKC { .. } => Some(FunctieNaam::GOKC),
-            Functie::LEES { .. } => Some(FunctieNaam::LEES),
-            Functie::LEESSYM { .. } => Some(FunctieNaam::LEESSYM),
-            Functie::LN { .. } => Some(FunctieNaam::LN),
-            Functie::LOG { .. } => Some(FunctieNaam::LOG),
-            Functie::ONDIN { .. } => Some(FunctieNaam::ONDIN),
-            Functie::PS { .. } => Some(FunctieNaam::PS),
-            Functie::SIN { .. } => Some(FunctieNaam::SIN),
-            Functie::WRTL { .. } => Some(FunctieNaam::WRTL),
-        }
-    }
 }
-#[derive(Debug, Clone)]
-pub(super) struct FunDef {
-    parameters: Vec<String>,
-    body: BTreeMap<u16, LineInhoud>,
-}
-impl FunDef {
-    fn new() -> Self {
-        FunDef { parameters: Vec::new(), body: BTreeMap::new() }
-    }
-
-    fn get_parameters(&self) -> &Vec<String> {
-        &self.parameters
-    }
-    fn get_body(&self) -> &BTreeMap<u16, LineInhoud> {
-        &self.body
-    }
-}
-
 pub(super) struct EigenFunctie {
     functie_omgeving: EcolMachine,
 }
@@ -218,14 +156,14 @@ impl EigenFunctie {
         }
         let mut machine = Self::new();
         machine.functie_omgeving.stel_functie_diepte_in(diepte);
-        if argumenten.len() != functie.parameters.len() {
-            return Err(EcolFout::FoutMelding(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters.len(), argumenten.len())));
+        if argumenten.len() != functie.parameters().len() {
+            return Err(EcolFout::FoutMelding(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters().len(), argumenten.len())));
         }
-        machine.functie_omgeving.laad_programma(&functie.body);
+        machine.functie_omgeving.laad_programma(&functie.body());
         machine.functie_omgeving.laad_functies(functies);
 
-        for index in 0..functie.parameters.len() {
-            let mut naam = functie.parameters[index].to_string();
+        for index in 0..functie.parameters().len() {
+            let mut naam = functie.parameters()[index].to_string();
             if geen_spaties(&naam).starts_with("RIJSYM") {
                 naam = geen_spaties(&naam[6..]);
                 if argumenten[index].type_van() != Some(VariabeleType::Rijsym) {
@@ -265,7 +203,8 @@ impl EigenFunctie {
                 _ => {
                     let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie, lees_geheugen, &mut |_| {})?;
                     match reply_option {
-                        Some(reply) => {
+                        Some(r) => {
+                            let reply: String = r;
                             return Ok(reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()))?);
                         },
                         None => {},
@@ -375,7 +314,6 @@ impl EcolMachine {
                 return Err(EcolFout::FoutMelding("Geen waarde na LEES(SYM) (interne fout).".to_string()));
             };
             lees_geheugen.lees_hervat_none();
-            //panic!("Getal {} ", getal);
             Ok(getal)
         } else {
             Err(EcolFout::WachtOpLees(0))
@@ -387,7 +325,6 @@ impl EcolMachine {
             let Some(getal) = lees_geheugen.leessym_waarde() else {
                 return Err(EcolFout::FoutMelding("Geen waarde na LEES(SYM) (interne fout).".to_string()));
             };
-            //self.wacht_op_lees_none();
             lees_geheugen.leessym_hervat_none();
 
             Ok(getal)
@@ -438,13 +375,8 @@ impl EcolMachine {
     }
     pub(super) fn get_fundef_parameters(&self, naam: &str) -> Option<Vec<String>> {
         let definitie = self.haal_functiedefinitie(naam)?;
-        Some(definitie.get_parameters().clone())
+        Some(definitie.parameters().clone())
     }
-    pub(super) fn get_fundef_body(&self, naam: &str) -> Option<BTreeMap<u16, LineInhoud>> {
-        let definitie = self.haal_functiedefinitie(naam)?;
-        Some(definitie.get_body().clone())
-    }
-
     pub(super) fn extract_functie_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, EcolFout> {
         let mut nieuwe_programma: BTreeMap<u16, LineInhoud> = BTreeMap::new();
         let mut in_functie_definitie = false;
@@ -456,18 +388,13 @@ impl EcolMachine {
                 LineInhoud::FunStart { variabele_naam, argumenten, .. } => {
                     in_functie_definitie = true;
                     naam_van_functie = variabele_naam;
-                    let parameters = argumenten.split(',')
-                        .filter_map(|s| {
-                            let t = s.trim().to_string();
-                            if t.is_empty() { None } else { Some(t) }
-                        })
-                        .collect::<Vec<String>>();
+                    let parameters = argumenten_to_vec(argumenten);
                     fundef = FunDef::new();
-                    fundef.parameters = parameters;
+                    fundef.set_parameters(&parameters);
                 }
                 LineInhoud::FunEind {  .. } => {
                     if in_functie_definitie {
-                        fundef.body.insert(*regelnummer, regel.clone());
+                        fundef.body_insert(*regelnummer, regel);
                         self.schrijf_nieuwe_functie(naam_van_functie, &fundef)?;
                         naam_van_functie = "";
                         in_functie_definitie = false;
@@ -477,7 +404,7 @@ impl EcolMachine {
                 }
                 _ => {
                     if in_functie_definitie {
-                        fundef.body.insert(*regelnummer, regel.clone());
+                        fundef.body_insert(*regelnummer, regel);
                     } else {
                         nieuwe_programma.insert(*regelnummer, regel.clone());
                     }

@@ -3,11 +3,11 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::js_sys;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::functions::EcolFout;
-use crate::interpreter::functions::EcolFout::{WachtOpLees, WachtOpLeessym};
-use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string, result_to_string};
+use crate::interpreter::errors::EcolFout;
+//use crate::interpreter::errors::EcolFout::{WachtOpLees, WachtOpLeessym};
+use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::interpreter::SYMBOLEN;
-use crate::interpreter::program::{Line, LineInhoud, SprongDoel};
+use crate::interpreter::program::{Line, LineInhoud, SprongDoel, SubDef};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
 pub(super) enum Context {
@@ -21,26 +21,7 @@ pub(super) enum WhatsNext {
     Continue,
     Break,
 }
-pub(super) struct SubDef {
-    regels: BTreeMap<u16, LineInhoud>
-}
-impl SubDef {
-    fn new() -> Self {
-        Self {
-            regels: BTreeMap::new(),
-        }
-    }
-    fn get_sub_def(&self) -> &BTreeMap<u16, LineInhoud> {
-        &self.regels
-    }
-    pub(crate) fn clone(&self) -> SubDef {
-        let mut nieuw = SubDef::new();
-        for (regelnummer, regel_inhoud) in self.regels.iter() {
-            nieuw.regels.insert(*regelnummer, regel_inhoud.clone());
-        }
-        nieuw
-    }
-}
+
 impl EcolMachine {
     pub(super) fn execute_help(&self) -> Result<String, EcolFout> {
         if let Some(window) = web_sys::window() {
@@ -156,10 +137,10 @@ impl EcolMachine {
 
         let symbool_nummer = get_sym_value(&value)? as usize;
 
-        let Some(symbool) = SYMBOLEN[symbool_nummer] else {
+        let Some(s) = SYMBOLEN[symbool_nummer] else {
             return Err(EcolFout::FoutMelding(format!("Symboolwaarde {} is niet gedefinieerd.", symbool_nummer)));
         };
-
+        let symbool: char = s;
 
         self.naar_regel_buffer(symbool.to_string().as_str())?;
         Ok("".to_string())
@@ -205,7 +186,6 @@ impl EcolMachine {
         };
         let start_tijd = js_sys::Date::now();
         let mut stappen: u32 = 0;
-        let mut whatsnext: Option<WhatsNext> = None;
 
         // Herstel opgeslagen toestand, of maak een verse machine aan.
         let (mut running_program, programma) = match lees_geheugen.neem_lopende_toestand() {
@@ -224,34 +204,33 @@ impl EcolMachine {
                 return Err(EcolFout::FoutMelding("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string()));
             }
 
-            let Some((&regelnum, current_reg)) = programma.range(current..).next() else {
+            let Some((&regel_num, current_reg)) = programma.range(current..).next() else {
                 return Err(EcolFout::FoutMelding("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string()));
             };
-            let regelnummer = regelnum;
+            let regelnummer = regel_num;
             let old_current = regelnummer;
             current = regelnummer + 1;
             let line = Line::new(current, current_reg.clone());
-            let mut current_option: Option<u16> = None;
 
-            match execute_all(&line, &mut running_program, &programma, Context::Programma, lees_geheugen, output) {
+            let (_, current_option, whatsnext) =  match execute_all(&line, &mut running_program, &programma, Context::Programma, lees_geheugen, output) {
                 Ok((st, co, wh)) => {
-                    (_, current_option, whatsnext) = (st, co, wh);
+                    (st, co, wh)
                 },
                 Err(EcolFout::FoutMelding(s)) => {
                     return Err(EcolFout::FoutMelding(s));
                 },
                 Err(EcolFout::WachtOpLees(_)) => {
                     lees_geheugen.sla_lopende_toestand_op(running_program, programma);
-                    return Err(WachtOpLees(old_current));
+                    return Err(EcolFout::WachtOpLees(old_current));
                 }
                 Err(EcolFout::WachtOpLeessym(_)) => {
                     lees_geheugen.sla_lopende_toestand_op(running_program, programma);
-                    return Err(WachtOpLeessym(old_current));
+                    return Err(EcolFout::WachtOpLeessym(old_current));
                 }
                 Err(EcolFout::WachtOpLaad) => {
                     return Err(EcolFout::FoutMelding("Interne fout: LAAD in programma.".to_string()));
                 }
-            }
+            };
 
             match current_option {
                 Some(next_line) => { current = next_line; },
@@ -349,7 +328,7 @@ impl EcolMachine {
     pub(super) fn extract_sub_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, EcolFout> {
         let mut nieuwe_programma: BTreeMap<u16, LineInhoud> = BTreeMap::new();
         let mut in_sub_definitie = false;
-        let mut subdef = SubDef::new();
+        let mut sub_def = SubDef::new();
         let mut naam_van_sub: &str = "";
 
         for (regelnummer, regel) in volledige_programma.iter() {
@@ -358,12 +337,12 @@ impl EcolMachine {
                     in_sub_definitie = true;
                     naam_van_sub = sub_naam;
 
-                    subdef = SubDef::new();
+                    sub_def = SubDef::new();
                 }
                 LineInhoud::End { .. } => {
                     if in_sub_definitie {
-                        subdef.regels.insert(*regelnummer, regel.clone());
-                        self.schrijf_subregister(naam_van_sub, subdef.clone())?;
+                        sub_def.regels_insert(*regelnummer, regel);
+                        self.schrijf_subregister(naam_van_sub, sub_def.clone())?;
                         naam_van_sub = "";
                         in_sub_definitie = false;
                     } else {
@@ -372,7 +351,7 @@ impl EcolMachine {
                 }
                 _ => {
                     if in_sub_definitie {
-                        subdef.regels.insert(*regelnummer, regel.clone());
+                        sub_def.regels_insert(*regelnummer, regel);
                     } else {
                         nieuwe_programma.insert(*regelnummer, regel.clone());
                     }
@@ -403,46 +382,18 @@ pub(super) fn execute_all (
                 Context::Direct => { no_reply },
                 Context::Programma  => {
                     if machine.parseer_vergelijking(vergelijking, lees_geheugen)? {
-                        match machine.execute_naar(programma, dan, &opdracht.regelnummer())? {
-                            Some(regel) => {
-                                (no_reply_string, Some(regel), no_whats_next)
-                            },
-                            None => {
-                                (no_reply_string, no_next_line, Some(WhatsNext::Break))
-                            }
-                        }
+                        doe_naar(machine, programma, dan, &opdracht.regelnummer(), false)?
                     } else if let Some(anders_regel) = anders {
-                        match machine.execute_naar(programma, anders_regel, &opdracht.regelnummer())? {
-                            Some(regel) => {
-                                (no_reply_string, Some(regel), no_whats_next)
-                            },
-                            None => {
-                                (no_reply_string, no_next_line, Some(WhatsNext::Break))
-                            }
-                        }
+                        doe_naar(machine, programma, anders_regel, &opdracht.regelnummer(), false)?
                     } else {
                         no_reply
                     }
                 },
                 Context::Subroutine | Context::Functie => {
                     if machine.parseer_vergelijking(vergelijking, lees_geheugen)? {
-                        match machine.execute_naar(programma, dan, &opdracht.regelnummer())? {
-                            Some(regel) => {
-                                (no_reply_string, Some(regel), no_whats_next)
-                            },
-                            None => {
-                                return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", opdracht.regelnummer() - 1)));
-                            }
-                        }
+                        doe_naar(machine, programma, dan, &opdracht.regelnummer(), true)?
                     } else if let Some(anders_regel) = anders {
-                        match machine.execute_naar(programma, anders_regel, &opdracht.regelnummer())? {
-                            Some(regel) => {
-                                (no_reply_string, Some(regel), no_whats_next)
-                            },
-                            None => {
-                                return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", opdracht.regelnummer() - 1)));
-                            }
-                        }
+                        doe_naar(machine, programma, anders_regel, &opdracht.regelnummer(), true)?
                     } else {
                         no_reply
                     }
@@ -481,16 +432,16 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine => {
-                    if let Some(subdef) = machine.lees_subregister(sub_naam).map(|s| s.clone()) {
+                    if let Some(sub_def) = machine.lees_subregister(sub_naam).map(|s| s.clone()) {
                         machine.start_sub(sub_naam, opdracht.regelnummer())?;
 
-                        let subroutine = subdef.regels;
+                        let subroutine = sub_def.regels();
                         let mut sub_current = 0u16;
                         loop {
-                            let Some((&regelnum, current_reg)) = subroutine.range(sub_current..).next() else {
+                            let Some((&regel_num, current_reg)) = subroutine.range(sub_current..).next() else {
                                 break;
                             };
-                            sub_current = regelnum + 1;
+                            sub_current = regel_num + 1;
                             let sub_line= Line::new(sub_current, current_reg.clone());
                             let (_, sub_next_line, whats_next) = execute_all(&sub_line, machine, &subroutine, Context::Subroutine, lees_geheugen, output)?;
                             match sub_next_line {
@@ -550,8 +501,8 @@ pub(super) fn execute_all (
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
                     let mut next_line = no_next_line;
-                    let sprongdoel = machine.teller_herhaal()?;
-                    match sprongdoel {
+                    let sprong_doel = machine.teller_herhaal()?;
+                    match sprong_doel {
                         Some(sprong) => {
                             let doel = SprongDoel::Regel( sprong );
                             match machine.execute_naar(programma, &doel, &opdracht.regelnummer())? {
@@ -818,12 +769,12 @@ pub(super) fn execute_all (
             }
         },
         LineInhoud::Verwijderen { } => {
-            match context {
+            return match context {
                 Context::Direct => {
-                    return Err(EcolFout::FoutMelding("Verwijderen van een ongenummerde regel is niet mogelijk.".to_string()));
+                    Err(EcolFout::FoutMelding("Verwijderen van een ongenummerde regel is niet mogelijk.".to_string()))
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding("Verwijderen van een regel kan niet voorkomen in een programma (interne fout).".to_string()));
+                    Err(EcolFout::FoutMelding("Verwijderen van een regel kan niet voorkomen in een programma (interne fout).".to_string()))
                 },
 
             }
@@ -833,4 +784,22 @@ pub(super) fn execute_all (
 
 
     Ok((reply, nextline, whats_next))
+}
+
+fn doe_naar(machine: &mut EcolMachine
+            ,programma: &BTreeMap<u16, LineInhoud>
+            ,sprong_doel: &SprongDoel
+            ,regel: &u16
+,no_stop: bool) -> Result<(Option<String>, Option<u16>, Option<WhatsNext>), EcolFout> {
+    match machine.execute_naar(programma, sprong_doel, regel)? {
+        Some(regel) => {
+            Ok((None, Some(regel), None))
+        },
+        None => {
+            if no_stop {
+                return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regel - 1)));
+            }
+            Ok((None, None, Some(WhatsNext::Break)))
+        }
+    }
 }
