@@ -160,7 +160,7 @@ pub(super) enum VariabeleType {
     Teller,
 }
 impl VariabeleType {
-    pub(super) fn to_string(&self) -> &'static str {
+    pub(super) fn to_string(self) -> &'static str {
         match self {
             VariabeleType::Getal => "Getal",
             VariabeleType::Rij => "Rij",

@@ -31,10 +31,10 @@ impl EcolMachine {
             let deel_expressie = &werk_expressie[start + 1..slot];
             let deel_resultaat = self.solve_expression(deel_expressie, lees_geheugen)?.to_string();
 
-            werk_expressie.replace_range(start..slot + 1, &deel_resultaat.trim());
+            werk_expressie.replace_range(start..slot + 1, deel_resultaat.trim());
         }
 
-        if let Some(_) = werk_expressie.find('(') { return Err(EcolFout::FoutMelding("Haak openen gevonden zonder haak sluiten".to_string())); }
+        if werk_expressie.find('(').is_some() { return Err(EcolFout::FoutMelding("Haak openen gevonden zonder haak sluiten".to_string())); }
 
         *expressie = werk_expressie;
         Ok(())
@@ -63,14 +63,13 @@ impl EcolMachine {
         while let Some(w) = parseer_functie(werk_expressie)? {
             let werk_functie: FunctieAanroep = w;
             let functie_naam = werk_functie.functie().clone();
-            let functie: Functie;
 
-            if functie_naam == FunctieNaam::ONDIN || functie_naam == FunctieNaam::BOVIN {
+            let functie: Functie = if functie_naam == FunctieNaam::ONDIN || functie_naam == FunctieNaam::BOVIN {
                 let argumenten = werk_functie.argumenten();
                 if argumenten.len() != 1 {
-                    return Err(EcolFout::FoutMelding(format!("Functie {} verwacht slechts één argument ({}).", functie_naam.to_string(), argumenten.len())));
+                    return Err(EcolFout::FoutMelding(format!("Functie {} verwacht slechts één argument ({}).", functie_naam, argumenten.len())));
                 }
-                functie = Functie::new(functie_naam, Vec::new(), &argumenten[0])?;
+                Functie::new(functie_naam, Vec::new(), &argumenten[0])?
             } else {
                 let mut argumenten_num: Vec<f32> = Vec::new();
                 for argument in werk_functie.argumenten() {
@@ -78,13 +77,13 @@ impl EcolMachine {
                     argumenten_num.push(arg);
                 }
 
-                functie = Functie::new(functie_naam, argumenten_num, "")?;
-            }
+                Functie::new(functie_naam, argumenten_num, "")?
+            };
 
 
             let uitkomst = self.execute_function(lees_geheugen, &functie)?.to_string();
 
-            werk_expressie.replace_range(werk_functie.start()..werk_functie.einde(), &uitkomst.trim());
+            werk_expressie.replace_range(werk_functie.start()..werk_functie.einde(), uitkomst.trim());
         }
 
         Ok(())
@@ -126,14 +125,14 @@ impl EcolMachine {
 
             let uitkomst = self.execute_eigen_functie(&naam, doel_argumenten, lees_geheugen)?.to_string();
 
-            werk_expressie.replace_range(start..einde, &uitkomst.trim());
+            werk_expressie.replace_range(start..einde, uitkomst.trim());
         }
 
         Ok(())
     }
     pub(super) fn vervang_variabelen_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
         while let Some(werk_variabele) = parseer_variabele(werk_expressie) {
-            let Some(complete_waarde) = self.var_lees_waarde(&werk_variabele.variabele_naam())
+            let Some(complete_waarde) = self.var_lees_waarde(werk_variabele.variabele_naam())
                 else { return Err(EcolFout::FoutMelding("Variabele niet gevonden".to_string()));};
             if let Some(var_typ) = complete_waarde.type_van() {
                 if var_typ != VariabeleType::Getal && var_typ != VariabeleType::Rij && var_typ != VariabeleType::Rijsym && var_typ != VariabeleType::Teller {
@@ -144,7 +143,7 @@ impl EcolMachine {
 
                 let result = complete_waarde.haal_getal(positie)?.to_string();
 
-                werk_expressie.replace_range(werk_variabele.start()..werk_variabele.einde(), &result.trim());
+                werk_expressie.replace_range(werk_variabele.start()..werk_variabele.einde(), result.trim());
 
             } else {
                 return Err(EcolFout::FoutMelding(format!("Variabele {:?} is niet goed opgeslagen", werk_variabele.variabele_naam())));

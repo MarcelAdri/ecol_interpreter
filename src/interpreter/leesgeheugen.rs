@@ -55,10 +55,7 @@ impl LeesGeheugen {
         self.leessym_hervat_bij = Some(regelnummer)
     }
     pub(super) fn leessym_waarde(&mut self) -> Option<f32> {
-        match self.leessym_buffer.pop_front() {
-            Some(w) => Some(w as f32),
-            None => None,
-        }
+        self.leessym_buffer.pop_front().map(|w| w as f32)
     }
     pub(super) fn schrijf_leessym_waarde(&mut self, waarde: f32) {
         self.leessym_buffer.push_back(waarde as u8);

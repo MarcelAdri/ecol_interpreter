@@ -6,9 +6,11 @@ use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::errors::EcolFout;
 //use crate::interpreter::errors::EcolFout::{WachtOpLees, WachtOpLeessym};
 use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string};
-use crate::interpreter::interpreter::SYMBOLEN;
+use crate::interpreter::machine::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud, SprongDoel, SubDef};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
+
+type UitvoeringResultaat = Result<(Option<String>, Option<u16>, Option<WhatsNext>), EcolFout>;
 
 pub(super) enum Context {
     Direct,
@@ -25,7 +27,7 @@ pub(super) enum WhatsNext {
 impl EcolMachine {
     pub(super) fn execute_help(&self) -> Result<String, EcolFout> {
         if let Some(window) = web_sys::window() {
-            let geopend = window.open_with_url_and_target(crate::interpreter::interpreter::HELP_PAGINA, "_blank");
+            let geopend = window.open_with_url_and_target(crate::interpreter::machine::HELP_PAGINA, "_blank");
             match geopend {
                 Ok(_) => Ok("Zie het help-document in ander tabblad.".to_string()),
                 Err(_) => Err(EcolFout::FoutMelding("Kon het help-document niet openen.".to_string())),
@@ -80,7 +82,7 @@ impl EcolMachine {
         let start = self. solve_expression(start_expressie, lees_geheugen)?;
         let stop = self. solve_expression(stop_expressie, lees_geheugen)?;
 
-        Ok(self.teller_nieuw(variabele_naam, stap, start, stop, volgende_regel)?)
+        self.teller_nieuw(variabele_naam, stap, start, stop, volgende_regel)
     }
     pub(super) fn execute_naar(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, sprong_doel: &SprongDoel, current: &u16) -> Result<Option<u16>, EcolFout> {
         match sprong_doel.regelnummer() {
@@ -156,10 +158,10 @@ impl EcolMachine {
         let (mantisse_deel, exp_deel) = s.split_once('E').unwrap();
         let exp: i32 = exp_deel.parse::<i32>().unwrap() + 1;
 
-        let (teken, cijfers) = if mantisse_deel.starts_with('-') {
-            ("-", &mantisse_deel[1..])
+        let (teken, cijfers) = if let Some(cijfers) = mantisse_deel.strip_prefix('-') {
+            ("-", cijfers)
         } else {
-            ("+", &mantisse_deel[1..])
+            ("+", mantisse_deel.trim_start_matches('+'))
         };
 
         let ecol_mantisse = format!("0.{}", cijfers.replace('.', ""));
@@ -200,7 +202,7 @@ impl EcolMachine {
 
         loop {
             stappen += 1;
-            if stappen % 1000 == 0 && js_sys::Date::now() - start_tijd > 5000.0 {
+            if stappen.is_multiple_of(1000) && js_sys::Date::now() - start_tijd > 5000.0 {
                 return Err(EcolFout::FoutMelding("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string()));
             }
 
@@ -232,10 +234,8 @@ impl EcolMachine {
                 }
             };
 
-            match current_option {
-                Some(next_line) => { current = next_line; },
-                None => { }
-            }
+            if let Some(next_line) = current_option { current = next_line; }
+
             match whatsnext {
                 Some(WhatsNext::Break) => break,
                 Some(WhatsNext::Continue) => continue,
@@ -303,7 +303,7 @@ impl EcolMachine {
             }
         }
 
-        let _ = self.var_schrijf_waarde(variabele_naam, waarde)?;
+        self.var_schrijf_waarde(variabele_naam, waarde)?;
         Ok("".to_string())
     }
 
@@ -370,7 +370,7 @@ pub(super) fn execute_all (
     programma: &BTreeMap<u16, LineInhoud>,
     context: Context,
     lees_geheugen: &mut LeesGeheugen,
-    output: &mut dyn FnMut(&str)) -> Result<(Option<String>, Option<u16>, Option<WhatsNext>), EcolFout> {
+    output: &mut dyn FnMut(&str)) -> UitvoeringResultaat {
     let no_reply_string: Option<String> = None;
     let no_whats_next: Option<WhatsNext> = None;
     let no_next_line: Option<u16> = None;
@@ -443,12 +443,10 @@ pub(super) fn execute_all (
                             };
                             sub_current = regel_num + 1;
                             let sub_line= Line::new(sub_current, current_reg.clone());
-                            let (_, sub_next_line, whats_next) = execute_all(&sub_line, machine, &subroutine, Context::Subroutine, lees_geheugen, output)?;
-                            match sub_next_line {
-                                Some(next_line) => {
-                                    sub_current = next_line;
-                                },
-                                None => { }
+                            let (_, sub_next_line, whats_next) = execute_all(&sub_line, machine, subroutine, Context::Subroutine, lees_geheugen, output)?;
+
+                            if let Some(next_line) = sub_next_line {
+                                sub_current = next_line;
                             }
 
                             match whats_next {
@@ -500,20 +498,18 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    let mut next_line = no_next_line;
                     let sprong_doel = machine.teller_herhaal()?;
-                    match sprong_doel {
-                        Some(sprong) => {
-                            let doel = SprongDoel::Regel( sprong );
-                            match machine.execute_naar(programma, &doel, &opdracht.regelnummer())? {
-                                Some(regel) => next_line = Some(regel),
-                                None => {
-                                    return Err(EcolFout::FoutMelding("Interne FOUT bij HERHAAL-opdracht..".to_string()));
-                                }
-                            }
-                        },
-                        None => { }
-                    }
+                    let next_line = if let Some(sprong) = sprong_doel {
+                        let doel = SprongDoel::Regel( sprong );
+                        let resultaat = machine.execute_naar(programma, &doel, &opdracht.regelnummer())?;
+                        if resultaat.is_none() {
+                            return Err(EcolFout::FoutMelding("Interne FOUT bij HERHAAL-opdracht..".to_string()));
+                        }
+                        resultaat
+                    } else {
+                        no_next_line
+                    };
+
                     (no_reply_string, next_line, no_whats_next)
                 }
 
@@ -612,9 +608,9 @@ pub(super) fn execute_all (
         },
         LineInhoud::NR { aantal, .. } => {
             match context {
-                Context::Direct => { (Some(machine.execute_nr(&aantal, lees_geheugen)?), no_next_line, no_whats_next) },
+                Context::Direct => { (Some(machine.execute_nr(aantal, lees_geheugen)?), no_next_line, no_whats_next) },
                 Context::Programma | Context::Subroutine => {
-                    output(&machine.execute_nr(&aantal, lees_geheugen)
+                    output(&machine.execute_nr(aantal, lees_geheugen)
                         .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?);
                     no_reply
                 },
@@ -631,7 +627,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    _ = machine.execute_rij(&start, &eind, &variabele_naam, lees_geheugen)
+                    _ = machine.execute_rij(start, eind, variabele_naam, lees_geheugen)
                         .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
@@ -645,7 +641,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    _ = machine.execute_rijsym(&start, &eind, &variabele_naam, lees_geheugen)
+                    _ = machine.execute_rijsym(start, eind, variabele_naam, lees_geheugen)
                         .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
@@ -757,11 +753,11 @@ pub(super) fn execute_all (
         LineInhoud::Toekennen {variabele_naam, argument,  expressie, ..} => {
             match context {
                 Context::Direct => {
-                    _ = machine.execute_toekennen(&variabele_naam, &argument, &expressie, lees_geheugen)?;
+                    _ = machine.execute_toekennen(variabele_naam, argument, expressie, lees_geheugen)?;
                     no_reply
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    _ = machine.execute_toekennen(&variabele_naam, &argument, &expressie, lees_geheugen)
+                    _ = machine.execute_toekennen(variabele_naam, argument, expressie, lees_geheugen)
                         .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     no_reply
                 },
@@ -790,7 +786,7 @@ fn doe_naar(machine: &mut EcolMachine
             ,programma: &BTreeMap<u16, LineInhoud>
             ,sprong_doel: &SprongDoel
             ,regel: &u16
-,no_stop: bool) -> Result<(Option<String>, Option<u16>, Option<WhatsNext>), EcolFout> {
+,no_stop: bool) -> UitvoeringResultaat {
     match machine.execute_naar(programma, sprong_doel, regel)? {
         Some(regel) => {
             Ok((None, Some(regel), None))

@@ -109,7 +109,7 @@ fn vind_sluitende_haak(s: &str, open: usize) -> Result<usize, EcolFout> {
     Err(EcolFout::FoutMelding("Haakjespaar is niet gesloten".to_string()))
 }
 
-/// Splitst argumentenstring op komma's, waarbij haakjesdiepte wordt gerespecteerd.
+/// Splitst argumenten-string op komma's, waarbij haakjes-diepte wordt gerespecteerd.
 fn splits_argumenten(s: &str) -> Vec<String> {
     if s.trim().is_empty() {
         return vec![];
@@ -264,14 +264,14 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::NR => {
             let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
-            if argumenten.len() != 1 && argumenten.len() != 0 {
+            if argumenten.len() != 1 && !argumenten.is_empty() {
                 return Err(EcolFout::FoutMelding(format!("NR verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())))
             }
-            if argumenten.len() == 0 {
+            if argumenten.is_empty() {
                 argumenten.push("1".to_string());
             }
 
-            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(&rest_na_argumenten)? }))
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(rest_na_argumenten)? }))
         },
         Sleutelwoord::RIJ => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -283,7 +283,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
 
-            Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(&rest_na_variabele)? }))
+            Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(rest_na_variabele)? }))
         },
         Sleutelwoord::RIJSYM => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -295,7 +295,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
 
-            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(&rest_na_variabele)? }))
+            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(rest_na_variabele)? }))
         }
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else {
@@ -303,7 +303,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             };
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));
             let argument: String;
-            if argumenten.len() == 0 {
+            if argumenten.is_empty() {
                 argument = "".to_string();
             } else if argumenten.len() == 1 {
                 argument = argumenten[0].clone();
@@ -327,12 +327,12 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::SCHRIJF => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
-            if argumenten.len() != 2 && argumenten.len() != 0 {
+            if argumenten.len() != 2 && !argumenten.is_empty() {
                 return Err(EcolFout::FoutMelding(format!("SCHRIJF verwacht geen of twee argumenten. {} argumenten aangetroffen", argumenten.len())))
             }
             let breedte: usize;
             let decimalen: usize;
-            if argumenten.len() == 0 {
+            if argumenten.is_empty() {
                 breedte = 0;
                 decimalen = 0;
             } else {
@@ -369,14 +369,14 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::SPATIE => {
             let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
-            if argumenten.len() != 1 && argumenten.len() != 0 {
+            if argumenten.len() != 1 && !argumenten.is_empty() {
                 return Err(EcolFout::FoutMelding(format!("SPATIE verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())))
             }
-            if argumenten.len() == 0 {
+            if argumenten.is_empty() {
                 argumenten.push("1".to_string());
             }
             
-            Ok(Line::new(regelnummer, LineInhoud::Spatie{ aantal: argumenten[0].clone(), opm: vind_opmerking(&rest_na_argumenten)? }))
+            Ok(Line::new(regelnummer, LineInhoud::Spatie{ aantal: argumenten[0].clone(), opm: vind_opmerking(rest_na_argumenten)? }))
         },
         Sleutelwoord::BEWAAR => {
             if regelnummer == 0 {
@@ -407,7 +407,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
 
-            Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam), opm: vind_opmerking(&rest_na_variabele)? }))
+            Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam), opm: vind_opmerking(rest_na_variabele)? }))
         }
     }
 
@@ -448,7 +448,7 @@ pub(super) fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
     None
 }
 
-/// Na de variabelenaam: sla spaties over, en als er een `(...)` volgt neem die mee als index.
+/// Na de variabelenaam: sla spaties over, en als er een `(...)` volgt, neem die mee als index.
 /// Geeft `(Some(index_expressie), einde_na_haakje)` of `(None, naam_einde)` terug.
 fn haal_index_expressie(expressie: &str, naam_einde: usize) -> (Option<String>, usize) {
     let rest = &expressie[naam_einde..];

@@ -77,10 +77,7 @@ pub(super) fn symbolen_reverse(symbool: char) -> Option<u8> {
     let mut i = 0usize;
 
     loop {
-        match SYMBOLEN[i] {
-            Some(s) => {if s == symbool {return Some(i as u8)}},
-            None => { },
-        }
+        if let Some(s) = SYMBOLEN[i] {if s == symbool {return Some(i as u8)}}
         i += 1;
         if i > 99 {
             break;
@@ -165,9 +162,7 @@ impl VariabelenOpslag {
     fn lees_waarde(&self, naam: &str) -> Option<Waarde> {
         if let Some(index) = self.symbolen.get(naam) {
             let waarde = self.data_pool[*index].clone();
-            if waarde.type_van().is_none() {
-                return None;
-            }
+            waarde.type_van()?;
             Some(waarde)
         } else {
             None
@@ -187,13 +182,13 @@ impl VariabelenOpslag {
                 return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: variabele '{}' niet opgeslagen.", naam)));
             };
             doelwaarde = doel_waarde;
-            if doelwaarde.type_van() != None {
-                if doelwaarde.type_van() != waarde.type_van() {
+            if doelwaarde.type_van().is_some()
+                && doelwaarde.type_van() != waarde.type_van() {
                     return Err(EcolFout::FoutMelding(format!("Variabele '{}' is gedefinieerd als een {}, en de waarde om op te slaan is een {}."
                                        ,naam
                                        ,doelwaarde.type_van().unwrap().to_string()
                                        ,waarde.type_van().unwrap().to_string())));
-                }
+
             }
         }
 
@@ -232,6 +227,7 @@ pub struct EcolMachine {
     seed: u64,
 }
 impl EcolMachine {
+    #[allow(clippy::new_without_default)] // seed is time-dependent, Default would be misleading
     pub fn new() -> Self {
         EcolMachine {
             variabelen_opslag: VariabelenOpslag::new(),
@@ -338,7 +334,7 @@ impl EcolMachine {
         }
     }
     pub(super) fn teller_herhaal(&mut self) -> Result<Option<u16>, EcolFout> {
-        if self.actieve_tellers.len() == 0 {
+        if self.actieve_tellers.is_empty() {
             return Err(EcolFout::FoutMelding("HERHAAL zonder MET aangetroffen.".to_string()))
         }
         let last = self.actieve_tellers.len() - 1;
@@ -376,7 +372,7 @@ impl EcolMachine {
         self.regel_buffer.leeg_regel_buffer()
     }
     pub(super) fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
-        &self.programma.programma()
+        self.programma.programma()
     }
     pub(super) fn laad_programma(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
         self.programma.laad(bron);
@@ -450,7 +446,7 @@ impl EcolMachine {
                 None => return "Alleen symbolen kunnen ingegeven worden. Geef opnieuw in.".to_string(),
             }
         } else {
-            match parseer_regel(&input){
+            match parseer_regel(input){
                 Ok(regel) => {
                     if regel.regelnummer() == 0 {
                         let programma = BTreeMap::new();
@@ -488,7 +484,7 @@ impl EcolMachine {
                     }
                 }
                 Err(e) => {
-                    return format!("Ongeldige invoer: {}" ,e.to_string());
+                    return format!("Ongeldige invoer: {}" ,e);
                 }
             }
         };

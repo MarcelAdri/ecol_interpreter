@@ -1,4 +1,4 @@
-mod interpreter;
+mod machine;
 mod waarden;
 mod program;
 mod parsers;
@@ -10,5 +10,5 @@ mod vergelijkingen;
 mod errors;
 mod leesgeheugen;
 
-pub use interpreter::{EcolMachine};
+pub use machine::{EcolMachine};
 pub use leesgeheugen::{LeesGeheugen};

@@ -16,7 +16,6 @@ pub(super) fn argumenten_to_vec(input: &str) -> Vec<String> {
 }
 pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
     let werkstring = input.trim_start();
-    let resultaat: Sleutelwoord;
 
     if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
         let (variabele, rest_na_variabele) = extract_variabele_naam(werkstring).unwrap_or(("", werkstring.trim_start()));
@@ -28,40 +27,33 @@ pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
     let position = werkstring.find(|c: char| !c.is_ascii_uppercase()).unwrap_or(werkstring.len());
     let (keyword_string, rest) = werkstring.split_at(position);
 
-    if keyword_string.trim_start().starts_with("FUN") {
+    let resultaat: Sleutelwoord = if keyword_string.trim_start().starts_with("FUN") {
         if rest.trim_start().chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
-            resultaat = Sleutelwoord::FUNstart;
+            Sleutelwoord::FUNstart
         } else {
-            resultaat = Sleutelwoord::FUNeind;
+            Sleutelwoord::FUNeind
         }
     } else {
-        let Some(res) = Sleutelwoord::from_string(keyword_string.trim_start()) else { return None };
-        resultaat = res;
-    }
+        Sleutelwoord::from_string(keyword_string.trim_start())?
+    };
 
 
     Some((resultaat, rest.trim_start()))
 }
 pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), EcolFout> {
-    let restregel: &str;
-    let regelnummer: u16;
-    let nummer: &str;
     let is_alleen_regelnummer: bool = input.trim().chars().all(|c| c.is_ascii_digit());
 
-    if is_alleen_regelnummer {
-        nummer = input.trim();
-        restregel = "";
+    let (nummer, restregel) = if is_alleen_regelnummer {
+        (input.trim(), "")
     } else if let Some(positie) = input.find(|c: char| c.is_ascii_alphabetic() || c == ':') {
         let (gevonden_nummer, rest) = input.split_at(positie);
-        nummer = gevonden_nummer;
-        restregel = rest.trim_start();
+        (gevonden_nummer, rest.trim_start())
     } else {
-        nummer = "0";
-        restregel = input.trim_start();
-    }
+        ("0", input.trim_start())
+    };
 
     let Some(resultaat_parsing) = nummer.trim().parse::<u16>().ok() else { return Ok((0u16, input.trim_start(), is_alleen_regelnummer)) };
-    regelnummer = resultaat_parsing;
+    let regelnummer = resultaat_parsing;
     if regelnummer > 999u16 { return Err(EcolFout::FoutMelding("Regelnummer mag niet groter zijn dan 999".to_string())) };
 
 
@@ -209,7 +201,7 @@ pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
 pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
-    if getal.is_nan() || getal < &0.0 || getal > &99.0 {
+    if getal.is_nan() || (&0.0..=&99.0).contains(&getal) {
         return Err(EcolFout::FoutMelding(format!("Waarde {} is ongeldig (xxxSYM verwacht 0–99).", getal)));
     }
     Ok(*getal as u8)

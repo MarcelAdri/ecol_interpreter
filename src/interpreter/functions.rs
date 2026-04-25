@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Display;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::errors::EcolFout;
 use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, grens_bewaking};
@@ -9,6 +10,7 @@ use crate::interpreter::waarden::{VariabeleType, Waarde};
 pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
 pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum FunctieNaam {
     ABS,
@@ -51,28 +53,6 @@ impl FunctieNaam {
             _ => None,
         }
     }
-
-    pub(super) fn to_string(&self) -> String {
-        match self {
-            Self::ABS => "ABS".to_string(),
-            Self::ARCTAN => "ARCTAN".to_string(),
-            Self::BOVIN => "BOVIN".to_string(),
-            Self::COS => "COS".to_string(),
-            Self::EXP => "EXP".to_string(),
-            Self::G => "G".to_string(),
-            Self::GOK => "GOK".to_string(),
-            Self::GOKC => "GOKC".to_string(),
-            Self::LEES => "LEES".to_string(),
-            Self::LEESSYM => "LEESSYM".to_string(),
-            Self::LN => "LN".to_string(),
-            Self::LOG => "LOG".to_string(),
-            Self::ONDIN => "ONDIN".to_string(),
-            Self::PS => "PS".to_string(),
-            Self::SIN => "SIN".to_string(),
-            Self::WRTL => "WRTL".to_string(),
-        }
-    }
-
     pub(super) fn verwacht_argumenten(&self) -> usize {
         match self {
             Self::ABS => 1,
@@ -98,6 +78,12 @@ impl FunctieNaam {
         matches!(self, Self::ONDIN | Self::BOVIN)
     }
 }
+impl Display for FunctieNaam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+#[allow(clippy::upper_case_acronyms)]
 pub(super) enum Functie {
     ABS { getal: f32 },
     ARCTAN { getal: f32 },
@@ -119,7 +105,7 @@ pub(super) enum Functie {
 impl Functie {
     pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, rij_naam: &str) -> Result<Self, EcolFout> {
         if argumenten.len() != functienaam.verwacht_argumenten() {
-            return Err(EcolFout::FoutMelding(format!("Verkeerd aantal argumenten voor '{}'", functienaam.to_string())));
+            return Err(EcolFout::FoutMelding(format!("Verkeerd aantal argumenten voor '{}'", functienaam)));
         }
         match functienaam {
             FunctieNaam::ABS => Ok(Functie::ABS { getal: argumenten[0] }),
@@ -159,31 +145,34 @@ impl EigenFunctie {
         if argumenten.len() != functie.parameters().len() {
             return Err(EcolFout::FoutMelding(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters().len(), argumenten.len())));
         }
-        machine.functie_omgeving.laad_programma(&functie.body());
+        machine.functie_omgeving.laad_programma(functie.body());
         machine.functie_omgeving.laad_functies(functies);
 
-        for index in 0..functie.parameters().len() {
-            let mut naam = functie.parameters()[index].to_string();
+        for (index, (param, argument)) in functie.parameters().iter()
+            .zip(argumenten.iter())
+            .enumerate()
+        {
+            let mut naam = param.to_string();
             if geen_spaties(&naam).starts_with("RIJSYM") {
                 naam = geen_spaties(&naam[6..]);
-                if argumenten[index].type_van() != Some(VariabeleType::Rijsym) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string())));
+                if argument.type_van() != Some(VariabeleType::Rijsym) {
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}.", index + 1, argument.type_van().unwrap().to_string())));
                 }
-                let (begin, einde) = argumenten[index].rij_haal_grenswaarden();
+                let (begin, einde) = argument.rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
             } else if geen_spaties(&naam).starts_with("RIJ") {
                 naam = geen_spaties(&naam[3..]);
-                if argumenten[index].type_van() != Some(VariabeleType::Rij) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string())));
+                if argument.type_van() != Some(VariabeleType::Rij) {
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}.", index + 1, argument.type_van().unwrap().to_string())));
                 }
-                let (begin, einde) = argumenten[index].rij_haal_grenswaarden();
+                let (begin, einde) = argument.rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
             } else {
-                if argumenten[index].type_van() != Some(VariabeleType::Getal) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}.", index + 1, argumenten[index].type_van().unwrap().to_string())));
+                if argument.type_van() != Some(VariabeleType::Getal) {
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}.", index + 1, argument.type_van().unwrap().to_string())));
                 }
             }
-            machine.functie_omgeving.var_schrijf_waarde(&naam, argumenten[index].clone())?;
+            machine.functie_omgeving.var_schrijf_waarde(&naam, argument.clone())?;
         }
 
         let programma = machine.functie_omgeving.programma().clone();
@@ -198,34 +187,26 @@ impl EigenFunctie {
 
             match current_regel {
                 LineInhoud::FunEind { expressie, ..} => {
-                    return Ok(machine.functie_omgeving.solve_expression(&expressie, lees_geheugen)?);
+                    return machine.functie_omgeving.solve_expression(expressie, lees_geheugen);
                 },
                 _ => {
                     let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie, lees_geheugen, &mut |_| {})?;
-                    match reply_option {
-                        Some(r) => {
-                            let reply: String = r;
-                            return Ok(reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()))?);
-                        },
-                        None => {},
+
+                    if let Some(r) = reply_option {
+                        let reply: String = r;
+                        return reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()));
                     }
 
-                    match nextline_option {
-                        Some(nextline) => {
-                            current = nextline;
-                            continue;
-                        },
-                        None => {},
+                    if let Some(nextline) = nextline_option {
+                        current = nextline;
+                        continue;
                     }
 
-                    match whatsnext_option {
-                        Some(whatsnext) => {
-                            match whatsnext {
-                                WhatsNext::Break => break,
-                                WhatsNext::Continue => continue,
-                            }
-                        },
-                        None => {},
+                    if let Some(whatsnext) = whatsnext_option {
+                        match whatsnext {
+                            WhatsNext::Break => break,
+                            WhatsNext::Continue => continue,
+                        }
                     }
                 }
             }
@@ -241,10 +222,10 @@ impl EigenFunctie {
 impl EcolMachine {
     pub(super) fn execute_function(&mut self, lees_geheugen: &mut LeesGeheugen, functie: &Functie) -> Result<f32, EcolFout> {
 
-        let result = match functie {
+        match functie {
             Functie::ABS { getal } => { let uitkomst = self.execute_function_abs(getal)?; Ok(uitkomst) },
             Functie::ARCTAN { getal } => { let uitkomst = self.execute_function_arctan(getal)?; Ok(uitkomst) },
-            Functie::BOVIN { variabele_naam } => { let uitkomst = self.execute_function_bovin(&variabele_naam)?; Ok(uitkomst) },
+            Functie::BOVIN { variabele_naam } => { let uitkomst = self.execute_function_bovin(variabele_naam)?; Ok(uitkomst) },
             Functie::COS { getal } => { let uitkomst = self.execute_function_cos(getal)?; Ok(uitkomst) },
             Functie::EXP { getal } => { let uitkomst = self.execute_function_exp(getal)?; Ok(uitkomst) },
             Functie::G { getal } => { let uitkomst = self.execute_function_g(getal)?; Ok(uitkomst) },
@@ -254,13 +235,11 @@ impl EcolMachine {
             Functie::LEESSYM { } => { let uitkomst = self.execute_function_leessym(lees_geheugen)?; Ok(uitkomst) },
             Functie::LN { getal } => { let uitkomst = self.execute_function_ln(getal)?; Ok(uitkomst) },
             Functie::LOG { getal } => { let uitkomst = self.execute_function_log(getal)?; Ok(uitkomst) },
-            Functie::ONDIN { variabele_naam } => { let uitkomst = self.execute_function_ondin(&variabele_naam)?; Ok(uitkomst) },
+            Functie::ONDIN { variabele_naam } => { let uitkomst = self.execute_function_ondin(variabele_naam)?; Ok(uitkomst) },
             Functie::PS { } => { let uitkomst = self.execute_function_ps()?; Ok(uitkomst) },
             Functie::SIN { getal } => { let uitkomst = self.execute_function_sin(getal)?; Ok(uitkomst) },
             Functie::WRTL { getal} => { let uitkomst = self.execute_function_wrtl(getal)?; Ok(uitkomst) },
-        };
-
-        result
+        }
     }
     fn execute_function_abs(&self, getal: &f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::collections::BTreeMap;
 use crate::interpreter::errors::EcolFout;
 use crate::interpreter::helpers::{extract_opmerking, geen_spaties, vind_opmerking};
@@ -19,27 +20,26 @@ impl Line {
         }
     }
     pub(super) fn genereer_regel(&self) -> String {
-        let regelnummer:String;
-        if self.regelnummer == 0 {
-            regelnummer = "".to_string();
+        let regelnummer:String =  if self.regelnummer == 0 {
+            "".to_string()
         } else {
-            regelnummer = format!("{:>4} ", self.regelnummer);
-        }
+            format!("{:>4} ", self.regelnummer)
+        };
         match &self.inhoud {
             LineInhoud::Als { vergelijking, dan, anders, opm } => {
                 match anders {
                     Some( x ) => format!("{}ALS {} DAN {} ANDERS {}{}"
                                          ,regelnummer
                                          ,vergelijking
-                                         ,dan.to_string()
-                                         ,x.to_string()
+                                         ,dan
+                                         ,x
                                          ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                         .trim_start()
                         .to_string(),
                     None => format!("{}ALS {} DAN {}{}"
                                     ,regelnummer
                                     ,vergelijking
-                                    ,dan.to_string()
+                                    ,dan
                                     ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                         .trim_start()
                         .to_string(),
@@ -116,7 +116,7 @@ impl Line {
                     .to_string() },
             LineInhoud::Naar { sprong_doel, opm } => format!("{}NAAR {}{}"
                                                              ,regelnummer
-                                                             ,sprong_doel.to_string()
+                                                             ,sprong_doel
                                                              ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
                 .trim_start()
                 .to_string(),
@@ -196,7 +196,7 @@ impl Line {
                     .trim_start()
                     .to_string(),
             LineInhoud::Toekennen { variabele_naam, argument, expressie,opm } =>
-                if *argument == "" {
+                if argument.is_empty() {
                     format!("{}{} := {}{}"
                             ,regelnummer
                             ,variabele_naam
@@ -231,13 +231,6 @@ pub(super) enum SprongDoel {
 }
 
 impl SprongDoel {
-    fn to_string(&self) -> String {
-        match self {
-            SprongDoel::Regel(regelnummer) => format!("{}", regelnummer),
-            SprongDoel::Stop => "STOP".to_string(),
-        }
-    }
-
     pub(super) fn regelnummer(&self) -> Option<u16> {
         match self {
             SprongDoel::Regel(regelnummer) => Some(*regelnummer),
@@ -246,19 +239,25 @@ impl SprongDoel {
     }
 
     pub(super) fn vul(bron: &str) -> Result<Self, EcolFout> {
-        let reply: SprongDoel;
-        if geen_spaties(bron) == "STOP" {
-            reply = SprongDoel::Stop;
+        let reply: SprongDoel = if geen_spaties(bron) == "STOP" {
+            SprongDoel::Stop
         } else {
-            let regelnummer = bron.trim().parse::<u16>().map_err(|_| "Ongeldig regelnummer-getal.".to_string())
-                .map_err(|e| EcolFout::FoutMelding(e))?;
-            if regelnummer <1 || regelnummer > 999 {
+            let regelnummer = bron.trim().parse::<u16>().map_err(|_| EcolFout::FoutMelding("Ongeldig regelnummer-getal.".to_string()))?;
+            if !(1..=999).contains(&regelnummer) {
                 return Err(EcolFout::FoutMelding("Regelnummer moet tussen 1 en 999 (inclusief) liggen.".to_string()));
             }
-            reply = SprongDoel::Regel(regelnummer);
+            SprongDoel::Regel(regelnummer)
 
-        }
+        };
         Ok(reply)
+    }
+}
+impl fmt::Display for SprongDoel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SprongDoel::Regel(n) => write!(f, "{}", n),
+            SprongDoel::Stop => write!(f, "STOP"),
+        }
     }
 }
 
@@ -478,12 +477,11 @@ fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     if rechts.abs() > 1000000.0 {
         return Err(EcolFout::FoutMelding(format!("Exponent {} is te groot voor machtsverheffen in ECOL ({} M {}).", rechts, links, rechts)));
     }
-    let resultaat: f32;
-    if rechts.fract() == 0.0 {
-        resultaat = links.powi(rechts as i32)
+    let resultaat: f32 = if rechts.fract() == 0.0 {
+        links.powi(rechts as i32)
     } else {
-        resultaat = links.powf(rechts);
-    }
+        links.powf(rechts)
+    };
     if resultaat.is_infinite() || resultaat.is_nan() {
         return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} M {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
     }
@@ -524,7 +522,7 @@ impl Programma {
 
     }
 }
-
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sleutelwoord {
     ALS,
@@ -596,8 +594,8 @@ impl FunDef {
     pub(super) fn parameters(&self) -> &Vec<String> {
         &self.parameters
     }
-    pub(super) fn set_parameters(&mut self, parameters: &Vec<String>) {
-        self.parameters = parameters.clone();
+    pub(super) fn set_parameters(&mut self, parameters: &[String]) {
+        self.parameters = parameters.to_owned();
     }
     pub(super) fn body(&self) -> &BTreeMap<u16, LineInhoud> {
         &self.body
