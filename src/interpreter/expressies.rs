@@ -45,7 +45,7 @@ impl EcolMachine {
         self.vervang_eigen_functies_in_expressie(&mut werk_expressie, lees_geheugen)?;
         self.vervang_variabelen_in_expressie(&mut werk_expressie, lees_geheugen)?;
         self.bereken_expressie(&mut werk_expressie, lees_geheugen)?;
-        //panic!("expressie: {}", werk_expressie);
+        
         let resultaat = f32::from_str(&werk_expressie);
 
         match resultaat {
@@ -103,9 +103,10 @@ impl EcolMachine {
                 return Err(EcolFout::FoutMelding(format!("Functie {} verwacht {} argumenten, maar {} argumenten zijn opgegeven.", naam, verwachte_argumenten.len(), argumenten.len())));
             }
 
-            for index in 0..verwachte_argumenten.len() {
-                let verwacht_argument = &verwachte_argumenten[index];
-                let argument = &argumenten[index];
+            for (index, (verwacht_argument, argument)) in verwachte_argumenten.iter()
+                .zip(argumenten.iter())
+                .enumerate()
+            {
                 if verwacht_argument.starts_with("RIJSYM"){
                     if self.var_type_van(argument) != Some(VariabeleType::Rijsym) {
                         return Err(EcolFout::FoutMelding(format!("Argument {} van functie {} verwacht een RIJSYM, maar {} is opgegeven.", index + 1, naam, argument)));
@@ -161,9 +162,7 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
     for groep in Operator::operator_prioriteiten() {
         loop {
             let mut gevonden: Option<(usize, Operator)> = None;
-            let mut i = 0usize;
-            while i < werk_expressie.len() {
-                let c = werk_expressie.as_bytes()[i] as char;
+            for (i, c) in werk_expressie.char_indices() {
                 if let Some(o) = Operator::from_char(c) {
                     if groep.contains(&o) {
                         let links_pos = vind_operand_links(&werk_expressie, i);
@@ -173,8 +172,8 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
                         }
                     }
                 }
-                i += 1;
             }
+
             let Some((operator_positie, o)) = gevonden else { break; };
 
             let links_pos = vind_operand_links(&werk_expressie, operator_positie);
@@ -233,21 +232,18 @@ fn vind_operand_links(expr: &str, op_pos: usize) -> usize {
     i
 }
 fn vind_operand_rechts(expr: &str, op_pos: usize) -> usize {
-    let bytes = expr.as_bytes();
-    let mut i = op_pos + 1;
+    let mut einde = expr[op_pos + 1..].len();
 
-    while i < expr.len() {
-        let c = bytes[i] as char;
-        if i == op_pos + 1 && c == '-' {
-            i += 1;
+    for (i, c) in expr[op_pos + 1..].char_indices() {
+        if i == 0 && c == '-' {
             continue;
         }
         if c.is_ascii_digit() || c == '.' {
-            i += 1;
-        } else {
-            break;
+            continue;
         }
-    }
+        einde = i;
+        break;
+    };
 
-    i
+    einde + op_pos + 1
 }

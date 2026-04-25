@@ -156,20 +156,38 @@ impl EigenFunctie {
             if geen_spaties(&naam).starts_with("RIJSYM") {
                 naam = geen_spaties(&naam[6..]);
                 if argument.type_van() != Some(VariabeleType::Rijsym) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}.", index + 1, argument.type_van().unwrap().to_string())));
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}."
+                                                             ,index + 1
+                                                             ,argument
+                                                                 .type_van()
+                                                                 .map(|t| t.to_string())
+                                                                 .unwrap_or_else(|| "onbekend type" )
+                                                                 .to_string())));
                 }
                 let (begin, einde) = argument.rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
             } else if geen_spaties(&naam).starts_with("RIJ") {
                 naam = geen_spaties(&naam[3..]);
                 if argument.type_van() != Some(VariabeleType::Rij) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}.", index + 1, argument.type_van().unwrap().to_string())));
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}."
+                                                             ,index + 1
+                                                             ,argument
+                                                                 .type_van()
+                                                                 .map(|t| t.to_string())
+                                                                 .unwrap_or_else(|| "onbekend type" )
+                                                                 .to_string())));
                 }
                 let (begin, einde) = argument.rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
             } else {
                 if argument.type_van() != Some(VariabeleType::Getal) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}.", index + 1, argument.type_van().unwrap().to_string())));
+                    return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}."
+                                                             ,index + 1
+                                                             ,argument
+                                                                 .type_van()
+                                                                 .map(|t| t.to_string())
+                                                                 .unwrap_or_else(|| "onbekend type" )
+                                                                 .to_string())));
                 }
             }
             machine.functie_omgeving.var_schrijf_waarde(&naam, argument.clone())?;

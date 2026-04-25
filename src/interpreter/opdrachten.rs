@@ -155,9 +155,13 @@ impl EcolMachine {
         }
         let s = format!("{:+E}", value);
 
-        let (mantisse_deel, exp_deel) = s.split_once('E').unwrap();
-        let exp: i32 = exp_deel.parse::<i32>().unwrap() + 1;
-
+        let Some((mantisse_deel, exp_deel)) = s.split_once('E') else {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor waarde: {}", s)));
+        };
+        let Ok(e) = exp_deel.parse::<i32>() else {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor exponent: {}", exp_deel)));
+        };
+        let exp = e + 1;
         let (teken, cijfers) = if let Some(cijfers) = mantisse_deel.strip_prefix('-') {
             ("-", cijfers)
         } else {
@@ -250,7 +254,6 @@ impl EcolMachine {
         Ok("".to_string())
     }
     pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, argument: &str, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
-        //panic!(" Expressie: {}", expressie);
         let value = self.solve_expression(expressie, lees_geheugen)?;
         let arg = if argument.is_empty() {
             0usize

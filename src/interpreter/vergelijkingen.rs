@@ -135,7 +135,7 @@ impl EcolMachine {
                 Some(pos) => {
                     links = &expressie[..pos];
                     rechts = &expressie[pos + operator.len()..];
-                    operator_teken = Vergelijking::from_string(operator).unwrap();
+                    operator_teken = Vergelijking::from_string(operator).map_err(EcolFout::FoutMelding)?;
                     break;
                 }
                 None => continue,

@@ -60,16 +60,18 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
     }
 
     // 4. Zoek openingshaakje
-    if !expressie[einde_naam..].trim_start().starts_with('(') {
+    let rest = expressie[einde_naam..].trim_start();
+    let Some(mut argumenten_str) = rest.strip_prefix('(') else {
         return Err(EcolFout::FoutMelding(format!("'(' verwacht na '{}'", functienaam)));
-    }
-    let abs_open = einde_naam + expressie[einde_naam..].find('(').unwrap();
+    };
+
+    //let abs_open = einde_naam +  expressie[einde_naam..].find('(').unwrap();
 
     // 5. Zoek bijbehorend sluithaakje (haakjes-diepte meetellen)
-    let abs_sluit = vind_sluitende_haak(expressie, abs_open)?;
+    let abs_sluit = vind_sluitende_haak(rest)?;
 
     // 6. Parseer argumenten
-    let argumenten_str = &expressie[abs_open + 1..abs_sluit];
+    argumenten_str = &rest[1..abs_sluit];
     let argumenten = splits_argumenten(argumenten_str);
 
     if argumenten.len() != functie.verwacht_argumenten() && !functie.verwacht_string_argument() {
@@ -91,17 +93,15 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
 }
 
 /// Zoekt de `)` die hoort bij de `(` op `open`-positie in `s`.
-fn vind_sluitende_haak(s: &str, open: usize) -> Result<usize, EcolFout> {
+fn vind_sluitende_haak(s: &str) -> Result<usize, EcolFout> {
+    // s begint op de '('
     let mut diepte = 0usize;
-
-    for (i, c) in s[open..].char_indices() {
+    for (i, c) in s.char_indices() {
         match c {
             '(' => diepte += 1,
             ')' => {
                 diepte -= 1;
-                if diepte == 0 {
-                    return Ok(open + i);
-                }
+                if diepte == 0 { return Ok(i); }
             }
             _ => {}
         }
@@ -314,7 +314,6 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
             };
             let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
-            //panic!("expressie: {}, opmerking: {}, input: {}", expressie, opmerking, rest_na_wordt_teken);
             Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam: variabele_naam.to_string(), argument, expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::TEKST => {
@@ -455,11 +454,12 @@ fn haal_index_expressie(expressie: &str, naam_einde: usize) -> (Option<String>, 
     if !rest.trim_start().starts_with('(') {
         return (None, naam_einde);
     }
-    let abs_open = naam_einde + rest.find('(').unwrap();
-    match vind_sluitende_haak(expressie, abs_open) {
-        Ok(abs_sluit) => {
-            let index_str = expressie[abs_open + 1..abs_sluit].trim().to_string();
-            (Some(index_str), abs_sluit + 1)
+    let rest_getrimd = rest.trim_start();  // begint op '('
+    match vind_sluitende_haak(rest_getrimd) {
+        Ok(rel_sluit) => {
+            let inhoud = rest_getrimd[1..rel_sluit].trim().to_string();
+            let abs_sluit = naam_einde + (rest.len() - rest_getrimd.len()) + rel_sluit;
+            (Some(inhoud), abs_sluit + 1)
         }
         Err(_) => (None, naam_einde),
     }

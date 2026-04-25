@@ -155,9 +155,10 @@ impl VariabelenOpslag {
         Ok(())
     }
     fn wis_variabele(&mut self, variabele_naam: &str)  {
-        let index = self.symbolen[variabele_naam];
-        self.data_pool[index] = Waarde::NogNietBepaald;
-        self.symbolen.remove(variabele_naam);
+        if let Some(index) = self.symbolen.get(variabele_naam) {
+            self.data_pool[*index] = Waarde::NogNietBepaald;
+            self.symbolen.remove(variabele_naam);
+        }
     }
     fn lees_waarde(&self, naam: &str) -> Option<Waarde> {
         if let Some(index) = self.symbolen.get(naam) {
@@ -187,7 +188,11 @@ impl VariabelenOpslag {
                     return Err(EcolFout::FoutMelding(format!("Variabele '{}' is gedefinieerd als een {}, en de waarde om op te slaan is een {}."
                                        ,naam
                                        ,doelwaarde.type_van().unwrap().to_string()
-                                       ,waarde.type_van().unwrap().to_string())));
+                                       ,waarde
+                                                                 .type_van()
+                                                                 .map(|t| t.to_string())
+                                                                 .unwrap_or_else(|| "onbekend type" )
+                                                                 .to_string())));
 
             }
         }
@@ -334,11 +339,10 @@ impl EcolMachine {
         }
     }
     pub(super) fn teller_herhaal(&mut self) -> Result<Option<u16>, EcolFout> {
-        if self.actieve_tellers.is_empty() {
-            return Err(EcolFout::FoutMelding("HERHAAL zonder MET aangetroffen.".to_string()))
-        }
-        let last = self.actieve_tellers.len() - 1;
-        let naam = self.actieve_tellers[last].clone();
+        let naam = self.actieve_tellers.last()
+            .ok_or_else(|| EcolFout::FoutMelding("HERHAAL zonder MET aangetroffen.".to_string()))?
+            .clone();
+
         let Some(mut teller) = self.var_lees_waarde(&naam) else {
             return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: Teller '{}' bestaat niet.", naam)))
         };
