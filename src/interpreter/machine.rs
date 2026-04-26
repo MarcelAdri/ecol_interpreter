@@ -364,6 +364,9 @@ impl EcolMachine {
         }
 
     }
+    pub(super) fn heeft_open_tellers(&self) -> bool {
+        !self.actieve_tellers.is_empty()
+    }
     pub(super) fn naar_regel_buffer(&mut self, regel: &str) -> Result<(), EcolFout>{
         self.regel_buffer.naar_regel_buffer(regel)?;
 

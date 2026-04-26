@@ -50,6 +50,10 @@ impl EcolMachine {
 
         match resultaat {
             Ok(result) => {
+                if result.is_infinite() || result.is_nan() {
+                    return Err(EcolFout::FoutMelding(format!("Rekenkundig overflow: '{}' is te groot of ongeldig", expressie)));
+                }
+                controleer_precisie(result, &werk_expressie)?;
                 Ok(result)
             }
             Err(e) => {
@@ -185,8 +189,13 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
 
             match (links_poging, rechts_poging) {
                 (Ok(links), Ok(rechts)) => {
-                    let uitkomst = o.bereken(links, rechts)?.to_string();
-                    werk_expressie.replace_range(links_pos..rechts_pos, &uitkomst);
+                    controleer_precisie(links, links_deel)?;
+                    controleer_precisie(rechts, rechts_deel)?;
+                    let uitkomst = o.bereken(links, rechts)?;
+                    if uitkomst.is_infinite() || uitkomst.is_nan() {
+                        return Err(EcolFout::FoutMelding("Rekenkundig overflow".to_string()));
+                    }
+                    werk_expressie.replace_range(links_pos..rechts_pos, &uitkomst.to_string());
                 }
                 _ => return Err(EcolFout::FoutMelding(
                     "Ongeldige tekens in numerieke expressie".to_string()
@@ -199,6 +208,17 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
     
 
     *expressie = werk_expressie;
+    Ok(())
+}
+
+fn controleer_precisie(getal: f32, source: &str) -> Result<(), EcolFout> {
+    if let Ok(als_f64) = f64::from_str(source) {
+        if (getal as f64 - als_f64).abs() > 0.5 {
+            return Err(EcolFout::FoutMelding(format!(
+                "Precisieverlies: '{}' kan niet exact worden weergegeven", source
+            )));
+        }
+    }
     Ok(())
 }
 fn vind_operand_links(expr: &str, op_pos: usize) -> usize {

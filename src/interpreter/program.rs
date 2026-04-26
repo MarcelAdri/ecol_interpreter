@@ -1,7 +1,7 @@
 use std::fmt;
 use std::collections::BTreeMap;
 use crate::interpreter::errors::EcolFout;
-use crate::interpreter::helpers::{extract_opmerking, geen_spaties, vind_opmerking};
+use crate::interpreter::helpers::{geen_spaties, vind_opmerking};
 
 pub(super) const WORDT_TEKEN: &str = ":=";
 
@@ -334,19 +334,17 @@ pub(super) enum LineInhoud {
 }
 impl LineInhoud {
     pub(super) fn from_sleutelwoord(sleutelwoord: Sleutelwoord, input: &str) -> Result<Self, EcolFout> {
-        let (_, opm) = extract_opmerking(input);
-
         match sleutelwoord {
-            Sleutelwoord::BEWAAR => Ok(Self::Bewaar {}),
-            Sleutelwoord::END => Ok(Self::End { opm: vind_opmerking(&opm)? }),
-            Sleutelwoord::HELP => Ok(Self::Help { }),
-            Sleutelwoord::HERHAAL => Ok(Self::Herhaal { opm: vind_opmerking(&opm)? }),
-            Sleutelwoord::KLAAR => Ok(Self::Klaar { opm: vind_opmerking(&opm)? }),
-            Sleutelwoord::LAAD => Ok(Self::Laad {}),
-            Sleutelwoord::LIJST => Ok(Self::Lijst {}),
-            Sleutelwoord::NP => Ok(Self::NP { opm: vind_opmerking(&opm)?}),
-            Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string(), opm: vind_opmerking(&opm)? }),
-            Sleutelwoord::START => Ok(Self::Start {}),
+            Sleutelwoord::BEWAAR => { vind_opmerking(input)?; Ok(Self::Bewaar {}) },
+            Sleutelwoord::END => Ok(Self::End { opm: vind_opmerking(input)? }),
+            Sleutelwoord::HELP => { vind_opmerking(input)?; Ok(Self::Help {}) },
+            Sleutelwoord::HERHAAL => Ok(Self::Herhaal { opm: vind_opmerking(input)? }),
+            Sleutelwoord::KLAAR => Ok(Self::Klaar { opm: vind_opmerking(input)? }),
+            Sleutelwoord::LAAD => { vind_opmerking(input)?; Ok(Self::Laad {}) },
+            Sleutelwoord::LIJST => { vind_opmerking(input)?; Ok(Self::Lijst {}) },
+            Sleutelwoord::NP => Ok(Self::NP { opm: vind_opmerking(input)? }),
+            Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string(), opm: vind_opmerking(input)? }),
+            Sleutelwoord::START => { vind_opmerking(input)?; Ok(Self::Start {}) },
             _ => Err(EcolFout::FoutMelding("Incomplete syntax".to_string())),
         }
     }

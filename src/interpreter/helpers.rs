@@ -201,7 +201,7 @@ pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
 pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
-    if getal.is_nan() || (&0.0..=&99.0).contains(&getal) {
+    if getal.is_nan() || !(0.0..=99.0).contains(getal) {
         return Err(EcolFout::FoutMelding(format!("Waarde {} is ongeldig (xxxSYM verwacht 0–99).", getal)));
     }
     Ok(*getal as u8)

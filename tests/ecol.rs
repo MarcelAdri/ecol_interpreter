@@ -246,9 +246,462 @@ mod tests {
 
     //Sleutelwoorden
     //Uitvoer
-    #[wasm_bindgen_test] fn uitvoer() {
-
+    #[wasm_bindgen_test] fn nr_uitgebreid() {
+        assert_eq!(run_program("
+        10 TEKST := \"abc\"
+        20 NR(5)
+        30 TEKST := \"def\"
+        40 NR
+        50 KLAAR"), Ok("abc\n\n\n\n\ndef\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_geen_format_geheel_getal() {
+        assert_eq!(run("SCHRIJF := 25"), Ok("    25\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_geen_format_breuk() {
+        assert_eq!(run("SCHRIJF := 25.5"), Ok("    25.5000\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_geen_format_breuk_negatief() {
+        assert_eq!(run("SCHRIJF := -25.5"), Ok("    -25.5000\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_geen_format_geheel_getal_negatief() {
+        assert_eq!(run("SCHRIJF := -25"), Ok("    -25\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_format_overflow_fout() {
+        assert!(run("SCHRIJF(3,0) := 1000").is_err());
+    }
+    #[wasm_bindgen_test] fn schrijf_format_round_up() {
+        assert_eq!(run("SCHRIJF(5,1) := 25.45"), Ok("   25.5\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_format_round_down() {
+        assert_eq!(run("SCHRIJF(5,1) := 25.44"), Ok("   25.4\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijf_format_krankzinnig_groot() {
+        // 1234567890.12... overschrijdt de f32-precisie (>0.5 afrondingsfout)
+        assert!(run("SCHRIJF(10,13) := 1234567890.12345678").is_err());
+    }
+    #[wasm_bindgen_test] fn schrijfsym_ok() {
+        assert_eq!(run("SCHRIJFSYM := 82"), Ok("*\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijfsym_negatief() {
+        assert!(run("SCHRIJFSYM := -1").is_err());
+    }
+    #[wasm_bindgen_test] fn schrijfsym_te_hoog() {
+        assert!(run("SCHRIJFSYM := 100").is_err());
+    }
+    #[wasm_bindgen_test] fn schrijfsym_geen_symbool() {
+        assert!(run("SCHRIJFSYM := 93").is_err());
+    }
+    #[wasm_bindgen_test] fn schrijm_positief() {
+        assert_eq!(run("SCHRIJM := 1123456.321654"), Ok("+0.11234564E+7\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijm_negatief() {
+        assert_eq!(run("SCHRIJM := -1123456.321654"), Ok("-0.11234564E+7\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn schrijm_klein() {
+        assert_eq!(run("SCHRIJM := 0.000000012345"), Ok("+0.12345E-7\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn spatie() {
+        assert_eq!(run_program("
+        10 TEKST := \"abc\"
+        20 SPATIE
+        30 TEKST := \"def\"
+        40 NR
+        50 KLAAR"), Ok("abc def\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn spaties() {
+        assert_eq!(run_program("
+        10 TEKST := \"abc\"
+        20 SPATIE (5)
+        30 TEKST := \"def\"
+        40 NR
+        50 KLAAR"), Ok("abc     def\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn tekst() {
+        assert_eq!(run("TEKST := \"abcdef\""), Ok("abcdef\n".to_string()));
+    }
+    //Stroombesturing
+    //Eerst: NAAR. Als dat werkt hoeft die functionaliteit niet meer getest te worden bij ALS
+    #[wasm_bindgen_test] fn naar_vooruit_geldig() {
+        assert_eq!(run_program("
+        10 a:=36
+        20 NAAR 40
+        30 a:=63
+        40 SCHRIJF(2,0):=a
+        50 NR
+        60 KLAAR"), Ok("36\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn naar_vooruit_ongeldig_in_range() {
+        assert!(run_program("
+        10 a:=36
+        20 NAAR 21
+        30 a:=63
+        40 SCHRIJF(2,0):=a
+        50 NR
+        60 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_vooruit_ongeldig_buiten_range() {
+        assert!(run_program("
+        10 a:=36
+        20 NAAR 100
+        30 a:=63
+        40 SCHRIJF(2,0):=a
+        50 NR
+        60 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_achteruit_geldig() {
+        assert_eq!(run_program("
+        10 a:=36
+        20 NAAR 40
+        30 a:=63
+        32 SCHRIJF(2,0):=a
+        34 NAAR 50
+        40 SCHRIJF(2,0):=a
+        42 NAAR 30
+        50 NR
+        60 KLAAR"), Ok("3663\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn naar_achteruit_rij_gewist() {
+        assert!(run_program("
+        10 NAAR 100
+        20 aap(5) = 100
+        30 SCHRIJF(3,0):=aap(5)
+        40 NR
+        50 KLAAR
+        100 RIJ (3,48) aap
+        110 NAAR 20").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_naar_functie() {
+        assert!(run_program("
+        10 NAAR 110
+        20 aap := 100
+        30 SCHRIJF(3,0):=aap(2)
+        40 NR
+        50 KLAAR
+        100 FUN aap(b)
+        110 a:=100 * b
+        120 FUN := a").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_uit_functie() {
+        assert!(run_program("
+        30 SCHRIJF(3,0):=aap(2)
+        40 NR
+        50 KLAAR
+        100 FUN aap(b)
+        110 a:=100 * b
+        115 NAAR 30
+        120 FUN := aap").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_binnen_functie() {
+        assert_eq!(run_program("
+        30 SCHRIJF(3,0):=aap(1)
+        40 NR
+        50 KLAAR
+        100 FUN aap(b)
+        105 NAAR 115
+        110 a:=100
+        115 a:=120 * b
+        120 FUN := a"), Ok("120\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn naar_naar_sub() {
+        assert!(run_program("
+        10 NAAR 110
+        20 aap = 100
+        30 SCHRIJF(3,0):=a
+        40 NR
+        50 KLAAR
+        100 SUB aapje
+        110 a:=100
+        120 END").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_buiten_sub() {
+        assert!(run_program("
+        20 aapje
+        30 SCHRIJF(3,0):=a
+        40 NR
+        50 KLAAR
+        100 SUB aapje
+        105 NAAR 30
+        110 a:=100
+        120 END").is_err());
+    }
+    #[wasm_bindgen_test] fn naar_binnen_sub() {
+        assert_eq!(run_program("
+        20 aapje
+        30 SCHRIJF(3,0):=a
+        40 NR
+        50 KLAAR
+        100 SUB aapje
+        105 NAAR 115
+        110 a:=100
+        115 a:=120
+        120 END"), Ok("120\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn naar_lege_regel() {
+        assert_eq!(run_program("
+        20 NAAR 100
+        30 SCHRIJF(3,0):=a
+        40 NR
+        50 KLAAR
+        100 : ;lege regel
+        110 a:=100
+        120 NAAR 30"), Ok("100\n".to_string()));
+    }
+    //ALS
+    #[wasm_bindgen_test] fn als_zonder_anders() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        30 ALS a > b DAN 60
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("10\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn als_met_anders() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        30 ALS a > b DAN 60 ANDERS 80
+        40 SCHRIJF(2,0) := a
+        50 NAAR 100
+        60 SCHRIJF(2,0) := b
+        70 NAAR 100
+        80 TEKST := \"anders\"
+        100 NR
+        110 KLAAR"), Ok("anders\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn als_complexe_vergelijking() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        30 ALS a <> b EN ((3 < 1) OF (100 = 100)) DAN 60
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("20\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn als_dan_stop() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        25 SCHRIJF(2,0) := a
+        27 NR
+        30 ALS a <= b DAN STOP
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("10\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn als_dan_anders_stop() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        25 SCHRIJF(2,0) := a
+        27 NR
+        30 ALS a >= b DAN 60 ANDERS STOP
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("10\n".to_string()));
+    }
+    //MET
+    #[wasm_bindgen_test] fn met_omhoog() {
+        assert_eq!(run_program("
+        10 a := 0
+        20 MET 1, teller := 1, 10
+        30 a := a + teller
+        40 HERHAAL
+        50 SCHRIJF(2,0) := a
+        60 NR
+        70 KLAAR"), Ok("55\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn met_omlaag() {
+        assert_eq!(run_program("
+        10 a := 100
+        20 MET -1, teller := 10, 1
+        30 a := a - teller
+        40 HERHAAL
+        50 SCHRIJF(2,0) := a
+        60 NR
+        70 KLAAR"), Ok("45\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn met_breuk() {
+        assert_eq!(run_program("
+        10 a := 0.1
+        20 MET 0.15, teller := 0.5, 3.4
+        30 a := a + teller
+        40 HERHAAL
+        50 SCHRIJF(2,1) := a
+        60 NR
+        70 KLAAR"), Ok("38.6\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn met_omlaag_naar_negatief() {
+        assert_eq!(run_program("
+        10 a := 100
+        20 MET -1, teller := 4, -5
+        30 a := a + teller
+        40 HERHAAL
+        50 SCHRIJF(2,0) := a
+        60 NR
+        70 KLAAR"), Ok("95\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn met_geen_herhaling() {
+        assert_eq!(run_program("
+        10 a := 100
+        20 MET -1, teller := 4, 6
+        30 a := a + teller
+        40 HERHAAL
+        50 SCHRIJF(3,0) := a
+        60 NR
+        70 KLAAR"), Ok("100\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn met_genest_ok() {
+        assert_eq!(run_program("
+        10 MET 1, tel1 := 1, 3
+        20 MET 2, tel2 := 4, 8
+        30 a := tel1 * tel2
+        40 HERHAAL
+        45 HERHAAL
+        50 SCHRIJF(2,0) := a
+        60 NR
+        70 KLAAR"), Ok("24\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn met_zonder_herhaal() {
+        assert!(run_program("
+        10 MET 1, tel1 := 1, 3
+        20 MET 2, tel2 := 4, 8
+        30 a := tel1 * tel2
+        40 HERHAAL
+        50 SCHRIJF(2,0) := a
+        60 NR
+        70 KLAAR").is_err());
     }
 
-
+    //RIJ(SYM)
+    #[wasm_bindgen_test] fn rij_ok() {
+        assert_eq!(run_program("
+        10 RIJ(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJF(1,0) := a(5)
+        60 NR
+        70 KLAAR"), Ok("5\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn rij_beneden_index() {
+        assert!(run_program("
+        10 RIJ(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJF(1,0) := a(2)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rij_boven_index() {
+        assert!(run_program("
+        10 RIJ(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJF(1,0) := a(11)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rij_nul_index() {
+        assert!(run_program("
+        10 RIJ(0,10) a
+        20 MET 1, teller := 0, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJF(1,0) := a(5)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_ok() {
+        assert_eq!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller + 7
+        40 HERHAAL
+        50 SCHRIJFSYM := a(5)
+        60 NR
+        70 KLAAR"), Ok("c\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn rijsym_beneden_index() {
+        assert!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJFSYM := a(2)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_boven_index() {
+        assert!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJFSYM := a(11)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_onder_nul() {
+        assert!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        45 a(3) := -1
+        50 SCHRIJFSYM := a(5)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_boven_honderd() {
+        assert!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        45 a(3) := 100
+        50 SCHRIJFSYM := a(5)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_nul_index() {
+        assert!(run_program("
+        10 RIJSYM(0,10) a
+        20 MET 1, teller := 0, 10
+        30 a(teller) := teller
+        40 HERHAAL
+        50 SCHRIJFSYM := a(5)
+        60 NR
+        70 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn commentaar_ok() {
+        assert_eq!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL ;commentaar
+        50 SCHRIJFSYM := a(5)
+        60 NR
+        70 KLAAR"), Ok("5\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn commentaar_fout() {
+        assert!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller
+        40 HERHAAL  commentaar
+        50 SCHRIJFSYM := a(5)
+        60 NR
+        70 KLAAR").is_err());
+    }
 }

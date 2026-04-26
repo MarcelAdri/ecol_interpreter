@@ -262,7 +262,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(&sprong_doel)?, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::NP => {
-            is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+            is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
         },
         Sleutelwoord::NR => {
             let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
@@ -395,7 +395,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::START => {
             if regelnummer == 0 {
-                is_alleen_keyword(rest_na_regelnummer, regelnummer, keyword)
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
                 Err(EcolFout::FoutMelding("START kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
             }

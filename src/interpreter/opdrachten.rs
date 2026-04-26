@@ -522,6 +522,9 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma => {
+                    if machine.heeft_open_tellers() {
+                        return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: MET-lus niet afgesloten met HERHAAL.", opdracht.regelnummer())));
+                    }
                     (no_reply_string, no_next_line, Some(WhatsNext::Break))
                 },
                 Context::Subroutine | Context::Functie => {
