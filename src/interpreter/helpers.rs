@@ -208,7 +208,7 @@ pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
 }
 pub(super) fn grens_bewaking (getal: &f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, EcolFout> {
     if getal.fract() != 0.0 && alleen_hele_getallen {
-        return Err(EcolFout::FoutMelding("LN functie kan alleen hele getallen accepteren.".to_string()));
+        return Err(EcolFout::FoutMelding(format!("Getal moet een heel getal zijn, maar is {}", getal)));
     }
     if *getal <= 0f32 && alleen_positieve_getallen {
         return Err(EcolFout::FoutMelding(format!("Getal moet positief zijn, maar is {}", getal)));

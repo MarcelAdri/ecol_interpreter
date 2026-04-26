@@ -420,22 +420,31 @@ impl EcolMachine {
     }
 
     pub fn execute(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> String {
+        match self.execute_intern(input, lees_geheugen, output) {
+            Ok(Some(s)) => s,
+            Ok(None) => String::new(),
+            Err(e) => e.to_string(),
+
+        }
+    }
+
+    fn execute_intern(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> Result<Option<String>, EcolFout> {
 
         let reply: Option<String> = if lees_geheugen.wacht_op_lees() {
             let waarde = input.trim().parse::<f32>();
             if let Ok(waarde) = waarde {
                 lees_geheugen.schrijf_lees_waarde(waarde);
                 let Some(regel) = lees_geheugen.lees_hervat_bij() else {
-                    return "Er is een fout opgetreden. Geef opnieuw in.".to_string();
+                    return Err(EcolFout::FoutMelding("Er is een fout opgetreden. Geef opnieuw in.".to_string()));
                 };
                 self.hervat_uitvoering(regel, lees_geheugen, output)
             } else {
-                return "Alleen numerieke waarden kunnen ingegeven worden. Geef opnieuw in.".to_string();
+                return Err(EcolFout::FoutMelding("Alleen numerieke waarden kunnen ingegeven worden. Geef opnieuw in.".to_string()));
             }
         } else if lees_geheugen.wacht_op_leessym() {
             //let waarde_input = input;
             if input.len() != 1 {
-                return "Voor LEESSYM mag slechts één karakter worden ingegeven. Geef opnieuw in.".to_string();
+                return Err(EcolFout::FoutMelding("Voor LEESSYM mag slechts één karakter worden ingegeven. Geef opnieuw in.".to_string()));
             }
             let waarde_char = input.chars().next().unwrap_or_default();
             let waarde = symbolen_reverse(waarde_char);
@@ -443,11 +452,11 @@ impl EcolMachine {
                 Some(c) => {
                     lees_geheugen.schrijf_leessym_waarde(c as f32);
                     let Some(regel) = lees_geheugen.leessym_hervat_bij() else {
-                        return "Er is een fout opgetreden. Geef opnieuw in.".to_string();
+                        return Err(EcolFout::FoutMelding("Er is een fout opgetreden. Geef opnieuw in.".to_string()));
                     };
                     self.hervat_uitvoering(regel, lees_geheugen, output)
                 },
-                None => return "Alleen symbolen kunnen ingegeven worden. Geef opnieuw in.".to_string(),
+                None => return Err(EcolFout::FoutMelding("Alleen symbolen kunnen ingegeven worden. Geef opnieuw in.".to_string())),
             }
         } else {
             match parseer_regel(input){
@@ -456,10 +465,10 @@ impl EcolMachine {
                         let programma = BTreeMap::new();
                         match execute_all(&regel, self, &programma, Context::Direct, lees_geheugen, output) {
                             Ok((r, _, _)) => r,
-                            Err(EcolFout::FoutMelding(e)) => Some(e),
+                            Err(EcolFout::FoutMelding(e)) => return Err(EcolFout::FoutMelding(e)),
                             Err(EcolFout::WachtOpLees(r)) => {
                                 if r == 0 {
-                                    Some("FOUTMELDING: LEES kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string())
+                                    return Err(EcolFout::FoutMelding("FOUTMELDING: LEES kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string()));
                                 } else {
                                    lees_geheugen.lees_hervat_bij_op_regel(r);
                                     None
@@ -467,7 +476,7 @@ impl EcolMachine {
                             },
                             Err(EcolFout::WachtOpLeessym(r)) => {
                                 if r == 0 {
-                                    Some("FOUTMELDING: LEES SYM kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string())
+                                    return Err(EcolFout::FoutMelding("FOUTMELDING: LEES SYM kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string()));
                                 } else {
                                     lees_geheugen.leessym_hervat_bij_op_regel(r);
                                     None
@@ -488,11 +497,23 @@ impl EcolMachine {
                     }
                 }
                 Err(e) => {
-                    return format!("Ongeldige invoer: {}" ,e);
+                    return Err(EcolFout::FoutMelding(format!("Ongeldige invoer: {}" ,e)));
                 }
             }
         };
-        reply.unwrap_or_default()
+        Ok(Some(reply.unwrap_or_default()))
+    }
+    pub fn execute_direct(&mut self, input: &str, output: &mut dyn FnMut(&str)) -> Result<String, String> {
+        let mut lees_geheugen = LeesGeheugen::new();
+        let mut output_buffer = String::new();
+        match self.execute_intern(input, &mut lees_geheugen, &mut |s| output_buffer.push_str(s)) {
+            Ok(Some(reply)) => {
+                if output_buffer.is_empty() { Ok(reply) } else { Ok(output_buffer) }
+            },
+            Ok(None) => Ok(output_buffer),
+            Err(e) => Err(e.to_string()),
+        }
+
     }
     fn hervat_uitvoering(&mut self, regel: u16, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> Option<String> {
         match self.execute_start(Some(regel), lees_geheugen, output) {

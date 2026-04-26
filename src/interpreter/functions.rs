@@ -297,7 +297,7 @@ impl EcolMachine {
         let laag = grens_bewaking(laag, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         let hoog = grens_bewaking(hoog, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         if laag >= hoog {
-            return Err(EcolFout::FoutMelding(format!("De lage waarde van de GOK ({}) mag niet groter zijn dan de hoge waarde ({})", laag, hoog)));
+            return Err(EcolFout::FoutMelding(format!("De lage waarde van de GOK ({}) moet kleiner zijn dan de hoge waarde ({})", laag, hoog)));
         }
 
         Ok(self.volgende_willekeurig(laag, hoog).round())
@@ -330,12 +330,12 @@ impl EcolMachine {
         }
     }
     fn execute_function_ln(&self, getal: &f32) -> Result<f32, EcolFout> {
-        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
+        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.ln())
     }
     fn execute_function_log(&self, getal: &f32) -> Result<f32, EcolFout> {
-        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
+        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.log10())
     }
@@ -359,7 +359,7 @@ impl EcolMachine {
         Ok(getal.sin())
     }
     fn execute_function_wrtl(&self, getal: &f32) -> Result<f32, EcolFout> {
-        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, MAG_ALLEEN_HELE_GETALLEN)?;
+        let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.sqrt())
     }

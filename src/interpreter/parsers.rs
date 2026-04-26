@@ -34,22 +34,26 @@ impl FunctieAanroep {
     }
 }
 pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>, EcolFout> {
-    // 1. Zoek begin van functienaam (eerste hoofdletter)
-    let start_naam = match expressie.find(|c: char| c.is_ascii_uppercase()) {
-        Some(pos) => pos,
-        None => return Ok(None),
+    // 1+2. Zoek de eerste hoofdletterreeks die geen operator is
+    let mut zoek_vanaf = 0;
+    let (start_naam, einde_naam) = loop {
+        let rel = match expressie[zoek_vanaf..].find(|c: char| c.is_ascii_uppercase()) {
+            Some(pos) => pos,
+            None => return Ok(None),
+        };
+        let start = zoek_vanaf + rel;
+        let einde = expressie[start..]
+            .find(|c: char| !c.is_ascii_uppercase())
+            .map(|p| start + p)
+            .unwrap_or(expressie.len());
+        if Operator::is_operator_string(&expressie[start..einde]) {
+            zoek_vanaf = einde;
+            continue;
+        }
+        break (start, einde);
     };
 
-    // 2. Zoek einde van functienaam
-    let einde_naam = expressie[start_naam..]
-        .find(|c: char| !c.is_ascii_uppercase())
-        .map(|p| start_naam + p)
-        .unwrap_or(expressie.len());
-
     let functienaam = &expressie[start_naam..einde_naam];
-    if Operator::is_operator_string(functienaam) {
-        return Ok(None);
-    }
     let Some(functie) = FunctieNaam::from_str(functienaam) else {
         return Err(EcolFout::FoutMelding(format!("Ongeldige functienaam: '{}'", functienaam)));
     };
@@ -61,17 +65,15 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
 
     // 4. Zoek openingshaakje
     let rest = expressie[einde_naam..].trim_start();
-    let Some(mut argumenten_str) = rest.strip_prefix('(') else {
+    let rest_offset = expressie.len() - rest.len(); // absolute byte-offset van `rest` in `expressie`
+    if !rest.starts_with('(') {
         return Err(EcolFout::FoutMelding(format!("'(' verwacht na '{}'", functienaam)));
-    };
-
-    //let abs_open = einde_naam +  expressie[einde_naam..].find('(').unwrap();
-
+    }
     // 5. Zoek bijbehorend sluithaakje (haakjes-diepte meetellen)
-    let abs_sluit = vind_sluitende_haak(rest)?;
+    let rel_sluit = vind_sluitende_haak(rest)?;
 
     // 6. Parseer argumenten
-    argumenten_str = &rest[1..abs_sluit];
+    let argumenten_str = &rest[1..rel_sluit];
     let argumenten = splits_argumenten(argumenten_str);
 
     if argumenten.len() != functie.verwacht_argumenten() && !functie.verwacht_string_argument() {
@@ -89,7 +91,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
         )));
     }
 
-    Ok(Some(FunctieAanroep::new(functie, start_naam, abs_sluit + 1, argumenten)))
+    Ok(Some(FunctieAanroep::new(functie, start_naam, rest_offset + rel_sluit + 1, argumenten)))
 }
 
 /// Zoekt de `)` die hoort bij de `(` op `open`-positie in `s`.
