@@ -13,8 +13,10 @@
             #cursor-line { outline: none; display: inline-block; min-width: 5px; caret-color: #33ff33; }
             .prompt { font-weight: bold; }
         </style>
+        <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
         
-    <link rel="modulepreload" href="/ecol/ecol_interpreter-ba8ede0a0d170e75.js" crossorigin="anonymous" integrity="sha384-qjim60rlxLBLadJ34GkLjGIelqbDp0BW40OBM+424hFaLb5IgqyLoJhn2W0y7qni"><link rel="preload" href="/ecol/ecol_interpreter-ba8ede0a0d170e75_bg.wasm" crossorigin="anonymous" integrity="sha384-Hog5+lPDcrL0DVNZCmaf2TLV3E1Lo+TTcp6yK/r6t9pnV4aseeyN8ZrdYfcuSYcy" as="fetch" type="application/wasm"></head>
+        
+    <link rel="modulepreload" href="/ecol/ecol_interpreter-293a6a15673224c2.js" crossorigin="anonymous" integrity="sha384-HlhaL2js1Kh9eM3P4V79yzpwmmPuBPVifLpUOoQg8pN21yQ6A0tOKvACwHC3VTKQ"><link rel="preload" href="/ecol/ecol_interpreter-293a6a15673224c2_bg.wasm" crossorigin="anonymous" integrity="sha384-HCUr+E1WqM0zU2/dEXst4pFytyovGLt3k4sz/y94Wg5V0CGogrX/PyQQ+g2dhXz2" as="fetch" type="application/wasm"></head>
     <body>
     <div id="terminal">
         <div id="history"></div>
@@ -24,8 +26,8 @@
     </div>
 
 <script type="module">
-import init, * as bindings from '/ecol/ecol_interpreter-ba8ede0a0d170e75.js';
-const wasm = await init({ module_or_path: '/ecol/ecol_interpreter-ba8ede0a0d170e75_bg.wasm' });
+import init, * as bindings from '/ecol/ecol_interpreter-293a6a15673224c2.js';
+const wasm = await init({ module_or_path: '/ecol/ecol_interpreter-293a6a15673224c2_bg.wasm' });
 
 
 window.wasmBindings = bindings;

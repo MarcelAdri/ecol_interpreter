@@ -128,17 +128,17 @@ impl Functie {
     }
 }
 pub(super) struct EigenFunctie {
-    functie_omgeving: EcolMachine,
+    functie_omgeving: Box<EcolMachine>,
 }
 
 impl EigenFunctie {
     fn new() -> Self {
-        EigenFunctie { functie_omgeving: EcolMachine::new() }
+        EigenFunctie { functie_omgeving: Box::new(EcolMachine::new()) }
     }
 
     fn eigen_functie(functies: &HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
-        if diepte > 100 {
-            return Err(EcolFout::FoutMelding("Maximum recursie-diepte overschreden (100).".to_string()));
+        if diepte > 64 {
+            return Err(EcolFout::FoutMelding("Maximum recursie-diepte overschreden (64).".to_string()));
         }
         let mut machine = Self::new();
         machine.functie_omgeving.stel_functie_diepte_in(diepte);
