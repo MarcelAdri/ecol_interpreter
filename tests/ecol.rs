@@ -11,13 +11,6 @@ mod tests {
         machine.execute_direct(input, &mut |s| output.push_str(s))?;
         machine.execute_direct("NR(1)", &mut |s| output.push_str(s))
     }
-    #[allow(dead_code)]
-    fn run_raw(input: &str) -> Result<String, String> {
-        let mut machine = EcolMachine::new();
-        let mut output = String::new();
-        machine.execute_direct(input, &mut |s| output.push_str(s))
-
-    }
     fn run_program(programma: &str) -> Result<String, String> {
         let mut machine = EcolMachine::new();
         let mut output = String::new();
@@ -246,6 +239,19 @@ mod tests {
 
     //Sleutelwoorden
     //Uitvoer
+    #[wasm_bindgen_test] fn nr_grenzen_geldig() {
+        assert!(run_program("10 TEKST := \"x\"\n20 NR(1)\n30 KLAAR").is_ok());
+        assert!(run_program("10 TEKST := \"x\"\n20 NR(99)\n30 KLAAR").is_ok());
+    }
+    #[wasm_bindgen_test] fn nr_nul_is_fout() {
+        assert!(run_program("10 TEKST := \"x\"\n20 NR(0)\n30 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn nr_negatief_is_fout() {
+        assert!(run_program("10 TEKST := \"x\"\n20 NR(-1)\n30 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn nr_te_groot_is_fout() {
+        assert!(run_program("10 TEKST := \"x\"\n20 NR(100)\n30 KLAAR").is_err());
+    }
     #[wasm_bindgen_test] fn nr_uitgebreid() {
         assert_eq!(run_program("
         10 TEKST := \"abc\"
@@ -288,6 +294,9 @@ mod tests {
     #[wasm_bindgen_test] fn schrijfsym_te_hoog() {
         assert!(run("SCHRIJFSYM := 100").is_err());
     }
+    #[wasm_bindgen_test] fn schrijfsym_gebroken_getal() {
+        assert!(run("SCHRIJFSYM := 1.5").is_err());
+    }
     #[wasm_bindgen_test] fn schrijfsym_geen_symbool() {
         assert!(run("SCHRIJFSYM := 93").is_err());
     }
@@ -316,9 +325,28 @@ mod tests {
         40 NR
         50 KLAAR"), Ok("abc     def\n".to_string()));
     }
+    #[wasm_bindgen_test] fn spatie_te_klein() {
+        assert!(run_program("
+        10 SPATIE (0)
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn spatie_te_groot() {
+        assert!(run_program("
+        10 SPATIE (81)
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn spatie_gebroken_getal() {
+        assert!(run_program("
+        10 SPATIE (1.5)
+        20 KLAAR").is_err());
+    }
     #[wasm_bindgen_test] fn tekst() {
         assert_eq!(run("TEKST := \"abcdef\""), Ok("abcdef\n".to_string()));
     }
+    #[wasm_bindgen_test] fn np() {
+        assert!(!run("NP").is_err());
+    }
+
     //Stroombesturing
     //Eerst: NAAR. Als dat werkt hoeft die functionaliteit niet meer getest te worden bij ALS
     #[wasm_bindgen_test] fn naar_vooruit_geldig() {
@@ -482,6 +510,39 @@ mod tests {
         70 NR
         80 KLAAR"), Ok("20\n".to_string()));
     }
+    #[wasm_bindgen_test] fn als_unicode_1() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        30 ALS a ≠ b DAN 60
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("20\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn als_unicode_2() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        30 ALS a ≥ b DAN 60
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("10\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn als_unicode_3() {
+        assert_eq!(run_program("
+        10 a := 10
+        20 b := 20
+        30 ALS a ≤ b DAN 60
+        40 SCHRIJF(2,0) := a
+        50 NAAR 70
+        60 SCHRIJF(2,0) := b
+        70 NR
+        80 KLAAR"), Ok("20\n".to_string()));
+    }
     #[wasm_bindgen_test] fn als_dan_stop() {
         assert_eq!(run_program("
         10 a := 10
@@ -572,10 +633,8 @@ mod tests {
     }
     #[wasm_bindgen_test] fn met_zonder_herhaal() {
         assert!(run_program("
-        10 MET 1, tel1 := 1, 3
         20 MET 2, tel2 := 4, 8
-        30 a := tel1 * tel2
-        40 HERHAAL
+        30 a := 3 * tel2
         50 SCHRIJF(2,0) := a
         60 NR
         70 KLAAR").is_err());
@@ -684,6 +743,56 @@ mod tests {
         60 NR
         70 KLAAR").is_err());
     }
+    #[wasm_bindgen_test] fn rij_begin_te_groot() {
+        assert!(run_program("
+        10 RIJ(10000,10001) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rij_einde_te_groot() {
+        assert!(run_program("
+        10 RIJ(1,10000) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rij_einde_gelijk_begin() {
+        assert!(run_program("
+        10 RIJ(5,5) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rij_einde_voor_begin() {
+        assert!(run_program("
+        10 RIJ(5,3) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rij_gebroken_getal() {
+        assert!(run_program("
+        10 RIJ(1.5,5) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_begin_te_groot() {
+        assert!(run_program("
+        10 RIJSYM(10000,10001) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_einde_te_groot() {
+        assert!(run_program("
+        10 RIJSYM(1,10000) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_einde_gelijk_begin() {
+        assert!(run_program("
+        10 RIJSYM(5,5) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_einde_voor_begin() {
+        assert!(run_program("
+        10 RIJSYM(5,3) a
+        20 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn rijsym_gebroken_getal() {
+        assert!(run_program("
+        10 RIJSYM(1.5,5) a
+        20 KLAAR").is_err());
+    }
     #[wasm_bindgen_test] fn commentaar_ok() {
         assert_eq!(run_program("
         10 RIJSYM(3,10) a
@@ -704,4 +813,353 @@ mod tests {
         60 NR
         70 KLAAR").is_err());
     }
+    //SUB
+    #[wasm_bindgen_test] fn sub_aanroep_forward() {
+        assert_eq!(run_program("
+        10 aapje
+        20 SCHRIJF(3,0) := bel
+        30 NR
+        40 KLAAR
+        100 SUB aapje
+        110 bel := 233
+        120 END"), Ok("233\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn sub_aanroep_backward() {
+        assert_eq!(run_program("
+        10 SUB aapje
+        20 bel := 238
+        30 END
+        100 aapje
+        110 SCHRIJF(3,0) := bel
+        120 NR
+        130 KLAAR"), Ok("238\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn sub_geneste_aanroep_zelf() {
+        assert_eq!(run_program("
+        10 SUB aapje
+        20 bel := bel * 10
+        30 ALS bel < 1000 DAN 40 ANDERS 50
+        40 aapje
+        50 END
+        90 bel := 3
+        100 aapje
+        110 SCHRIJF(4,0) := bel
+        120 NR
+        130 KLAAR"), Ok("3000\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn sub_geneste_aanroep_ander() {
+        assert_eq!(run_program("
+        10 SUB aapje
+        20 bel := bel * 10
+        30 ALS bel < 1000 DAN 40 ANDERS 50
+        40 aapje
+        50 aapje2
+        60 END
+        90 bel := 3
+        100 aapje
+        110 SCHRIJF(4,0) := bel
+        115 SCHRIJF(3,0) := belletje
+        120 NR
+        130 KLAAR
+        140 SUB aapje2
+        150 belletje := 20
+        160 END
+        "), Ok("3000 20\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn sub_onbekende_aanroep() {
+        assert!(run_program("
+        10 SUB aapje
+        20 bel := bel * 10
+        30 ALS bel < 1000 DAN 40 ANDERS 50
+        40 aapje
+        50 END
+        90 bel := 3
+        100 aapjes
+        110 SCHRIJF(4,0) := bel
+        120 NR
+        130 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn sub_rij_reservering() {
+        assert_eq!(run_program("
+        10 SUB aapje
+        20 RIJ(5,8) lijst
+        30 END
+        100 aapje
+        110 MET 1, tel := ONDIN(lijst), BOVIN(lijst)
+        120 lijst(tel) := tel * 11
+        130 HERHAAL
+        140 totaal := 0
+        150 MET 1, tel := ONDIN(lijst), BOVIN(lijst)
+        160 totaal := totaal + lijst(tel)
+        170 HERHAAL
+        180 SCHRIJF(3,0) := totaal
+        190 NR
+        200 KLAAR"), Ok("286\n".to_string()));
+    }
+    //FUN
+    #[wasm_bindgen_test] fn fun_aanroep_forward() {
+        assert_eq!(run_program("
+        10 a := max(5)
+        20 SCHRIJF(3,0) := a
+        30 NR
+        40 KLAAR
+        100 FUN max(aap)
+        110 res := aap * 100
+        120 FUN := res"), Ok("500\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_aanroep_backward() {
+        assert_eq!(run_program("
+        10 FUN max(aap)
+        20 res := aap * 80
+        30 FUN := res
+        100 a := max(6)
+        110 SCHRIJF(3,0) := a
+        120 NR
+        130 KLAAR"), Ok("480\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_geneste_aanroep_zelf() {
+        assert_eq!(run_program("
+        10 FUN joop(beer)
+        20 res := beer + 80
+        30 ALS res < 5000 DAN 40 ANDERS 50
+        40 res := joop(res)
+        50 FUN := res
+        100 a := joop(6)
+        110 SCHRIJF(4,0) := a
+        120 NR
+        130 KLAAR"), Ok("5046\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_geneste_oneindig_fout() {
+        assert!(run_program("
+        10 FUN joop(beer)
+        20 res := beer + 80
+        40 res := joop(res)
+        50 FUN := res
+        100 a := joop(6)
+        110 SCHRIJF(4,0) := a
+        120 NR
+        130 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geneste_aanroep_ander() {
+        assert_eq!(run_program("
+        10 FUN joop(beer)
+        20 res := beer + 80
+        30 ALS res < 5000 DAN 40 ANDERS 60
+        40 res := joop(res)
+        50 NAAR 70
+        60 res := klaas(res)
+        70 FUN := res
+        100 a := joop(6)
+        110 SCHRIJF(4,0) := a
+        120 NR
+        130 KLAAR
+        200 FUN klaas(hert)
+        210 res := hert - 100
+        220 FUN := res"), Ok("4946\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_rij_doorgeven() {
+        assert_eq!(run_program("
+        10 FUN rijtest(RIJ lijst)
+        20 res := 0
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 res := res + lijst(teller)
+        50 HERHAAL
+        60 FUN := res
+        100 RIJ(3,7) lijstje
+        110 met := 0
+        120 MET 1, teller := ONDIN(lijstje), BOVIN(lijstje)
+        130 lijstje(teller) := GOK(1, 1000)
+        140 met := met + lijstje(teller)
+        150 HERHAAL
+        160 ALS met = rijtest(lijstje) DAN 170 ANDERS 190
+        170 TEKST := \"OK\"
+        180 NAAR 200
+        190 TEKST := \"Fout\"
+        200 NR
+        210 KLAAR"), Ok("OK\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_rijsym_doorgeven() {
+        assert_eq!(run_program("
+        10 FUN rijtest(RIJSYM lijst)
+        20 res := 0
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 res := res + lijst(teller)
+        50 HERHAAL
+        60 FUN := res
+        100 RIJSYM(3,7) lijstje
+        110 met := 0
+        120 MET 1, teller := ONDIN(lijstje), BOVIN(lijstje)
+        130 lijstje(teller) := GOK(1, 99)
+        140 met := met + lijstje(teller)
+        150 HERHAAL
+        160 ALS met = rijtest(lijstje) DAN 170 ANDERS 190
+        170 TEKST := \"OK\"
+        180 NAAR 200
+        190 TEKST := \"Fout\"
+        200 NR
+        210 KLAAR"), Ok("OK\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_geen_variabelen_uit_hoofdprogramma() {
+        assert!(run_program("
+        10 FUN vartest(a)
+        20 FUN := a + b
+        100 b:=10
+        110 SCHRIJF(3,0) := vartest(b)
+        120 NR
+        130 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_variabelen_uit_functie() {
+        assert!(run_program("
+        10 FUN varitest(a)
+        20 bof := 10
+        30 FUN := a + bof
+        110 SCHRIJF(3,0) := varitest(b) + bof
+        120 NR
+        130 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_meerdere_parameters() {
+        assert_eq!(run_program("
+        10 FUN multitest(a, RIJ lijst)
+        20 bof := a
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 bof := bof + lijst(teller)
+        50 HERHAAL
+        60 FUN := bof
+        100 param1 := 10
+        110 RIJ (4,5) param2
+        120 MET 1, teller := ONDIN(param2), BOVIN(param2)
+        130 param2(teller) := teller + 4
+        140 HERHAAL
+        150 SCHRIJF(2,0) := multitest(param1, param2)
+        160 NR
+        170 KLAAR"), Ok("27\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn fun_te_weinig_parameters() {
+        assert!(run_program("
+        10 FUN multitest(a, RIJ lijst)
+        20 bof := a
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 bof := bof + lijst(teller)
+        50 HERHAAL
+        60 FUN := bof
+        100 param1 := 10
+        110 RIJ (4,5) param2
+        120 MET 1, teller := ONDIN(param2), BOVIN(param2)
+        130 param2(teller) := teller + 4
+        140 HERHAAL
+        150 SCHRIJF(2,0) := multitest(param1)
+        160 NR
+        170 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_te_veel_parameters() {
+        assert!(run_program("
+        10 FUN multitest(a, RIJ lijst)
+        20 bof := a
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 bof := bof + lijst(teller)
+        50 HERHAAL
+        60 FUN := bof
+        100 param1 := 10
+        110 RIJ (4,5) param2
+        120 MET 1, teller := ONDIN(param2), BOVIN(param2)
+        130 param2(teller) := teller + 4
+        140 HERHAAL
+        150 SCHRIJF(2,0) := multitest(param1, param2, 100)
+        160 NR
+        170 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_naam_als_variabele() {
+        assert!(run_program("
+        10 FUN multitest(a, RIJ lijst)
+        20 bof := a
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 bof := bof + lijst(teller)
+        50 HERHAAL
+        60 FUN := bof
+        100 param1 := 10
+        105 multitest := 12
+        110 RIJ (4,5) param2
+        120 MET 1, teller := ONDIN(param2), BOVIN(param2)
+        130 param2(teller) := teller + 4
+        140 HERHAAL
+        150 SCHRIJF(2,0) := multitest(param1, param2)
+        160 NR
+        170 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_verkeerde_parameter() {
+        assert!(run_program("
+        10 FUN multitest(a, RIJ lijst)
+        20 bof := a
+        30 MET 1, teller := ONDIN(lijst), BOVIN(lijst)
+        40 bof := bof + lijst(teller)
+        50 HERHAAL
+        60 FUN := bof
+        100 param1 := 10
+        110 RIJ (4,5) param2
+        120 MET 1, teller := ONDIN(param2), BOVIN(param2)
+        130 param2(teller) := teller + 4
+        140 HERHAAL
+        150 SCHRIJF(2,0) := multitest(param1, param1)
+        160 NR
+        170 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_schrijf() {
+        assert!(run_program("
+        10 FUN uitvoertest1(a)
+        20 SCHRIJF := a
+        30 FUN := a
+        100 SCHRIJF := uitvoertest1(1)
+        110 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_schrijfsym() {
+        assert!(run_program("
+        10 FUN uitvoertest2(a)
+        20 SCHRIJFSYM := a
+        30 FUN := a
+        100 SCHRIJF := uitvoertest2(1)
+        110 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_schrijm() {
+    assert!(run_program("
+        10 FUN uitvoertest3(a)
+        20 SCHRIJM := a
+        30 FUN := a
+        100 SCHRIJF := uitvoertest3(1)
+        110 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_spatie() {
+        assert!(run_program("
+        10 FUN uitvoertest4(a)
+        20 SPATIE
+        30 FUN := a
+        100 SCHRIJF := uitvoertest4(1)
+        110 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_tekst() {
+        assert!(run_program("
+        10 FUN uitvoertest7(a)
+        20 TEKST := \"abcd\"
+        30 FUN := a
+        100 SCHRIJF := uitvoertest7(1)
+        110 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_nr() {
+        assert!(run_program("
+        10 FUN uitvoertest5(a)
+        20 NR
+        30 FUN := a
+        100 SCHRIJF := uitvoertest5(1)
+        110 KLAAR").is_err());
+    }
+    #[wasm_bindgen_test] fn fun_geen_uitvoer_np() {
+        assert!(run_program("
+        10 FUN uitvoertest6(a)
+        20 NP
+        30 FUN := a
+        100 SCHRIJF := uitvoertest6(1)
+        110 KLAAR").is_err());
+    }
+
+
+
 }

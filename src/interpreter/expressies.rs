@@ -17,7 +17,7 @@ impl EcolMachine {
     }
 
     pub(super) fn bereken_tussen_haakjes(&mut self, expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
-        let mut werk_expressie = expressie.to_string();
+        let mut werk_expressie = expressie.clone();
 
         loop {
             let Some(slot) = werk_expressie.find(')') else {
@@ -31,7 +31,7 @@ impl EcolMachine {
             let deel_expressie = &werk_expressie[start + 1..slot];
             let deel_resultaat = self.solve_expression(deel_expressie, lees_geheugen)?.to_string();
 
-            werk_expressie.replace_range(start..slot + 1, deel_resultaat.trim());
+            werk_expressie.replace_range(start..=slot, deel_resultaat.trim());
         }
 
         if werk_expressie.find('(').is_some() { return Err(EcolFout::FoutMelding("Haak openen gevonden zonder haak sluiten".to_string())); }
@@ -51,13 +51,13 @@ impl EcolMachine {
         match resultaat {
             Ok(result) => {
                 if result.is_infinite() || result.is_nan() {
-                    return Err(EcolFout::FoutMelding(format!("Rekenkundig overflow: '{}' is te groot of ongeldig", expressie)));
+                    return Err(EcolFout::FoutMelding(format!("Rekenkundig overflow: '{expressie}' is te groot of ongeldig")));
                 }
                 controleer_precisie(result, &werk_expressie)?;
                 Ok(result)
             }
             Err(e) => {
-                Err(EcolFout::FoutMelding(format!("\"{}\" levert geen geldig getal: {}", expressie, e)))
+                Err(EcolFout::FoutMelding(format!("\"{expressie}\" levert geen geldig getal: {e}")))
             }
         }
 
@@ -97,8 +97,8 @@ impl EcolMachine {
         while let Some((naam, start, einde, argumenten)) = parseer_eigen_functie(self.haal_functie_register(), werk_expressie) {
 
             let verwachte_argumenten = match self.get_fundef_parameters(&naam) {
-                None => return Err(EcolFout::FoutMelding(format!("Interne fout: functie '{}' niet gevonden.", naam))),
-                Some(params) if params.is_empty() => return Err(EcolFout::FoutMelding(format!("Functie '{}' heeft geen parameters.", naam))),
+                None => return Err(EcolFout::FoutMelding(format!("Interne fout: functie '{naam}' niet gevonden."))),
+                Some(params) if params.is_empty() => return Err(EcolFout::FoutMelding(format!("Functie '{naam}' heeft geen parameters."))),
                 Some(params) => params,
             };
             let mut doel_argumenten: Vec<Waarde> = Vec::new();
@@ -141,11 +141,24 @@ impl EcolMachine {
                 else { return Err(EcolFout::FoutMelding("Variabele niet gevonden".to_string()));};
             if let Some(var_typ) = complete_waarde.type_van() {
                 if var_typ != VariabeleType::Getal && var_typ != VariabeleType::Rij && var_typ != VariabeleType::Rijsym && var_typ != VariabeleType::Teller {
-                    return Err(EcolFout::FoutMelding(format!("Variabele {:?} is type {:?} en kan niet herleid worden tot een waarde.", werk_variabele.variabele_naam(), var_typ)));
+                    return Err(EcolFout::FoutMelding(format!("Variabele {} is type {} en kan niet herleid worden tot een waarde.", werk_variabele.variabele_naam(), var_typ)));
                 }
                 let index_expressie = werk_variabele.index().unwrap_or("0");
-                let positie = self.solve_expression(index_expressie, lees_geheugen)? as usize;
-
+                let p = self.solve_expression(index_expressie, lees_geheugen)?;
+                if p.fract() != 0f32 {
+                    return Err(EcolFout::FoutMelding(format!("Variabele {} kan geen decimale index hebben, de opgegeven index = {}.", werk_variabele.variabele_naam(), p)));
+                }
+                if (var_typ == VariabeleType::Getal || var_typ == VariabeleType::Teller) && p != 0f32 {
+                    return Err(EcolFout::FoutMelding(format!("Variabele {} kan geen index hebben, de opgegeven index = {}.", werk_variabele.variabele_naam(), p)));
+                }
+                if var_typ == VariabeleType::Rij || var_typ == VariabeleType::Rijsym {
+                    let (b, e) = complete_waarde.rij_haal_grenswaarden();
+                    if p < b as f32 || p > e as f32 {
+                        return Err(EcolFout::FoutMelding(format!("Variabele {} heeft index {} buiten bereik [{}..{}].", werk_variabele.variabele_naam(), p, b, e)));
+                    }
+                }
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let positie = p as usize; //Veilig, want hierboven gevalideerd aan de hand van in opdrachten.rs gevalideerde grenswaarden.
                 let result = complete_waarde.haal_getal(positie)?.to_string();
 
                 werk_expressie.replace_range(werk_variabele.start()..werk_variabele.einde(), result.trim());
@@ -161,7 +174,7 @@ impl EcolMachine {
 }
 
 pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout> {
-    let mut werk_expressie = expressie.to_string();
+    let mut werk_expressie = expressie.clone();
     
     for groep in Operator::operator_prioriteiten() {
         loop {
@@ -213,9 +226,9 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
 
 fn controleer_precisie(getal: f32, source: &str) -> Result<(), EcolFout> {
     if let Ok(als_f64) = f64::from_str(source) {
-        if (getal as f64 - als_f64).abs() > 0.5 {
+        if (f64::from(getal) - als_f64).abs() > 0.5 {
             return Err(EcolFout::FoutMelding(format!(
-                "Precisieverlies: '{}' kan niet exact worden weergegeven", source
+                "Precisieverlies: '{source}' kan niet exact worden weergegeven"
             )));
         }
     }

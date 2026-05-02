@@ -16,7 +16,7 @@
         <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
         
         
-    <link rel="modulepreload" href="/ecol/ecol_interpreter-293a6a15673224c2.js" crossorigin="anonymous" integrity="sha384-HlhaL2js1Kh9eM3P4V79yzpwmmPuBPVifLpUOoQg8pN21yQ6A0tOKvACwHC3VTKQ"><link rel="preload" href="/ecol/ecol_interpreter-293a6a15673224c2_bg.wasm" crossorigin="anonymous" integrity="sha384-HCUr+E1WqM0zU2/dEXst4pFytyovGLt3k4sz/y94Wg5V0CGogrX/PyQQ+g2dhXz2" as="fetch" type="application/wasm"></head>
+    <link rel="modulepreload" href="/ecol/ecol_interpreter-97c59e80f8d6b17a.js" crossorigin="anonymous" integrity="sha384-cumQpA0rKalIzKFnekM0bxaHV+6Se7C2y69Th+lWE3M0H1acYsdyJTwYs0cnGUX1"><link rel="preload" href="/ecol/ecol_interpreter-97c59e80f8d6b17a_bg.wasm" crossorigin="anonymous" integrity="sha384-4ui8EKSj9R50F10P+rc90N5YO45b4ixi92L0Tayh3dXKwhQhdUoO6yHqn8E/V3H+" as="fetch" type="application/wasm"></head>
     <body>
     <div id="terminal">
         <div id="history"></div>
@@ -26,8 +26,8 @@
     </div>
 
 <script type="module">
-import init, * as bindings from '/ecol/ecol_interpreter-293a6a15673224c2.js';
-const wasm = await init({ module_or_path: '/ecol/ecol_interpreter-293a6a15673224c2_bg.wasm' });
+import init, * as bindings from '/ecol/ecol_interpreter-97c59e80f8d6b17a.js';
+const wasm = await init({ module_or_path: '/ecol/ecol_interpreter-97c59e80f8d6b17a_bg.wasm' });
 
 
 window.wasmBindings = bindings;

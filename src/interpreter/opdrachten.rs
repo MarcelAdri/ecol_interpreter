@@ -38,7 +38,7 @@ impl EcolMachine {
     }
 
     pub(super) fn execute_bewaar(&self) -> Result<String, EcolFout> {
-        let tekst = self.execute_lijst()?;
+        let tekst = self.execute_lijst();
         if tekst.is_empty() {
             return Ok("Programma is leeg, niets op te slaan.".to_string());
         }
@@ -68,14 +68,14 @@ impl EcolMachine {
         Err(EcolFout::WachtOpLaad)
     }
 
-    pub(super) fn execute_lijst(&self) -> Result<String, EcolFout> {
+    pub(super) fn execute_lijst(&self) -> String {
         let mut reply = String::new();
         for (regelnummer, regel_inh) in self.programma() {
             let regel_inhoud = regel_inh.clone();
             reply.push_str(&Line::new(*regelnummer, regel_inhoud).genereer_regel());
             reply.push('\n');
         }
-        Ok(reply)
+        reply
     }
     pub(super) fn execute_met(&mut self, variabele_naam: &str, stap_expressie: &str, start_expressie: &str, stop_expressie: &str, volgende_regel: u16, lees_geheugen: &mut LeesGeheugen) -> Result<Option<()>, EcolFout> {
         let stap = self. solve_expression(stap_expressie, lees_geheugen)?;
@@ -93,7 +93,7 @@ impl EcolMachine {
                     }
                     Ok(Some(regel))
                 } else {
-                    Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Sprong naar niet gedefinieerde regel {}.", current, regel)))
+                    Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {current}: Sprong naar niet gedefinieerde regel {regel}.")))
                 }
             },
             None => { Ok(None) },
@@ -101,51 +101,86 @@ impl EcolMachine {
 
 
     }
-    pub(super)  fn execute_np(&self, output: &mut dyn FnMut(&str)) -> Result<String, EcolFout> {
+    pub(super)  fn execute_np(&self, output: &mut dyn FnMut(&str)) -> String {
         output("\x0C");
-        Ok("".to_string())
+        String::new()
     }
     pub(super) fn execute_nr(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
-        let mut reply = String::new();
         let number = self.solve_expression(aantal, lees_geheugen)?;
 
-        if number > 0f32 {
-            reply = format!("{}{}", self.lees_regel(), "\n".repeat(number as usize));
+        if !(1f32..=99f32).contains(&number) {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: het aantal regels bij NR moet tussen 1 en 99 liggen, maar is {number}")));
         }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let n = number as usize;  //veilig: gevalideerd 1-99 hierboven
+        let reply = format!("{}{}", self.lees_regel(), "\n".repeat(n));
+
         self.leeg_regel_buffer();
         Ok(reply)
     }
     pub(super) fn execute_rij(&mut self, start: &str, eind: &str, variabele_naam: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let begin = self.solve_expression(start, lees_geheugen)?;
         let einde = self.solve_expression(eind, lees_geheugen)?;
-        self.var_reserveer_rij(variabele_naam, begin as usize, einde as usize)?;
-        Ok("".to_string())
+        if !(1f32..=9999f32).contains(&begin) || !(1f32..=9999f32).contains(&einde) {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJ moet tussen 1 en 9999 liggen, maar loopt van {begin} tot {einde}.")));
+        }
+        if einde <= begin {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJ moet oplopen, maar loopt van {begin} tot {einde}.")));
+        }
+        if begin.fract() != 0f32 || einde.fract() != 0f32 {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJ moet gehele getallen zijn, maar loopt van {begin} tot {einde}.")));
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let b = begin as usize; //veilig: gevalideerd 1-9999 hierboven
+
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let e = einde as usize; //veilig: gevalideerd 1-9999 hierboven
+        self.var_reserveer_rij(variabele_naam, b, e)?;
+        Ok(String::new())
     }
     pub(super) fn execute_rijsym(&mut self, start: &str, eind: &str, variabele_naam: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let begin = self.solve_expression(start, lees_geheugen)?;
         let einde = self.solve_expression(eind, lees_geheugen)?;
-        self.var_reserveer_rijsym(variabele_naam, begin as usize, einde as usize)?;
-        Ok("".to_string())
+        if !(1f32..=9999f32).contains(&begin) || !(1f32..=9999f32).contains(&einde) {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJSYM moet tussen 1 en 9999 liggen, maar loopt van {begin} tot {einde}.")));
+        }
+        if einde <= begin {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJSYM moet oplopen, maar loopt van {begin} tot {einde}.")));
+        }
+        if begin.fract() != 0f32 || einde.fract() != 0f32 {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJSYM moet gehele getallen zijn, maar loopt van {begin} tot {einde}.")));
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let b = begin as usize; //veilig: gevalideerd 1-9999 hierboven
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let e = einde as usize; //veilig: gevalideerd 1-9999 hierboven
+        self.var_reserveer_rijsym(variabele_naam, b, e)?;
+        Ok(String::new())
     }
 
     pub(super) fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         self.naar_regel_buffer(&format_getal(value, breedte, decimalen)?)?;
-        Ok("".to_string())
+        Ok(String::new())
     }
     pub(super) fn execute_schrijfsym(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
-        let symbool_nummer = get_sym_value(&value)? as usize;
+        if !(0f32..=99f32).contains(&value) || value.fract() != 0f32 {
+            return Err(EcolFout::FoutMelding(format!("Symboolwaarde {value:.2} is niet geldig, moet tussen 0 en 99 liggen en een geheel getal zijn.")));
+        }
+        let symbool_nummer = get_sym_value(&value)?;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let n = symbool_nummer as usize; //veilig: gevalideerd 0-99 hierboven
 
-        let Some(s) = SYMBOLEN[symbool_nummer] else {
-            return Err(EcolFout::FoutMelding(format!("Symboolwaarde {} is niet gedefinieerd.", symbool_nummer)));
+        let Some(s) = SYMBOLEN[n] else {
+            return Err(EcolFout::FoutMelding(format!("Symboolwaarde {symbool_nummer} is niet gedefinieerd.")));
         };
         let symbool: char = s;
 
         self.naar_regel_buffer(symbool.to_string().as_str())?;
-        Ok("".to_string())
+        Ok(String::new())
     }
     pub(super) fn execute_schrijm(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
@@ -153,13 +188,13 @@ impl EcolMachine {
         if value.is_nan() {
             return Err(EcolFout::FoutMelding("FOUTMELDING: Expressie levert ongeldige waarde op.".to_string()));
         }
-        let s = format!("{:+E}", value);
+        let s = format!("{value:+E}");
 
         let Some((mantisse_deel, exp_deel)) = s.split_once('E') else {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor waarde: {}", s)));
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor waarde: {s}")));
         };
         let Ok(e) = exp_deel.parse::<i32>() else {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor exponent: {}", exp_deel)));
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor exponent: {exp_deel}")));
         };
         let exp = e + 1;
         let (teken, cijfers) = if let Some(cijfers) = mantisse_deel.strip_prefix('-') {
@@ -174,16 +209,21 @@ impl EcolMachine {
 
         self.naar_regel_buffer(&format!("{}{}E{}{}", teken, ecol_mantisse, exp_teken, exp.unsigned_abs()))?;
 
-        Ok("".to_string())
+        Ok(String::new())
     }
     pub(super) fn execute_spatie(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
-        let number = self.solve_expression(aantal, lees_geheugen)? as usize;
-        if number > 80 {
-            return Err(EcolFout::FoutMelding(format!("SPATIE verwacht een aantal kleiner dan 80 (maximale regelgrootte). Aantal: {}", aantal)));
+        let number = self.solve_expression(aantal, lees_geheugen)?;
+        if !(1f32..=80f32).contains(&number) {
+            return Err(EcolFout::FoutMelding(format!("SPATIE verwacht een aantal tussen 1 en 80 (maximale regelgrootte). Aantal: {number}")));
         }
-        let regel = format!("{: <width$}", "", width = number);
+        if number.fract() != 0f32 {
+            return Err(EcolFout::FoutMelding(format!("SPATIE verwacht een geheel getal. Aantal: {number}")));
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let n = number as usize; //veilig: gevalideerd 1-80 hierboven
+        let regel = format!("{: <width$}", "", width = n);
         self.naar_regel_buffer(&regel)?;
-        Ok("".to_string())
+        Ok(String::new())
     }
     pub(super) fn execute_start(&self, regel: Option<u16>, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> Result<String, EcolFout> {
         let mut current = match regel {
@@ -194,14 +234,11 @@ impl EcolMachine {
         let mut stappen: u32 = 0;
 
         // Herstel opgeslagen toestand, of maak een verse machine aan.
-        let (mut running_program, programma) = match lees_geheugen.neem_lopende_toestand() {
-            Some(toestand) => toestand,
-            None => {
-                let mut m = EcolMachine::new();
-                let mut p = m.extract_functie_definities(self.programma())?;
-                p = m.extract_sub_definities(&p)?;
-                (m, p)
-            }
+        let (mut running_program, programma) = if let Some(toestand) = lees_geheugen.neem_lopende_toestand() { toestand } else {
+            let mut m = EcolMachine::new();
+            let mut p = m.extract_functie_definities(self.programma())?;
+            p = m.extract_sub_definities(&p)?;
+            (m, p)
         };
 
         loop {
@@ -242,7 +279,7 @@ impl EcolMachine {
 
             match whatsnext {
                 Some(WhatsNext::Break) => break,
-                Some(WhatsNext::Continue) => continue,
+                Some(WhatsNext::Continue) => { },
                 None => { }
             }
         }
@@ -251,63 +288,66 @@ impl EcolMachine {
     }
     pub(super) fn execute_tekst(&mut self, expressie: &str) -> Result<String, EcolFout> {
         self.naar_regel_buffer(&literal_to_string(expressie)?)?;
-        Ok("".to_string())
+        Ok(String::new())
     }
     pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, argument: &str, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
+
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let arg = if argument.is_empty() {
             0usize
         } else {
-            self.solve_expression(argument, lees_geheugen)? as usize
+            let arg_werk = self.solve_expression(argument, lees_geheugen)?;
+            if arg_werk.fract() != 0f32 || !(1f32..=9999f32).contains(&arg_werk) {
+                return Err(EcolFout::FoutMelding("Index moet een geheel getal tussen 1 en 9999 zijn.".to_string()));
+            }
+            arg_werk as usize //veilig: gevalideerd 1-9999 hierboven
         };
 
         let mut waarde = self.var_lees_waarde(variabele_naam).unwrap_or(Waarde::NogNietBepaald).clone();
         let var_type_compleet = self.var_type_van(variabele_naam);
         let variabele_type: VariabeleType;
 
-        match var_type_compleet {
-            Some(var_type) => {
-                variabele_type = var_type;
-                match variabele_type {
-                    VariabeleType::Getal => {
-                        if arg != 0 {
-                            return Err(EcolFout::FoutMelding("Getalvariabele kan geen index hebben.".to_string()));
-                        }
-                        waarde = Waarde::new_getal(value);
-                    },
-                    VariabeleType::Rij => {
-                        if arg == 0 {
-                            return Err(EcolFout::FoutMelding("Geen index verwijzing bij RIJ-variabele.".to_string()));
-                        }
-                        waarde.rij_set_value(value, arg)?;
-                    },
-                    VariabeleType::Rijsym => {
-                        if arg == 0 {
-                            return Err(EcolFout::FoutMelding("Geen index verwijzing bij RIJSYM-variabele.".to_string()));
-                        }
+        if let Some(var_type) = var_type_compleet {
+            variabele_type = var_type;
+            match variabele_type {
+                VariabeleType::Getal => {
+                    if arg != 0 {
+                        return Err(EcolFout::FoutMelding("Getalvariabele kan geen index hebben.".to_string()));
+                    }
+                    waarde = Waarde::new_getal(value);
+                },
+                VariabeleType::Rij => {
+                    if arg == 0 {
+                        return Err(EcolFout::FoutMelding("Geen index verwijzing bij RIJ-variabele.".to_string()));
+                    }
+                    waarde.rij_set_value(value, arg)?;
+                },
+                VariabeleType::Rijsym => {
+                    if arg == 0 {
+                        return Err(EcolFout::FoutMelding("Geen index verwijzing bij RIJSYM-variabele.".to_string()));
+                    }
 
-                        waarde.rij_set_value(value, arg)?;
-                    },
-                    VariabeleType::Teller => {
-                        if arg != 0 {
-                            return Err(EcolFout::FoutMelding("Teller-variabele kan geen index hebben.".to_string()));
-                        }
+                    waarde.rij_set_value(value, arg)?;
+                },
+                VariabeleType::Teller => {
+                    if arg != 0 {
+                        return Err(EcolFout::FoutMelding("Teller-variabele kan geen index hebben.".to_string()));
+                    }
 
-                        waarde.teller_schrijf_current(value)?;
-                    },
+                    waarde.teller_schrijf_current(value)?;
+                },
 
-                }
-            },
-            None => {
-                if arg != 0 {
-                    return Err(EcolFout::FoutMelding(format!("RIJ-Variabele '{}' is niet gedefinieerd.", variabele_naam)));
-                }
-                waarde = Waarde::new_getal(value);
             }
+        } else {
+            if arg != 0 {
+                return Err(EcolFout::FoutMelding(format!("RIJ-Variabele '{variabele_naam}' is niet gedefinieerd.")));
+            }
+            waarde = Waarde::new_getal(value);
         }
 
         self.var_schrijf_waarde(variabele_naam, waarde)?;
-        Ok("".to_string())
+        Ok(String::new())
     }
 
     fn rollback_program(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, current: u16, doel: u16) {
@@ -322,9 +362,9 @@ impl EcolMachine {
             match current_regel {
                 LineInhoud::Rij { variabele_naam, .. } |
                 LineInhoud::Rijsym { variabele_naam, .. } => {
-                    self.var_wis(variabele_naam)
+                    self.var_wis(variabele_naam);
                 },
-                _ => { continue },
+                _ => { },
             }
         }
     }
@@ -334,7 +374,7 @@ impl EcolMachine {
         let mut sub_def = SubDef::new();
         let mut naam_van_sub: &str = "";
 
-        for (regelnummer, regel) in volledige_programma.iter() {
+        for (regelnummer, regel) in volledige_programma {
             match regel {
                 LineInhoud::Sub { sub_naam, ..} => {
                     in_sub_definitie = true;
@@ -435,7 +475,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine => {
-                    if let Some(sub_def) = machine.lees_subregister(sub_naam).map(|s| s.clone()) {
+                    if let Some(sub_def) = machine.lees_subregister(sub_naam).map(super::program::SubDef::clone) {
                         machine.start_sub(sub_naam, opdracht.regelnummer())?;
 
                         let subroutine = sub_def.regels();
@@ -453,7 +493,7 @@ pub(super) fn execute_all (
                             }
 
                             match whats_next {
-                                Some(WhatsNext::Continue) => continue,
+                                Some(WhatsNext::Continue) => {},
                                 Some(WhatsNext::Break) => break,
                                 None => {}
                             }
@@ -544,7 +584,7 @@ pub(super) fn execute_all (
         },
         LineInhoud::Lijst { } => {
             match context {
-                Context::Direct => { (Some(machine.execute_lijst()?), no_next_line, no_whats_next)  },
+                Context::Direct => { (Some(machine.execute_lijst()), no_next_line, no_whats_next)  },
                 Context::Programma | Context::Subroutine | Context::Functie => {
                     return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", opdracht.regelnummer())));
                 },
@@ -562,7 +602,7 @@ pub(super) fn execute_all (
                     let regel = machine.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer, lees_geheugen)
                         .map_err(|e| e.met_regel(opdracht.regelnummer()))?;
                     match regel {
-                        Some(_) => { (no_reply_string, no_next_line, Some(WhatsNext::Continue)) },
+                        Some(()) => { (no_reply_string, no_next_line, Some(WhatsNext::Continue)) },
                         None => {
                             (no_reply_string, Some(EcolMachine::teller_naar_herhaal(programma, &opdracht.regelnummer())?), Some(WhatsNext::Continue))
                         }
@@ -599,12 +639,8 @@ pub(super) fn execute_all (
         },
         LineInhoud::NP { .. } => {
             match context {
-                Context::Direct => {
-                    (Some(machine.execute_np( output)?), no_next_line, no_whats_next)
-                },
-                Context::Programma | Context::Subroutine => {
-                    (Some(machine.execute_np(output)
-                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?), no_next_line, no_whats_next)
+                Context::Direct | Context::Programma | Context::Subroutine => {
+                    (Some(machine.execute_np( output)), no_next_line, no_whats_next)
                 },
                 Context::Functie => {
                     return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: NP kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
@@ -793,15 +829,12 @@ fn doe_naar(machine: &mut EcolMachine
             ,sprong_doel: &SprongDoel
             ,regel: &u16
 ,no_stop: bool) -> UitvoeringResultaat {
-    match machine.execute_naar(programma, sprong_doel, regel)? {
-        Some(regel) => {
-            Ok((None, Some(regel), None))
-        },
-        None => {
-            if no_stop {
-                return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regel - 1)));
-            }
-            Ok((None, None, Some(WhatsNext::Break)))
+    if let Some(regel) = machine.execute_naar(programma, sprong_doel, regel)? {
+        Ok((None, Some(regel), None))
+    } else {
+        if no_stop {
+            return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regel - 1)));
         }
+        Ok((None, None, Some(WhatsNext::Break)))
     }
 }

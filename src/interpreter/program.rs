@@ -21,10 +21,11 @@ impl Line {
     }
     pub(super) fn genereer_regel(&self) -> String {
         let regelnummer:String =  if self.regelnummer == 0 {
-            "".to_string()
+            String::new()
         } else {
             format!("{:>4} ", self.regelnummer)
         };
+        #[allow(clippy::match_same_arms)]
         match &self.inhoud {
             LineInhoud::Als { vergelijking, dan, anders, opm } => {
                 match anders {
@@ -33,14 +34,14 @@ impl Line {
                                          ,vergelijking
                                          ,dan
                                          ,x
-                                         ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                         ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                         .trim_start()
                         .to_string(),
                     None => format!("{}ALS {} DAN {}{}"
                                     ,regelnummer
                                     ,vergelijking
                                     ,dan
-                                    ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                    ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                         .trim_start()
                         .to_string(),
                 }
@@ -48,7 +49,7 @@ impl Line {
             LineInhoud::End { opm } => {
                 format!("{}END{}"
                         ,regelnummer
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string()
             }
@@ -57,7 +58,7 @@ impl Line {
                         ,regelnummer
                         ,variabele_naam
                         ,argumenten
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string()
             },
@@ -65,7 +66,7 @@ impl Line {
                 format!("{}FUN := {}{}"
                         ,regelnummer
                         ,expressie
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string()
             },
@@ -73,35 +74,35 @@ impl Line {
                 format!("{}{}{}"
                         ,regelnummer
                         ,sub_naam
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string()
             },
-            LineInhoud::Bewaar {} => format!("{}BEWAAR", regelnummer)
+            LineInhoud::Bewaar {} => format!("{regelnummer}BEWAAR")
                 .trim_start()
                 .to_string(),
-            LineInhoud::Help {} => format!("{}HELP", regelnummer)
+            LineInhoud::Help {} => format!("{regelnummer}HELP")
                 .trim_start()
                 .to_string(),
             LineInhoud::Herhaal { opm } => format!("{}HERHAAL{}"
                                                    ,regelnummer
-                                                   ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                                   ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::Laad {} => format!("{}LAAD", regelnummer)
+            LineInhoud::Laad {} => format!("{regelnummer}LAAD")
                 .trim_start()
                 .to_string(),
             LineInhoud::Klaar { opm } => format!("{}KLAAR{}"
                                                  ,regelnummer
-                                                 ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                                 ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
             LineInhoud::LegeRegel { opm } => format!("{}:{}"
                                                      ,regelnummer
-                                                     ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                                     ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
-            LineInhoud::Lijst {} => format!("{}LIJST", regelnummer)
+            LineInhoud::Lijst {} => format!("{regelnummer}LIJST")
                 .trim_start()
                 .to_string(),
             LineInhoud::Met { stap_expressie, start_expressie, stop_expressie, variabele_naam, opm } => {
@@ -111,25 +112,25 @@ impl Line {
                         ,variabele_naam
                         ,start_expressie
                         ,stop_expressie
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string() },
             LineInhoud::Naar { sprong_doel, opm } => format!("{}NAAR {}{}"
                                                              ,regelnummer
                                                              ,sprong_doel
-                                                             ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                                             ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
             LineInhoud::NP { opm } => format!("{}NP{}"
                                               ,regelnummer
-                                              ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                                              ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
             LineInhoud::NR { aantal, opm } =>
                 format!("{}NR({}){}"
                         ,regelnummer
                         ,aantal
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
             LineInhoud::Rij { start, eind, variabele_naam, opm } =>
@@ -138,7 +139,7 @@ impl Line {
                         ,start
                         ,eind
                         ,variabele_naam
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
             LineInhoud::Rijsym { start, eind, variabele_naam, opm } =>
@@ -147,7 +148,7 @@ impl Line {
                         ,start
                         ,eind
                         ,variabele_naam
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                 .trim_start()
                 .to_string(),
             LineInhoud::Schrijf { breedte, decimalen, expressie, opm } =>
@@ -156,43 +157,43 @@ impl Line {
                         ,breedte
                         ,decimalen
                         ,expressie
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string(),
             LineInhoud::Schrijfsym { expressie, opm } =>
                 format!("{}SCHRIJFSYM := {}{}"
                         ,regelnummer
                         ,expressie
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string(),
             LineInhoud::Schrijm { expressie, opm } =>
                 format!("{}SCHRIJM := {}{}"
                         ,regelnummer
                         ,expressie
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string(),
             LineInhoud::Spatie { aantal, opm } =>
                 format!("{}SPATIE({}){}"
                         ,regelnummer
                         ,aantal
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string(),
-            LineInhoud::Start { } => "".to_string(),
+            LineInhoud::Start { } => String::new(),
             LineInhoud::Sub { sub_naam, opm} =>
                 format!("{}SUB {}{}"
                         ,regelnummer
                         ,sub_naam
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string(),
             LineInhoud::Tekst { expressie, opm } =>
                 format!("{}TEKST := {}{}"
                         ,regelnummer
                         ,expressie
-                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                        ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                     .trim_start()
                     .to_string(),
             LineInhoud::Toekennen { variabele_naam, argument, expressie,opm } =>
@@ -201,20 +202,16 @@ impl Line {
                             ,regelnummer
                             ,variabele_naam
                             ,expressie
-                            ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { "".to_string() })
+                            ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
                         .trim_start()
                         .to_string()
                 } else {
-                    format!("{}{}({}) := {}"
-                            ,regelnummer
-                            ,variabele_naam
-                            ,argument
-                            ,expressie)
+                    format!("{regelnummer}{variabele_naam}({argument}) := {expressie}")
                         .trim_start()
                         .to_string()
                 },
 
-            LineInhoud::Verwijderen { } => "".to_string(),
+            LineInhoud::Verwijderen { } => String::new(),
         }
     }
     pub(super) fn regelnummer(&self) -> u16 {
@@ -255,7 +252,7 @@ impl SprongDoel {
 impl fmt::Display for SprongDoel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SprongDoel::Regel(n) => write!(f, "{}", n),
+            SprongDoel::Regel(n) => write!(f, "{n}"),
             SprongDoel::Stop => write!(f, "STOP"),
         }
     }
@@ -440,21 +437,21 @@ impl Operator {
 fn plus(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links + rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} + {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} + {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
     }
     Ok(resultaat)
 }
 fn min(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links - rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} - {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} - {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
     }
     Ok(resultaat)
 }
 fn maal(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links * rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} * {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} * {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
     }
     Ok(resultaat)
 }
@@ -464,24 +461,25 @@ fn deel(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     }
     let resultaat = links / rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} / {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} / {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
     }
     Ok(resultaat)
 }
 fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     if links < 0.0 && rechts.fract() != 0.0 {
-        return Err(EcolFout::FoutMelding(format!("Machtsverheffen met een negatieve basis en een niet-gehele exponent is niet toegestaan in ECOL ({} M {}).", links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Machtsverheffen met een negatieve basis en een niet-gehele exponent is niet toegestaan in ECOL ({links} M {rechts}).")));
     }
     if rechts.abs() > 1000000.0 {
-        return Err(EcolFout::FoutMelding(format!("Exponent {} is te groot voor machtsverheffen in ECOL ({} M {}).", rechts, links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Exponent {rechts} is te groot voor machtsverheffen in ECOL ({links} M {rechts}).")));
     }
     let resultaat: f32 = if rechts.fract() == 0.0 {
-        links.powi(rechts as i32)
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        links.powi(rechts as i32) //Veilig, want hierboven gevalideerd als geheel getal
     } else {
         links.powf(rechts)
     };
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {} M {} ligt buiten de grenzen van een variabele in ECOL.", links, rechts)));
+        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} M {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
     }
     Ok(resultaat)
 }
@@ -505,7 +503,7 @@ impl Programma {
         let regel_inhoud = regel.inhoud;
 
         let Some(oude_regel) = self.programma.insert(regelnummer, regel_inhoud) else {
-            return "".to_string();
+            return String::new();
         };
 
         format!("{} // vervangen", Line::new(regelnummer, oude_regel).genereer_regel())
@@ -593,7 +591,7 @@ impl FunDef {
         &self.parameters
     }
     pub(super) fn set_parameters(&mut self, parameters: &[String]) {
-        self.parameters = parameters.to_owned();
+         parameters.clone_into(&mut self.parameters);
     }
     pub(super) fn body(&self) -> &BTreeMap<u16, LineInhoud> {
         &self.body
@@ -620,7 +618,7 @@ impl SubDef {
     }
     pub(crate) fn clone(&self) -> SubDef {
         let mut nieuw = SubDef::new();
-        for (regelnummer, regel_inhoud) in self.regels.iter() {
+        for (regelnummer, regel_inhoud) in &self.regels {
             nieuw.regels.insert(*regelnummer, regel_inhoud.clone());
         }
         nieuw

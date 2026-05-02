@@ -31,7 +31,7 @@ impl VariabeleAanroep {
 }
 fn get_index(positie: usize, start: usize, einde: usize) -> Result<usize, EcolFout> {
     if positie < start || positie > einde {
-        return Err(EcolFout::FoutMelding(format!("Index {} is niet geldig; moet liggen tussen {} en {}.", positie, start, einde)))
+        return Err(EcolFout::FoutMelding(format!("Index {positie} is niet geldig; moet liggen tussen {start} en {einde}.")))
     }
     let index = positie - start;
 
@@ -49,7 +49,7 @@ impl EcolRij {
             return Err(EcolFout::FoutMelding("De index van een RIJ kan niet lager zijn dan 1.".to_string()));
         }
         if start > einde{
-            return Err(EcolFout::FoutMelding(format!("Een RIJ moet tenminste 2 waarden  bevatten (start={}, eind={}).", start, einde)));
+            return Err(EcolFout::FoutMelding(format!("Een RIJ moet tenminste 2 waarden  bevatten (start={start}, eind={einde}).")));
         }
 
         let lengte = einde - start + 1;
@@ -88,7 +88,7 @@ impl EcolRijsym {
             return Err(EcolFout::FoutMelding("De index van een RIJSYM kan niet lager zijn dan 1.".to_string()));
         }
         if start > einde{
-            return Err(EcolFout::FoutMelding(format!("Een RIJSYM moet tenminste 2 waarden  bevatten (start={}, eind={}).", start, einde)));
+            return Err(EcolFout::FoutMelding(format!("Een RIJSYM moet tenminste 2 waarden  bevatten (start={start}, eind={einde}).")));
         }
 
         let lengte = einde - start + 1;
@@ -107,7 +107,7 @@ impl EcolRijsym {
 
     fn get_value(&self, positie: usize) -> Result<f32, EcolFout> {
         let index = self.get_index(positie)?;
-        Ok(self.value[index] as f32)
+        Ok(f32::from(self.value[index]))
     }
     fn haal_grenswaarden(&self) -> (usize, usize) {
         (self.start, self.einde)
@@ -167,6 +167,11 @@ impl VariabeleType {
             VariabeleType::Rijsym => "Rijsym",
             VariabeleType::Teller => "Teller",
         }
+    }
+}
+impl std::fmt::Display for VariabeleType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 #[derive(Debug, Clone, PartialEq)]

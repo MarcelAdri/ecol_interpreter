@@ -211,7 +211,7 @@ RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99</pre>
 
 <p><strong>Let op:</strong> in het originele ECOL werd de notatie <code>RIJ(m:n)naam</code> gebruikt (dubbele punt als scheidingsteken, geen spatie voor de naam). Deze interpreter gebruikt een komma als scheidingsteken; een spatie vóór de variabelenaam is toegestaan maar niet verplicht.</p>
 
-<p><strong>Indexering is 1-gebaseerd:</strong> de startindex moet minimaal 1 zijn. <code>RIJ(0,n)</code> en <code>RIJSYM(0,n)</code> zijn niet toegestaan.</p>
+<p><strong>Grenzen:</strong> m en n moeten gehele getallen zijn tussen 1 en 9999, en n moet groter zijn dan m (minimaal 2 elementen). Een negatieve waarde, nul, een gebroken getal, of een reeks die niet oploopt, geeft een foutmelding.</p>
 
 <p>Een array-element toewijzen of uitlezen:</p>
 <pre>naam(index) := uitdrukking
@@ -251,12 +251,12 @@ a := naam(index)</pre>
   </tr>
   <tr>
     <td><code>SCHRIJFSYM := &lt;uitdr&gt;</code></td>
-    <td>Drukt het symbool met de gegeven interne waarde af (zie symboltabel).</td>
+    <td>Drukt het symbool met de gegeven interne waarde af (zie symboltabel). De waarde moet een geheel getal zijn tussen 0 en 99.</td>
     <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
     <td><code>SPATIE(n)</code></td>
-    <td>Voegt n spaties toe aan de regelbuffer.</td>
+    <td>Voegt n spaties toe aan de regelbuffer. n moet een geheel getal zijn tussen 1 en 80.</td>
     <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
@@ -266,7 +266,7 @@ a := naam(index)</pre>
   </tr>
   <tr>
     <td><code>NR(n)</code></td>
-    <td>Stuurt de regelbuffer naar de uitvoer en voegt n regelovergangen in. <code>NR(0)</code> wist de regelbuffer zonder uitvoer (afwijking van het origineel, waar NR(0) terugsprong naar het begin van de regel).</td>
+    <td>Stuurt de regelbuffer naar de uitvoer en voegt n regelovergangen in; n moet een geheel getal zijn tussen 1 en 99. Waarden buiten dit bereik geven een foutmelding.</td>
     <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
@@ -463,13 +463,14 @@ FUN := &lt;uitdrukking&gt;</pre>
 <table>
   <tr><th>Symbool</th><th>Waarde</th><th>Symbool</th><th>Waarde</th><th>Symbool</th><th>Waarde</th></tr>
   <tr><td>0–9</td><td>0–9</td><td>a–z</td><td>10–35</td><td>A–Z</td><td>40–65</td></tr>
-  <tr><td><code>.</code></td><td>70</td><td><code>+</code></td><td>80</td><td><code>-</code></td><td>81</td></tr>
-  <tr><td><code>×</code></td><td>82</td><td><code>:</code></td><td>72</td><td><code>;</code></td><td>73</td></tr>
-  <tr><td><code>/</code></td><td>83</td><td><code>=</code></td><td>84</td><td><code>&lt;</code></td><td>85</td></tr>
-  <tr><td><code>&gt;</code></td><td>86</td><td><code>≤</code></td><td>87</td><td><code>≥</code></td><td>88</td></tr>
-  <tr><td><code>≠</code></td><td>89</td><td><code>(</code></td><td>78</td><td><code>)</code></td><td>79</td></tr>
-  <tr><td>spatie</td><td>90</td><td>nr (newline)</td><td>91</td><td>onbekend</td><td>98</td></tr>
-  <tr><td><code>]</code> (einde tekst)</td><td>99</td><td></td><td></td><td></td><td></td></tr>
+  <tr><td><code>.</code></td><td>70</td><td><code>,</code></td><td>71</td><td><code>:</code></td><td>72</td></tr>
+  <tr><td><code>;</code></td><td>73</td><td><code>?</code></td><td>74</td><td><code>!</code></td><td>75</td></tr>
+  <tr><td><code>'</code></td><td>76</td><td><code>"</code></td><td>77</td><td><code>(</code></td><td>78</td></tr>
+  <tr><td><code>)</code></td><td>79</td><td><code>+</code></td><td>80</td><td><code>-</code></td><td>81</td></tr>
+  <tr><td><code>*</code></td><td>82</td><td><code>/</code></td><td>83</td><td><code>=</code></td><td>84</td></tr>
+  <tr><td><code>&lt;</code></td><td>85</td><td><code>&gt;</code></td><td>86</td><td><code>≤</code></td><td>87</td></tr>
+  <tr><td><code>≥</code></td><td>88</td><td><code>≠</code></td><td>89</td><td>spatie</td><td>90</td></tr>
+  <tr><td>nr (newline)</td><td>91</td><td>onbekend</td><td>92–98</td><td><code>]</code> (einde tekst)</td><td>99</td></tr>
 </table>
 
 <h2>Voorbeeldprogramma's</h2>

@@ -211,7 +211,7 @@ RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99</pre>
 
 <p><strong>Let op:</strong> in het originele ECOL werd de notatie <code>RIJ(m:n)naam</code> gebruikt (dubbele punt als scheidingsteken, geen spatie voor de naam). Deze interpreter gebruikt een komma als scheidingsteken; een spatie vóór de variabelenaam is toegestaan maar niet verplicht.</p>
 
-<p><strong>Indexering is 1-gebaseerd:</strong> de startindex moet minimaal 1 zijn. <code>RIJ(0,n)</code> en <code>RIJSYM(0,n)</code> zijn niet toegestaan.</p>
+<p><strong>Grenzen:</strong> m en n moeten gehele getallen zijn tussen 1 en 9999, en n moet groter zijn dan m (minimaal 2 elementen). Een negatieve waarde, nul, een gebroken getal, of een reeks die niet oploopt, geeft een foutmelding.</p>
 
 <p>Een array-element toewijzen of uitlezen:</p>
 <pre>naam(index) := uitdrukking
@@ -251,12 +251,12 @@ a := naam(index)</pre>
   </tr>
   <tr>
     <td><code>SCHRIJFSYM := &lt;uitdr&gt;</code></td>
-    <td>Drukt het symbool met de gegeven interne waarde af (zie symboltabel).</td>
+    <td>Drukt het symbool met de gegeven interne waarde af (zie symboltabel). De waarde moet een geheel getal zijn tussen 0 en 99.</td>
     <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
     <td><code>SPATIE(n)</code></td>
-    <td>Voegt n spaties toe aan de regelbuffer.</td>
+    <td>Voegt n spaties toe aan de regelbuffer. n moet een geheel getal zijn tussen 1 en 80.</td>
     <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>
@@ -266,7 +266,7 @@ a := naam(index)</pre>
   </tr>
   <tr>
     <td><code>NR(n)</code></td>
-    <td>Stuurt de regelbuffer naar de uitvoer en voegt n regelovergangen in. <code>NR(0)</code> wist de regelbuffer zonder uitvoer (afwijking van het origineel, waar NR(0) terugsprong naar het begin van de regel).</td>
+    <td>Stuurt de regelbuffer naar de uitvoer en voegt n regelovergangen in; n moet een geheel getal zijn tussen 1 en 99. Waarden buiten dit bereik geven een foutmelding.</td>
     <td><span class="tag hist">historisch</span> <span class="tag ok">geïmpl.</span></td>
   </tr>
   <tr>

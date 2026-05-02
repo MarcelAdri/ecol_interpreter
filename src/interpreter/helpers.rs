@@ -19,7 +19,7 @@ pub(super) fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
 
     if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
         let (variabele, rest_na_variabele) = extract_variabele_naam(werkstring).unwrap_or(("", werkstring.trim_start()));
-        if variabele.is_empty() { return None };
+        if variabele.is_empty() { return None }
         if geen_spaties(rest_na_variabele).is_empty() { return Some((Sleutelwoord::GASUB, variabele)); }
 
         return Some((Sleutelwoord::TOEKENNEN, rest_na_variabele.trim_start()));
@@ -54,7 +54,7 @@ pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), Ecol
 
     let Some(resultaat_parsing) = nummer.trim().parse::<u16>().ok() else { return Ok((0u16, input.trim_start(), is_alleen_regelnummer)) };
     let regelnummer = resultaat_parsing;
-    if regelnummer > 999u16 { return Err(EcolFout::FoutMelding("Regelnummer mag niet groter zijn dan 999".to_string())) };
+    if regelnummer > 999u16 { return Err(EcolFout::FoutMelding("Regelnummer mag niet groter zijn dan 999".to_string())) }
 
 
     Ok((regelnummer, restregel, is_alleen_regelnummer))
@@ -126,21 +126,18 @@ pub(super) fn extract_dan(input: &str) -> Result<(SprongDoel, &str), EcolFout> {
     let pos = werkstring.find("ANDERS");
     let dan_reply: SprongDoel;
 
-    match pos {
-        Some(positie) => {
-            let dan = &werkstring[..positie];
-            let rest = &werkstring[positie + 6..];
+    if let Some(positie) = pos {
+        let dan = &werkstring[..positie];
+        let rest = &werkstring[positie + 6..];
 
-            dan_reply = SprongDoel::vul(&geen_spaties(dan))?;
+        dan_reply = SprongDoel::vul(&geen_spaties(dan))?;
 
-            Ok((dan_reply, rest.trim_start()))
-        }
-        None => {
-            let dan = &geen_spaties(werkstring);
-            dan_reply = SprongDoel::vul(dan)?;
+        Ok((dan_reply, rest.trim_start()))
+    } else {
+        let dan = &geen_spaties(werkstring);
+        dan_reply = SprongDoel::vul(dan)?;
 
-            Ok((dan_reply, ""))
-        }
+        Ok((dan_reply, ""))
     }
 }
 pub(super) fn extract_anders(input: &str) -> Result<(SprongDoel, &str), EcolFout> {
@@ -154,16 +151,13 @@ pub(super) fn extract_opmerking(input: &str) -> (String, String) {
     let deel_voor_opmerking: String;
     let opmerking: String;
 
-    let rp = input.find(";");
-    match rp {
-        Some(p) => {
-            deel_voor_opmerking = geen_spaties(&input[..p]);
-            opmerking = input[p..].to_string();
-        }
-        None => {
-            deel_voor_opmerking = geen_spaties(input);
-            opmerking = "".to_string();
-        }
+    let rp = input.find(';');
+    if let Some(p) = rp {
+        deel_voor_opmerking = geen_spaties(&input[..p]);
+        opmerking = input[p..].to_string();
+    } else {
+        deel_voor_opmerking = geen_spaties(input);
+        opmerking = String::new();
     }
 
     (deel_voor_opmerking, opmerking)
@@ -175,20 +169,20 @@ pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Resu
 
     if breedte == 0 {
         b = 6;
-        if x != x.trunc() {
-            d = 4;
-        } else {
+        if x == x.trunc() {
             d = 0;
+        } else {
+            d = 4;
         }
     }
 
-    let ruimte_voor_teken = if x < 0f32 { 1usize } else { 0usize };
+    let ruimte_voor_teken = usize::from(x < 0f32);
     let b_totaal = if d == 0 { b + ruimte_voor_teken } else { b + d + ruimte_voor_teken + 1 };
 
-    let reply = format!("{:breedte$.decimalen$}", x, breedte = b_totaal, decimalen = d);
+    let reply = format!("{x:b_totaal$.d$}");
 
     if reply.len() > b_totaal {
-        return Err(EcolFout::FoutMelding(format!("De opgegeven waarde {} past niet in de opgegeven breedte {}.", x, breedte)))
+        return Err(EcolFout::FoutMelding(format!("De opgegeven waarde {x} past niet in de opgegeven breedte {breedte}.")))
     }
 
     Ok(reply)
@@ -201,20 +195,21 @@ pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
 pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
-    if getal.is_nan() || !(0.0..=99.0).contains(getal) {
-        return Err(EcolFout::FoutMelding(format!("Waarde {} is ongeldig (xxxSYM verwacht 0–99).", getal)));
+    if getal.is_nan() || !(0.0..=99.0).contains(getal) || getal.fract() != 0.0 {
+        return Err(EcolFout::FoutMelding(format!("Waarde {getal} is ongeldig (xxxSYM verwacht een geheel getal 0–99).")));
     }
-    Ok(*getal as u8)
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Ok(*getal as u8) //veilig, want hierboven gevalideerd als geheel getal tussen 0 en 99
 }
-pub(super) fn grens_bewaking (getal: &f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, EcolFout> {
+pub(super) fn grens_bewaking (getal: f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, EcolFout> {
     if getal.fract() != 0.0 && alleen_hele_getallen {
-        return Err(EcolFout::FoutMelding(format!("Getal moet een heel getal zijn, maar is {}", getal)));
+        return Err(EcolFout::FoutMelding(format!("Getal moet een heel getal zijn, maar is {getal}")));
     }
-    if *getal <= 0f32 && alleen_positieve_getallen {
-        return Err(EcolFout::FoutMelding(format!("Getal moet positief zijn, maar is {}", getal)));
+    if getal <= 0f32 && alleen_positieve_getallen {
+        return Err(EcolFout::FoutMelding(format!("Getal moet positief zijn, maar is {getal}")));
     }
 
-    Ok(*getal)
+    Ok(getal)
 }
 pub(super) fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     let mut chars = naam.chars();

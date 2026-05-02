@@ -54,6 +54,7 @@ impl FunctieNaam {
         }
     }
     pub(super) fn verwacht_argumenten(&self) -> usize {
+        #[allow(clippy::match_same_arms)]
         match self {
             Self::ABS => 1,
             Self::ARCTAN => 1,
@@ -80,7 +81,7 @@ impl FunctieNaam {
 }
 impl Display for FunctieNaam {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 #[allow(clippy::upper_case_acronyms)]
@@ -105,7 +106,7 @@ pub(super) enum Functie {
 impl Functie {
     pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, rij_naam: &str) -> Result<Self, EcolFout> {
         if argumenten.len() != functienaam.verwacht_argumenten() {
-            return Err(EcolFout::FoutMelding(format!("Verkeerd aantal argumenten voor '{}'", functienaam)));
+            return Err(EcolFout::FoutMelding(format!("Verkeerd aantal argumenten voor '{functienaam}'")));
         }
         match functienaam {
             FunctieNaam::ABS => Ok(Functie::ABS { getal: argumenten[0] }),
@@ -136,7 +137,7 @@ impl EigenFunctie {
         EigenFunctie { functie_omgeving: Box::new(EcolMachine::new()) }
     }
 
-    fn eigen_functie(functies: &HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+    fn eigen_functie(functies: &mut HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if diepte > 64 {
             return Err(EcolFout::FoutMelding("Maximum recursie-diepte overschreden (64).".to_string()));
         }
@@ -152,17 +153,14 @@ impl EigenFunctie {
             .zip(argumenten.iter())
             .enumerate()
         {
-            let mut naam = param.to_string();
+            let mut naam = param.clone();
             if geen_spaties(&naam).starts_with("RIJSYM") {
                 naam = geen_spaties(&naam[6..]);
                 if argument.type_van() != Some(VariabeleType::Rijsym) {
                     return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}."
                                                              ,index + 1
                                                              ,argument
-                                                                 .type_van()
-                                                                 .map(|t| t.to_string())
-                                                                 .unwrap_or_else(|| "onbekend type" )
-                                                                 .to_string())));
+                                                                 .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
                 }
                 let (begin, einde) = argument.rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
@@ -172,23 +170,15 @@ impl EigenFunctie {
                     return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}."
                                                              ,index + 1
                                                              ,argument
-                                                                 .type_van()
-                                                                 .map(|t| t.to_string())
-                                                                 .unwrap_or_else(|| "onbekend type" )
-                                                                 .to_string())));
+                                                                 .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
                 }
                 let (begin, einde) = argument.rij_haal_grenswaarden();
                 machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
-            } else {
-                if argument.type_van() != Some(VariabeleType::Getal) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}."
-                                                             ,index + 1
-                                                             ,argument
-                                                                 .type_van()
-                                                                 .map(|t| t.to_string())
-                                                                 .unwrap_or_else(|| "onbekend type" )
-                                                                 .to_string())));
-                }
+            } else if argument.type_van() != Some(VariabeleType::Getal) {
+                return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}."
+                                                         ,index + 1
+                                                         ,argument
+                                                             .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
             }
             machine.functie_omgeving.var_schrijf_waarde(&naam, argument.clone())?;
         }
@@ -203,28 +193,25 @@ impl EigenFunctie {
             current = regelnummer + 1;
             let regel = Line::new(current, current_regel.clone());
 
-            match current_regel {
-                LineInhoud::FunEind { expressie, ..} => {
-                    return machine.functie_omgeving.solve_expression(expressie, lees_geheugen);
-                },
-                _ => {
-                    let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie, lees_geheugen, &mut |_| {})?;
+            if let LineInhoud::FunEind { expressie, ..} = current_regel {
+                return machine.functie_omgeving.solve_expression(expressie, lees_geheugen);
+            } else {
+                let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie, lees_geheugen, &mut |_| {})?;
 
-                    if let Some(r) = reply_option {
-                        let reply: String = r;
-                        return reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()));
-                    }
+                if let Some(r) = reply_option {
+                    let reply: String = r;
+                    return reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()));
+                }
 
-                    if let Some(nextline) = nextline_option {
-                        current = nextline;
-                        continue;
-                    }
+                if let Some(nextline) = nextline_option {
+                    current = nextline;
+                    continue;
+                }
 
-                    if let Some(whatsnext) = whatsnext_option {
-                        match whatsnext {
-                            WhatsNext::Break => break,
-                            WhatsNext::Continue => continue,
-                        }
+                if let Some(whatsnext) = whatsnext_option {
+                    match whatsnext {
+                        WhatsNext::Break => break,
+                        WhatsNext::Continue => { },
                     }
                 }
             }
@@ -241,69 +228,69 @@ impl EcolMachine {
     pub(super) fn execute_function(&mut self, lees_geheugen: &mut LeesGeheugen, functie: &Functie) -> Result<f32, EcolFout> {
 
         match functie {
-            Functie::ABS { getal } => { let uitkomst = self.execute_function_abs(getal)?; Ok(uitkomst) },
-            Functie::ARCTAN { getal } => { let uitkomst = self.execute_function_arctan(getal)?; Ok(uitkomst) },
+            Functie::ABS { getal } => { let uitkomst = Self::execute_function_abs(*getal)?; Ok(uitkomst) },
+            Functie::ARCTAN { getal } => { let uitkomst = Self::execute_function_arctan(*getal)?; Ok(uitkomst) },
             Functie::BOVIN { variabele_naam } => { let uitkomst = self.execute_function_bovin(variabele_naam)?; Ok(uitkomst) },
-            Functie::COS { getal } => { let uitkomst = self.execute_function_cos(getal)?; Ok(uitkomst) },
-            Functie::EXP { getal } => { let uitkomst = self.execute_function_exp(getal)?; Ok(uitkomst) },
-            Functie::G { getal } => { let uitkomst = self.execute_function_g(getal)?; Ok(uitkomst) },
-            Functie::GOK { laag, hoog } => { let uitkomst = self.execute_function_gok(laag, hoog)?; Ok(uitkomst) },
-            Functie::GOKC { } => { let uitkomst = self.execute_function_gokc()?; Ok(uitkomst) },
+            Functie::COS { getal } => { let uitkomst = Self::execute_function_cos(*getal)?; Ok(uitkomst) },
+            Functie::EXP { getal } => { let uitkomst = Self::execute_function_exp(*getal)?; Ok(uitkomst) },
+            Functie::G { getal } => { let uitkomst = Self::execute_function_g(*getal)?; Ok(uitkomst) },
+            Functie::GOK { laag, hoog } => { let uitkomst = self.execute_function_gok(*laag, *hoog)?; Ok(uitkomst) },
+            Functie::GOKC { } => { let uitkomst = self.execute_function_gokc(); Ok(uitkomst) },
             Functie::LEES { } => { let uitkomst = self.execute_function_lees(lees_geheugen)?; Ok(uitkomst) },
             Functie::LEESSYM { } => { let uitkomst = self.execute_function_leessym(lees_geheugen)?; Ok(uitkomst) },
-            Functie::LN { getal } => { let uitkomst = self.execute_function_ln(getal)?; Ok(uitkomst) },
-            Functie::LOG { getal } => { let uitkomst = self.execute_function_log(getal)?; Ok(uitkomst) },
+            Functie::LN { getal } => { let uitkomst = Self::execute_function_ln(*getal)?; Ok(uitkomst) },
+            Functie::LOG { getal } => { let uitkomst = Self::execute_function_log(*getal)?; Ok(uitkomst) },
             Functie::ONDIN { variabele_naam } => { let uitkomst = self.execute_function_ondin(variabele_naam)?; Ok(uitkomst) },
-            Functie::PS { } => { let uitkomst = self.execute_function_ps()?; Ok(uitkomst) },
-            Functie::SIN { getal } => { let uitkomst = self.execute_function_sin(getal)?; Ok(uitkomst) },
-            Functie::WRTL { getal} => { let uitkomst = self.execute_function_wrtl(getal)?; Ok(uitkomst) },
+            Functie::PS { } => { let uitkomst = self.execute_function_ps(); Ok(uitkomst) },
+            Functie::SIN { getal } => { let uitkomst = Self::execute_function_sin(*getal)?; Ok(uitkomst) },
+            Functie::WRTL { getal} => { let uitkomst = Self::execute_function_wrtl(*getal)?; Ok(uitkomst) },
         }
     }
-    fn execute_function_abs(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_abs(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.abs())
     }
-    fn execute_function_arctan(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_arctan(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.atan())
     }
     fn execute_function_bovin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
-        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{}' bestaat niet", variabele_naam)));};
+        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{variabele_naam}' bestaat niet")));};
         match waarde.type_van() {
-            Some(VariabeleType::Rij) | Some(VariabeleType::Rijsym) => {}
-            _ => return Err(EcolFout::FoutMelding(format!("'{}' is geen RIJ of RIJSYM variabele", variabele_naam))),
+            Some(VariabeleType::Rij | VariabeleType::Rijsym) => {}
+            _ => return Err(EcolFout::FoutMelding(format!("'{variabele_naam}' is geen RIJ of RIJSYM variabele"))),
         }
         let (_, result) = waarde.rij_haal_grenswaarden();
         Ok(result as f32)
     }
-    fn execute_function_cos(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_cos(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.cos())
     }
-    fn execute_function_exp(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_exp(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.exp())
     }
-    fn execute_function_g(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_g(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.floor())
     }
-    fn execute_function_gok(&mut self, laag: &f32, hoog: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_gok(&mut self, laag: f32, hoog: f32) -> Result<f32, EcolFout> {
         let laag = grens_bewaking(laag, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         let hoog = grens_bewaking(hoog, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         if laag >= hoog {
-            return Err(EcolFout::FoutMelding(format!("De lage waarde van de GOK ({}) moet kleiner zijn dan de hoge waarde ({})", laag, hoog)));
+            return Err(EcolFout::FoutMelding(format!("De lage waarde van de GOK ({laag}) moet kleiner zijn dan de hoge waarde ({hoog})")));
         }
 
         Ok(self.volgende_willekeurig(laag, hoog).round())
     }
-    fn execute_function_gokc(&mut self) -> Result<f32, EcolFout> {
-        Ok(self.volgende_willekeurig(0.0, 1.0))
+    fn execute_function_gokc(&mut self) -> f32 {
+        self.volgende_willekeurig(0.0, 1.0)
     }
     fn execute_function_lees(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if lees_geheugen.wacht_op_lees() {
@@ -329,43 +316,43 @@ impl EcolMachine {
             Err(EcolFout::WachtOpLeessym(0))
         }
     }
-    fn execute_function_ln(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_ln(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.ln())
     }
-    fn execute_function_log(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_log(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.log10())
     }
     fn execute_function_ondin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
-        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{}' bestaat niet", variabele_naam)));};
+        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{variabele_naam}' bestaat niet")));};
         match waarde.type_van() {
-            Some(VariabeleType::Rij) | Some(VariabeleType::Rijsym) => {}
-            _ => return Err(EcolFout::FoutMelding(format!("'{}' is geen RIJ of RIJSYM variabele", variabele_naam))),
+            Some(VariabeleType::Rij | VariabeleType::Rijsym) => {}
+            _ => return Err(EcolFout::FoutMelding(format!("'{variabele_naam}' is geen RIJ of RIJSYM variabele"))),
         }
         let (result, _) = waarde.rij_haal_grenswaarden();
         Ok(result as f32)
     }
 
-    fn execute_function_ps(&self) -> Result<f32, EcolFout> {
+    fn execute_function_ps(&self) -> f32 {
         let werk = self.lees_regel();
-        Ok(werk.len() as f32)
+        werk.len() as f32
     }
-    fn execute_function_sin(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_sin(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.sin())
     }
-    fn execute_function_wrtl(&self, getal: &f32) -> Result<f32, EcolFout> {
+    fn execute_function_wrtl(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
 
         Ok(getal.sqrt())
     }
-    pub(super) fn execute_eigen_functie(&self, naam: &str, argumenten: Vec<Waarde>, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+    pub(super) fn execute_eigen_functie(&mut self, naam: &str, argumenten: Vec<Waarde>, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         let definitie = self.haal_functiedefinitie(naam)
-            .ok_or_else(|| EcolFout::FoutMelding(format!("Functie '{}' bestaat niet", naam)))?
+            .ok_or_else(|| EcolFout::FoutMelding(format!("Functie '{naam}' bestaat niet")))?
             .clone();
         let diepte = self.functie_diepte() + 1;
         EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte, lees_geheugen)
@@ -380,7 +367,7 @@ impl EcolMachine {
         let mut fundef = FunDef::new();
         let mut naam_van_functie: &str = "";
 
-        for (regelnummer, regel) in volledige_programma.iter() {
+        for (regelnummer, regel) in volledige_programma {
             match regel {
                 LineInhoud::FunStart { variabele_naam, argumenten, .. } => {
                     in_functie_definitie = true;

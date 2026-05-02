@@ -109,7 +109,7 @@ impl RegelBuffer {
                 if r.len() + regel.len() > 80 {
                     return Err(EcolFout::FoutMelding("Regelbuffer overschrijdt het maximum van 80 tekens. Vergeet NR niet.".to_string()));
                 }
-                r.push_str(regel)
+                r.push_str(regel);
             },
         }
         Ok(())
@@ -117,7 +117,7 @@ impl RegelBuffer {
 
     fn lees_regel(&self) -> String {
         match self {
-            RegelBuffer::Regel(r) => r.to_string(),
+            RegelBuffer::Regel(r) => r.clone(),
         }
     }
     fn leeg_regel_buffer(&mut self) {
@@ -172,15 +172,9 @@ impl VariabelenOpslag {
 
     fn schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), EcolFout> {
         let doelwaarde: Waarde;
-        if !self.bestaat(naam) {
-            if waarde.type_van() == Some(VariabeleType::Rij) {
-                return Err(EcolFout::FoutMelding(format!("RIJ-variabele '{}' is nog niet gedefinieerd.", naam)));
-            } else if waarde.type_van() == Some(VariabeleType::Rijsym) {
-                return Err(EcolFout::FoutMelding(format!("RIJSYM-variabele '{}' is nog niet gedefinieerd.", naam)));
-            }
-        } else {
+        if self.bestaat(naam) {
             let Some(doel_waarde) = self.lees_waarde(naam) else {
-                return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: variabele '{}' niet opgeslagen.", naam)));
+                return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: variabele '{naam}' niet opgeslagen.")));
             };
             doelwaarde = doel_waarde;
             if doelwaarde.type_van().is_some()
@@ -189,11 +183,14 @@ impl VariabelenOpslag {
                                        ,naam
                                        ,doelwaarde.type_van().unwrap().to_string()
                                        ,waarde
-                                                                 .type_van()
-                                                                 .map(|t| t.to_string())
-                                                                 .unwrap_or_else(|| "onbekend type" )
-                                                                 .to_string())));
+                                                                 .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
 
+            }
+        } else {
+            if waarde.type_van() == Some(VariabeleType::Rij) {
+                return Err(EcolFout::FoutMelding(format!("RIJ-variabele '{naam}' is nog niet gedefinieerd.")));
+            } else if waarde.type_van() == Some(VariabeleType::Rijsym) {
+                return Err(EcolFout::FoutMelding(format!("RIJSYM-variabele '{naam}' is nog niet gedefinieerd.")));
             }
         }
 
@@ -233,6 +230,7 @@ pub struct EcolMachine {
 }
 impl EcolMachine {
     #[allow(clippy::new_without_default)] // seed is time-dependent, Default would be misleading
+    #[must_use] 
     pub fn new() -> Self {
         EcolMachine {
             variabelen_opslag: VariabelenOpslag::new(),
@@ -249,8 +247,8 @@ impl EcolMachine {
     pub(super) fn schrijf_subregister(&mut self, naam: &str, definitie: SubDef) -> Result<(), EcolFout> {
 
         if self.sub_register.insert(naam.to_string(), definitie).is_some() {
-            return Err(EcolFout::FoutMelding(format!("Interne fout: Subroutine met naam '{}' bestaat al", naam)));
-        };
+            return Err(EcolFout::FoutMelding(format!("Interne fout: Subroutine met naam '{naam}' bestaat al")));
+        }
         Ok(())
     }
     pub(super) fn lees_subregister(&self, naam: &str) -> Option<&SubDef> {
@@ -261,8 +259,8 @@ impl EcolMachine {
     }
     pub(super) fn start_sub(&mut self, naam: &str, regelnummer: u16) -> Result<(), EcolFout> {
         if !self.is_sub(naam) {
-            return Err(EcolFout::FoutMelding(format!("Subroutine met naam '{}' bestaat niet", naam)));
-        };
+            return Err(EcolFout::FoutMelding(format!("Subroutine met naam '{naam}' bestaat niet")));
+        }
         self.sub_return_stack.push(regelnummer);
         Ok(())
     }
@@ -275,10 +273,10 @@ impl EcolMachine {
     }
     pub(super) fn var_schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), EcolFout> {
         if self.is_fun(naam) {
-            return Err(EcolFout::FoutMelding(format!("Ongeldige variabele naam: '{}' is gedefinieerd als FUN.", naam)))
+            return Err(EcolFout::FoutMelding(format!("Ongeldige variabele naam: '{naam}' is gedefinieerd als FUN.")))
         }
         if self.is_sub(naam) {
-            return Err(EcolFout::FoutMelding(format!("Ongeldige variabele naam: '{}' is gedefinieerd als SUB.", naam)))
+            return Err(EcolFout::FoutMelding(format!("Ongeldige variabele naam: '{naam}' is gedefinieerd als SUB.")))
         }
         self.variabelen_opslag.schrijf_waarde(naam, waarde)
     }
@@ -289,7 +287,7 @@ impl EcolMachine {
         self.variabelen_opslag.reserveer_rijsym(variabele_naam, start, eind)
     }
     pub(super) fn var_wis(&mut self, variabele_naam: &str) {
-        self.variabelen_opslag.wis_variabele(variabele_naam)
+        self.variabelen_opslag.wis_variabele(variabele_naam);
     }
     pub(super) fn teller_nieuw(&mut self, naam: &str, stap: f32, start: f32, stop: f32, regel: u16) -> Result<Option<()>, EcolFout> {
         if (stap > 0.0 && start > stop) || (stap < 0.0 && start < stop) {
@@ -326,15 +324,14 @@ impl EcolMachine {
             match current_regel {
                 LineInhoud::Met { .. } => {
                     met_diepte += 1;
-                    continue;
-                }
+                },
                 LineInhoud::Herhaal { .. } => {
                     if met_diepte == 0 {
                         return Ok(current)
                     }
                     met_diepte -= 1;
                 },
-                _ => { continue; },
+                _ => {  },
             }
         }
     }
@@ -344,7 +341,7 @@ impl EcolMachine {
             .clone();
 
         let Some(mut teller) = self.var_lees_waarde(&naam) else {
-            return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: Teller '{}' bestaat niet.", naam)))
+            return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: Teller '{naam}' bestaat niet.")))
         };
 
         let regel = teller.teller_lees_regel()?;
@@ -376,7 +373,7 @@ impl EcolMachine {
         self.regel_buffer.lees_regel()
     }
     pub(super) fn leeg_regel_buffer(&mut self) {
-        self.regel_buffer.leeg_regel_buffer()
+        self.regel_buffer.leeg_regel_buffer();
     }
     pub(super) fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
         self.programma.programma()
@@ -384,15 +381,15 @@ impl EcolMachine {
     pub(super) fn laad_programma(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
         self.programma.laad(bron);
     }
-    pub(super) fn laad_functies(&mut self, bron: &HashMap<String, FunDef>) {
-        self.functie_register = bron.clone();
+    pub(super) fn laad_functies(&mut self, bron: &mut HashMap<String, FunDef>) {
+        bron.clone_from(&self.functie_register);
     }
     pub(super) fn haal_functiedefinitie(&self, naam: &str) -> Option<&FunDef> {
         self.functie_register.get(naam)
     }
     pub(super) fn schrijf_nieuwe_functie(&mut self, naam: &str, fundef: &FunDef) -> Result<(), EcolFout>{
         if self.functie_register.contains_key(naam) {
-            return Err(EcolFout::FoutMelding(format!("Functie met naam '{}' bestaat al", naam)));
+            return Err(EcolFout::FoutMelding(format!("Functie met naam '{naam}' bestaat al")));
         }
         self.functie_register.insert(naam.to_string(), fundef.clone());
         Ok(())
@@ -403,9 +400,9 @@ impl EcolMachine {
     pub(super) fn stel_functie_diepte_in(&mut self, diepte: u16) {
         self.functie_recursie_diepte = diepte;
     }
-    pub(super) fn haal_functie_register(&self) -> &HashMap<String,FunDef>
+    pub(super) fn haal_functie_register(&mut self) -> &mut HashMap<String,FunDef>
     {
-        &self.functie_register
+        &mut self.functie_register
     }
 
     pub(super) fn is_fun(&self, naam: &str) -> bool {
@@ -453,7 +450,7 @@ impl EcolMachine {
             let waarde = symbolen_reverse(waarde_char);
             match waarde {
                 Some(c) => {
-                    lees_geheugen.schrijf_leessym_waarde(c as f32);
+                    lees_geheugen.schrijf_leessym_waarde(f32::from(c))?;
                     let Some(regel) = lees_geheugen.leessym_hervat_bij() else {
                         return Err(EcolFout::FoutMelding("Er is een fout opgetreden. Geef opnieuw in.".to_string()));
                     };
@@ -472,41 +469,37 @@ impl EcolMachine {
                             Err(EcolFout::WachtOpLees(r)) => {
                                 if r == 0 {
                                     return Err(EcolFout::FoutMelding("FOUTMELDING: LEES kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string()));
-                                } else {
-                                   lees_geheugen.lees_hervat_bij_op_regel(r);
-                                    None
                                 }
+                                lees_geheugen.lees_hervat_bij_op_regel(r);
+                                 None
                             },
                             Err(EcolFout::WachtOpLeessym(r)) => {
                                 if r == 0 {
                                     return Err(EcolFout::FoutMelding("FOUTMELDING: LEES SYM kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string()));
-                                } else {
-                                    lees_geheugen.leessym_hervat_bij_op_regel(r);
-                                    None
                                 }
+                                lees_geheugen.leessym_hervat_bij_op_regel(r);
+                                None
                             },
                             Err(EcolFout::WachtOpLaad) => {
                                 lees_geheugen.stel_laad_in();
                                 None
                             },
                         }
+                    } else if regel.inhoud().as_str() == "Verwijderen" {
+                        let verwijder_resultaat = self.programma.regel_verwijderen(regel.regelnummer());
+                        Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()))
                     } else {
-                        if regel.inhoud().as_str() == "Verwijderen" {
-                            let verwijder_resultaat = self.programma.regel_verwijderen(regel.regelnummer());
-                            Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()))
-                        } else {
-                            Some(self.programma.regel_toevoegen(regel))
-                        }
+                        Some(self.programma.regel_toevoegen(regel))
                     }
                 }
                 Err(e) => {
-                    return Err(EcolFout::FoutMelding(format!("Ongeldige invoer: {}" ,e)));
+                    return Err(EcolFout::FoutMelding(format!("Ongeldige invoer: {e}")));
                 }
             }
         };
         Ok(Some(reply.unwrap_or_default()))
     }
-    pub fn execute_direct(&mut self, input: &str, output: &mut dyn FnMut(&str)) -> Result<String, String> {
+    pub fn execute_direct(&mut self, input: &str, _output: &mut dyn FnMut(&str)) -> Result<String, String> {
         let mut lees_geheugen = LeesGeheugen::new();
         let mut output_buffer = String::new();
         match self.execute_intern(input, &mut lees_geheugen, &mut |s| output_buffer.push_str(s)) {
@@ -522,7 +515,8 @@ impl EcolMachine {
         match self.execute_start(Some(regel), lees_geheugen, output) {
             Ok(r) => Some(r),
             Err(EcolFout::FoutMelding(e)) => Some(e),
-            Err(EcolFout::WachtOpLees(_)) | Err(EcolFout::WachtOpLeessym(_)) | Err(EcolFout::WachtOpLaad) => None,
+            Err(EcolFout::WachtOpLees(_) | EcolFout::WachtOpLeessym(_) |
+EcolFout::WachtOpLaad) => None,
         }
     }
 

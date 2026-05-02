@@ -44,8 +44,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
         let start = zoek_vanaf + rel;
         let einde = expressie[start..]
             .find(|c: char| !c.is_ascii_uppercase())
-            .map(|p| start + p)
-            .unwrap_or(expressie.len());
+            .map_or(expressie.len(), |p| start + p);
         if Operator::is_operator_string(&expressie[start..einde]) {
             zoek_vanaf = einde;
             continue;
@@ -55,7 +54,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
 
     let functienaam = &expressie[start_naam..einde_naam];
     let Some(functie) = FunctieNaam::from_str(functienaam) else {
-        return Err(EcolFout::FoutMelding(format!("Ongeldige functienaam: '{}'", functienaam)));
+        return Err(EcolFout::FoutMelding(format!("Ongeldige functienaam: '{functienaam}'")));
     };
 
     // 3. Geen argumenten: direct klaar
@@ -67,7 +66,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
     let rest = expressie[einde_naam..].trim_start();
     let rest_offset = expressie.len() - rest.len(); // absolute byte-offset van `rest` in `expressie`
     if !rest.starts_with('(') {
-        return Err(EcolFout::FoutMelding(format!("'(' verwacht na '{}'", functienaam)));
+        return Err(EcolFout::FoutMelding(format!("'(' verwacht na '{functienaam}'")));
     }
     // 5. Zoek bijbehorend sluithaakje (haakjes-diepte meetellen)
     let rel_sluit = vind_sluitende_haak(rest)?;
@@ -191,11 +190,10 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else {
                 return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
             };
-            let parameters = rest_na_variabele.trim().trim_start_matches("(").trim_end_matches(")");
+            let parameters = rest_na_variabele.trim().trim_start_matches('(').trim_end_matches(')');
             let rest_na_parameters = rest_na_variabele
                 .find(')')
-                .map(|i| &rest_na_variabele[i + 1..])
-                .unwrap_or("");
+                .map_or("", |i| &rest_na_variabele[i + 1..]);
 
 
             Ok(Line::new(regelnummer, LineInhoud::FunStart { variabele_naam: variabele_naam.to_string() , argumenten: parameters.to_string(), opm: vind_opmerking(rest_na_parameters)? }))
@@ -306,7 +304,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));
             let argument: String;
             if argumenten.is_empty() {
-                argument = "".to_string();
+                argument = String::new();
             } else if argumenten.len() == 1 {
                 argument = argumenten[0].clone();
             } else {

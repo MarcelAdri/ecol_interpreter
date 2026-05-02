@@ -47,11 +47,11 @@ pub fn start() -> Result<(), JsValue> {
             // Prompt-echo eerst tonen, zodat callback-output daaronder verschijnt
             let oude_hist = hist.inner_html();
             if l.wacht_op_lees() {
-                hist.set_inner_html(&format!("{}<br/>LEES : {}<br/>", oude_hist, command));
+                hist.set_inner_html(&format!("{oude_hist}<br/>LEES : {command}<br/>"));
             } else if l.wacht_op_leessym() {
-                hist.set_inner_html(&format!("{}<br/>LEESSYM : {}<br/>", oude_hist, command));
+                hist.set_inner_html(&format!("{oude_hist}<br/>LEESSYM : {command}<br/>"));
             } else {
-                hist.set_inner_html(&format!("{}<br/>ECOL > {}<br/>", oude_hist, command));
+                hist.set_inner_html(&format!("{oude_hist}<br/>ECOL > {command}<br/>"));
             }
 
             let resultaat = m.borrow_mut().execute(&command, &mut l, &mut |regel| {
@@ -63,7 +63,7 @@ pub fn start() -> Result<(), JsValue> {
                 } else {
                     let regel_html = regel.replace('\n', "<br/>");
                     let oude = hist_cb.inner_html();
-                    hist_cb.set_inner_html(&format!("{}{}", oude, regel_html));
+                    hist_cb.set_inner_html(&format!("{oude}{regel_html}"));
                 }
                 win_cb.scroll_to_with_x_and_y(0.0, 1_000_000.0);
             });
@@ -108,7 +108,7 @@ pub fn start() -> Result<(), JsValue> {
             if !resultaat.is_empty() {
                 let resultaat_html = resultaat.replace('\n', "<br/>");
                 let oude = hist.inner_html();
-                hist.set_inner_html(&format!("{}{}<br/>", oude, resultaat_html));
+                hist.set_inner_html(&format!("{oude}{resultaat_html}<br/>"));
             }
             if l.wacht_op_lees() {
                 prompt.set_inner_text("LEES :\u{a0}");

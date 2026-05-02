@@ -22,7 +22,7 @@ impl Vergelijking {
             "<" => Ok(Self::MinderDan),
             ">=" | "≥" => Ok(Self::GroterOfGelijk),
             "<=" | "≤" => Ok(Self::MinderOfGelijk),
-            _ => Err(format!("Ongeldig vergelijkingsteken: {}", tekst)),
+            _ => Err(format!("Ongeldig vergelijkingsteken: {tekst}")),
         }
     }
     fn alle_vergelijking_operatoren() -> Vec<&'static str> {
