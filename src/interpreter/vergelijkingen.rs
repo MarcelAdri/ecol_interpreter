@@ -1,5 +1,5 @@
 use crate::EcolMachine;
-use crate::interpreter::errors::EcolFout;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::geen_spaties;
 use crate::interpreter::LeesGeheugen;
 
@@ -14,7 +14,7 @@ pub(super) enum Vergelijking {
 }
 
 impl Vergelijking {
-    fn from_string(tekst: &str) -> Result<Self, String> {
+    fn from_string(tekst: &str) -> Result<Self, EcolFout> {
         match tekst {
             "=" => Ok(Self::Gelijk),
             "<>" | "≠" => Ok(Self::NietGelijk),
@@ -22,7 +22,7 @@ impl Vergelijking {
             "<" => Ok(Self::MinderDan),
             ">=" | "≥" => Ok(Self::GroterOfGelijk),
             "<=" | "≤" => Ok(Self::MinderOfGelijk),
-            _ => Err(format!("Ongeldig vergelijkingsteken: {tekst}")),
+            _ => Err(EcolFout::melding(EcolFoutVariant::OngeldigVergelijkingsteken(tekst.to_string()))),
         }
     }
     fn alle_vergelijking_operatoren() -> Vec<&'static str> {
@@ -112,13 +112,13 @@ impl EcolMachine {
             if let Some(pos) = expressie.find(operator) {
                 links = &expressie[..pos];
                 rechts = &expressie[pos + operator.len()..];
-                operator_teken = Vergelijking::from_string(operator).map_err(EcolFout::FoutMelding)?;
+                operator_teken = Vergelijking::from_string(operator)?;
                 break;
             }
         }
 
         if links.is_empty() || rechts.is_empty() {
-            return Err(EcolFout::FoutMelding("Ongeldige vergelijking".to_string()));
+            return Err(EcolFout::melding(EcolFoutVariant::OngeldigeVergelijking));
         }
 
         let links_getal = self.solve_expression(links, lees_geheugen)?;

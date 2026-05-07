@@ -920,14 +920,14 @@ mod tests {
     #[wasm_bindgen_test] fn fun_geneste_aanroep_zelf() {
         assert_eq!(run_program("
         10 FUN joop(beer)
-        20 res := beer + 80
+        20 res := beer + 800
         30 ALS res < 5000 DAN 40 ANDERS 50
         40 res := joop(res)
         50 FUN := res
         100 a := joop(6)
         110 SCHRIJF(4,0) := a
         120 NR
-        130 KLAAR"), Ok("5046\n".to_string()));
+        130 KLAAR"), Ok("5606\n".to_string()));
     }
     #[wasm_bindgen_test] fn fun_geneste_oneindig_fout() {
         assert!(run_program("
@@ -943,7 +943,7 @@ mod tests {
     #[wasm_bindgen_test] fn fun_geneste_aanroep_ander() {
         assert_eq!(run_program("
         10 FUN joop(beer)
-        20 res := beer + 80
+        20 res := beer + 800
         30 ALS res < 5000 DAN 40 ANDERS 60
         40 res := joop(res)
         50 NAAR 70
@@ -955,7 +955,7 @@ mod tests {
         130 KLAAR
         200 FUN klaas(hert)
         210 res := hert - 100
-        220 FUN := res"), Ok("4946\n".to_string()));
+        220 FUN := res"), Ok("5506\n".to_string()));
     }
     #[wasm_bindgen_test] fn fun_rij_doorgeven() {
         assert_eq!(run_program("

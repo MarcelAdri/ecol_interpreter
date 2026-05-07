@@ -3,8 +3,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::js_sys;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::errors::EcolFout;
-//use crate::interpreter::errors::EcolFout::{WachtOpLees, WachtOpLeessym};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::machine::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud, SprongDoel, SubDef};
@@ -30,10 +29,10 @@ impl EcolMachine {
             let geopend = window.open_with_url_and_target(crate::interpreter::machine::HELP_PAGINA, "_blank");
             match geopend {
                 Ok(_) => Ok("Zie het help-document in ander tabblad.".to_string()),
-                Err(_) => Err(EcolFout::FoutMelding("Kon het help-document niet openen.".to_string())),
+                Err(_) => Err(EcolFout::melding(EcolFoutVariant::HelpDocument)),
             }
         } else {
-            Err(EcolFout::FoutMelding("Kon het help-document niet openen.".to_string()))
+            Err(EcolFout::melding(EcolFoutVariant::HelpDocument))
         }
     }
 
@@ -43,19 +42,19 @@ impl EcolMachine {
             return Ok("Programma is leeg, niets op te slaan.".to_string());
         }
         let window = web_sys::window()
-            .ok_or_else(|| EcolFout::FoutMelding("Geen browservenster.".to_string()))?;
+            .ok_or_else(|| EcolFout::melding(EcolFoutVariant::GeenBrowserVenster))?;
         let document = window.document()
-            .ok_or_else(|| EcolFout::FoutMelding("Geen document.".to_string()))?;
+            .ok_or_else(|| EcolFout::melding(EcolFoutVariant::GeenDocument))?;
 
         let array = js_sys::Array::new();
         array.push(&JsValue::from_str(&tekst));
         let blob = web_sys::Blob::new_with_str_sequence(&JsValue::from(array))
-            .map_err(|_| EcolFout::FoutMelding("Kon geen bestand aanmaken.".to_string()))?;
+            .map_err(|_| EcolFout::melding(EcolFoutVariant::GeenBestand))?;
         let url = web_sys::Url::create_object_url_with_blob(&blob)
-            .map_err(|_| EcolFout::FoutMelding("Kon geen URL aanmaken.".to_string()))?;
+            .map_err(|_| EcolFout::melding(EcolFoutVariant::GeenUrl))?;
 
         let link = document.create_element("a")
-            .map_err(|_| EcolFout::FoutMelding("Kon geen download-link aanmaken.".to_string()))?;
+            .map_err(|_| EcolFout::melding(EcolFoutVariant::GeenDownloadLink))?;
         link.set_attribute("href", &url).unwrap();
         link.set_attribute("download", "programma.ecol").unwrap();
         link.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
@@ -93,7 +92,7 @@ impl EcolMachine {
                     }
                     Ok(Some(regel))
                 } else {
-                    Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {current}: Sprong naar niet gedefinieerde regel {regel}.")))
+                    Err(EcolFout::melding(EcolFoutVariant::SprongFout(regel)).met_regel(*current))
                 }
             },
             None => { Ok(None) },
@@ -108,8 +107,8 @@ impl EcolMachine {
     pub(super) fn execute_nr(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let number = self.solve_expression(aantal, lees_geheugen)?;
 
-        if !(1f32..=99f32).contains(&number) {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: het aantal regels bij NR moet tussen 1 en 99 liggen, maar is {number}")));
+        if !(1f32..=99f32).contains(&number) || number.fract() != 0f32 {
+            return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("NR".to_string(), 1f32, 99f32, number)));
         }
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let n = number as usize;  //veilig: gevalideerd 1-99 hierboven
@@ -122,13 +121,13 @@ impl EcolMachine {
         let begin = self.solve_expression(start, lees_geheugen)?;
         let einde = self.solve_expression(eind, lees_geheugen)?;
         if !(1f32..=9999f32).contains(&begin) || !(1f32..=9999f32).contains(&einde) {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJ moet tussen 1 en 9999 liggen, maar loopt van {begin} tot {einde}.")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijWaarde(begin, einde)));
         }
         if einde <= begin {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJ moet oplopen, maar loopt van {begin} tot {einde}.")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenVolgorde("RIJ".to_string(), begin, einde)));
         }
         if begin.fract() != 0f32 || einde.fract() != 0f32 {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJ moet gehele getallen zijn, maar loopt van {begin} tot {einde}.")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijIntegers(begin, einde)));
         }
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let b = begin as usize; //veilig: gevalideerd 1-9999 hierboven
@@ -142,13 +141,13 @@ impl EcolMachine {
         let begin = self.solve_expression(start, lees_geheugen)?;
         let einde = self.solve_expression(eind, lees_geheugen)?;
         if !(1f32..=9999f32).contains(&begin) || !(1f32..=9999f32).contains(&einde) {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJSYM moet tussen 1 en 9999 liggen, maar loopt van {begin} tot {einde}.")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijWaarde(begin, einde)));
         }
         if einde <= begin {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJSYM moet oplopen, maar loopt van {begin} tot {einde}.")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenVolgorde("RIJSYM".to_string(), begin, einde)));
         }
         if begin.fract() != 0f32 || einde.fract() != 0f32 {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: de reeks van een RIJSYM moet gehele getallen zijn, maar loopt van {begin} tot {einde}.")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijIntegers(begin, einde)));
         }
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let b = begin as usize; //veilig: gevalideerd 1-9999 hierboven
@@ -168,14 +167,14 @@ impl EcolMachine {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         if !(0f32..=99f32).contains(&value) || value.fract() != 0f32 {
-            return Err(EcolFout::FoutMelding(format!("Symboolwaarde {value:.2} is niet geldig, moet tussen 0 en 99 liggen en een geheel getal zijn.")));
+            return Err(EcolFout::melding(EcolFoutVariant::SymboolWaarde(value)));
         }
         let symbool_nummer = get_sym_value(&value)?;
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let n = symbool_nummer as usize; //veilig: gevalideerd 0-99 hierboven
 
         let Some(s) = SYMBOLEN[n] else {
-            return Err(EcolFout::FoutMelding(format!("Symboolwaarde {symbool_nummer} is niet gedefinieerd.")));
+            return Err(EcolFout::melding(EcolFoutVariant::SymboolBestaatNiet(symbool_nummer)));
         };
         let symbool: char = s;
 
@@ -186,15 +185,15 @@ impl EcolMachine {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         if value.is_nan() {
-            return Err(EcolFout::FoutMelding("FOUTMELDING: Expressie levert ongeldige waarde op.".to_string()));
+            return Err(EcolFout::melding(EcolFoutVariant::OngeldigGetal("bij uitkomst expressie".to_string())));
         }
         let s = format!("{value:+E}");
 
         let Some((mantisse_deel, exp_deel)) = s.split_once('E') else {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor waarde: {s}")));
+            return Err(EcolFout::melding(EcolFoutVariant::OnverwachtNotatieWaarde(s)));
         };
         let Ok(e) = exp_deel.parse::<i32>() else {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING: Onverwachte notatie voor exponent: {exp_deel}")));
+            return Err(EcolFout::melding(EcolFoutVariant::OnverwachtNotatieExponent(exp_deel.to_string())));
         };
         let exp = e + 1;
         let (teken, cijfers) = if let Some(cijfers) = mantisse_deel.strip_prefix('-') {
@@ -213,11 +212,8 @@ impl EcolMachine {
     }
     pub(super) fn execute_spatie(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let number = self.solve_expression(aantal, lees_geheugen)?;
-        if !(1f32..=80f32).contains(&number) {
-            return Err(EcolFout::FoutMelding(format!("SPATIE verwacht een aantal tussen 1 en 80 (maximale regelgrootte). Aantal: {number}")));
-        }
-        if number.fract() != 0f32 {
-            return Err(EcolFout::FoutMelding(format!("SPATIE verwacht een geheel getal. Aantal: {number}")));
+        if number.fract() != 0f32 || !(1f32..=80f32).contains(&number) {
+            return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("SPATIE".to_string(), 1f32, 80f32, number)));
         }
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let n = number as usize; //veilig: gevalideerd 1-80 hierboven
@@ -244,11 +240,11 @@ impl EcolMachine {
         loop {
             stappen += 1;
             if stappen.is_multiple_of(1000) && js_sys::Date::now() - start_tijd > 5000.0 {
-                return Err(EcolFout::FoutMelding("FOUTMELDING: Programma afgebroken na 5 seconden (mogelijke eindeloze lus).".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::ProgrammaAfgebroken));
             }
 
             let Some((&regel_num, current_reg)) = programma.range(current..).next() else {
-                return Err(EcolFout::FoutMelding("FOUTMELDING: Er zijn geen regels meer om uit te voeren. KLAAR niet aangetroffen.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::GeenKlaar));
             };
             let regelnummer = regel_num;
             let old_current = regelnummer;
@@ -271,7 +267,7 @@ impl EcolMachine {
                     return Err(EcolFout::WachtOpLeessym(old_current));
                 }
                 Err(EcolFout::WachtOpLaad) => {
-                    return Err(EcolFout::FoutMelding("Interne fout: LAAD in programma.".to_string()));
+                    return Err(EcolFout::melding(EcolFoutVariant::LaadInProgramma));
                 }
             };
 
@@ -299,7 +295,7 @@ impl EcolMachine {
         } else {
             let arg_werk = self.solve_expression(argument, lees_geheugen)?;
             if arg_werk.fract() != 0f32 || !(1f32..=9999f32).contains(&arg_werk) {
-                return Err(EcolFout::FoutMelding("Index moet een geheel getal tussen 1 en 9999 zijn.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("index van RIJ of RIJSYM".to_string(), 1f32, 9999f32, arg_werk)));
             }
             arg_werk as usize //veilig: gevalideerd 1-9999 hierboven
         };
@@ -313,26 +309,19 @@ impl EcolMachine {
             match variabele_type {
                 VariabeleType::Getal => {
                     if arg != 0 {
-                        return Err(EcolFout::FoutMelding("Getalvariabele kan geen index hebben.".to_string()));
+                        return Err(EcolFout::melding(EcolFoutVariant::WaardeZonderIndex(variabele_naam.to_string(), variabele_type)));
                     }
                     waarde = Waarde::new_getal(value);
                 },
-                VariabeleType::Rij => {
+                VariabeleType::Rij | VariabeleType::Rijsym => {
                     if arg == 0 {
-                        return Err(EcolFout::FoutMelding("Geen index verwijzing bij RIJ-variabele.".to_string()));
+                        return Err(EcolFout::melding(EcolFoutVariant::WaardeMetIndex(variabele_naam.to_string(), variabele_type)));
                     }
-                    waarde.rij_set_value(value, arg)?;
-                },
-                VariabeleType::Rijsym => {
-                    if arg == 0 {
-                        return Err(EcolFout::FoutMelding("Geen index verwijzing bij RIJSYM-variabele.".to_string()));
-                    }
-
                     waarde.rij_set_value(value, arg)?;
                 },
                 VariabeleType::Teller => {
                     if arg != 0 {
-                        return Err(EcolFout::FoutMelding("Teller-variabele kan geen index hebben.".to_string()));
+                        return Err(EcolFout::melding(EcolFoutVariant::WaardeZonderIndex(variabele_naam.to_string(), variabele_type)));
                     }
 
                     waarde.teller_schrijf_current(value)?;
@@ -341,7 +330,7 @@ impl EcolMachine {
             }
         } else {
             if arg != 0 {
-                return Err(EcolFout::FoutMelding(format!("RIJ-Variabele '{variabele_naam}' is niet gedefinieerd.")));
+                return Err(EcolFout::melding(EcolFoutVariant::RijNietGedefinieerd(variabele_naam.to_string())));
             }
             waarde = Waarde::new_getal(value);
         }
@@ -447,7 +436,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct | Context::Subroutine => { no_reply },
                 Context::Programma | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: END kan niet voorkomen in een programma of FUNctie (interne fout).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgrammaOfFunctie("END".to_string())).met_regel(opdracht.regelnummer()-1));
                 },
             }
         },
@@ -455,10 +444,10 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Functie kan niet in een programma (interne fout).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgrammaOfSubroutine("FUN".to_string())).met_regel(opdracht.regelnummer()-1));
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Functie kan niet in een een andere functie definitie.", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctie("FUN".to_string())).met_regel(opdracht.regelnummer()-1));
                 },
 
             }
@@ -467,7 +456,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct | Context::Functie => { no_reply },
                 Context::Programma | Context::Subroutine => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Functie definitie kan niet in een programma (interne fout).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgrammaOfSubroutine("FUN :=".to_string())).met_regel(opdracht.regelnummer()-1));
                 },
             }
         },
@@ -475,7 +464,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine => {
-                    if let Some(sub_def) = machine.lees_subregister(sub_naam).map(super::program::SubDef::clone) {
+                    if let Some(sub_def) = machine.lees_subregister(sub_naam).map(SubDef::clone) {
                         machine.start_sub(sub_naam, opdracht.regelnummer())?;
 
                         let subroutine = sub_def.regels();
@@ -500,11 +489,11 @@ pub(super) fn execute_all (
                         }
                         no_reply
                     }  else {
-                        return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Onbekende subroutine '{}'.", opdracht.regelnummer(), sub_naam)));
+                        return Err(EcolFout::melding(EcolFoutVariant::OnbekendeSubroutine(sub_naam.to_string())).met_regel(opdracht.regelnummer() - 1));
                     }
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: Vanuit een functie kan een subroutine niet aangeroepen worden.", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietVanuitFunctie).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -513,7 +502,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => (Some(machine.execute_bewaar()?), no_next_line, no_whats_next),
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: BEWAAR mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("BEWAAR".to_string())).met_regel(opdracht.regelnummer() - 1));
                 }
             }
         },
@@ -524,7 +513,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: LAAD mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("LAAD".to_string())).met_regel(opdracht.regelnummer() - 1));
                 }
             }
         },
@@ -532,7 +521,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { (Some(machine.execute_help()?), no_next_line, no_whats_next)  },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: HELP mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("HELP".to_string())).met_regel(opdracht.regelnummer() - 1));
                 }
 
             }
@@ -546,7 +535,7 @@ pub(super) fn execute_all (
                         let doel = SprongDoel::Regel( sprong );
                         let resultaat = machine.execute_naar(programma, &doel, &opdracht.regelnummer())?;
                         if resultaat.is_none() {
-                            return Err(EcolFout::FoutMelding("Interne FOUT bij HERHAAL-opdracht..".to_string()));
+                            return Err(EcolFout::melding(EcolFoutVariant::HerhaalIntern).met_regel(opdracht.regelnummer() - 1));
                         }
                         resultaat
                     } else {
@@ -563,12 +552,12 @@ pub(super) fn execute_all (
                 Context::Direct => { no_reply },
                 Context::Programma => {
                     if machine.heeft_open_tellers() {
-                        return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: MET-lus niet afgesloten met HERHAAL.", opdracht.regelnummer())));
+                        return Err(EcolFout::melding(EcolFoutVariant::MetZonderHerhaal).met_regel(opdracht.regelnummer() - 1));
                     }
                     (no_reply_string, no_next_line, Some(WhatsNext::Break))
                 },
                 Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: KLAAR mag niet in een subroutine of een FUNctie staan.", opdracht.regelnummer())));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInSubroutineOfFunctie("KLAAR".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -586,7 +575,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { (Some(machine.execute_lijst()), no_next_line, no_whats_next)  },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: LIJST mag niet in een programma (interpreter-besturing).", opdracht.regelnummer())));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("LIJST".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -596,11 +585,11 @@ pub(super) fn execute_all (
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
                     let Some((&volgende_regelnummer, _)) = programma.range(opdracht.regelnummer()..).next() else {
-                        return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: FOUTMELDING: geen regels na MET-opdracht.", opdracht.regelnummer())));
+                        return Err(EcolFout::melding(EcolFoutVariant::MetZonderRegels).met_regel(opdracht.regelnummer() - 1));
                     };
 
                     let regel = machine.execute_met(variabele_naam, stap_expressie, start_expressie, stop_expressie, volgende_regelnummer, lees_geheugen)
-                        .map_err(|e| e.met_regel(opdracht.regelnummer()))?;
+                        .map_err(|e| e.met_regel(opdracht.regelnummer() - 1))?;
                     match regel {
                         Some(()) => { (no_reply_string, no_next_line, Some(WhatsNext::Continue)) },
                         None => {
@@ -630,7 +619,7 @@ pub(super) fn execute_all (
                             (no_reply_string, Some(regel), no_whats_next)
                         },
                         None => {
-                            return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in  subroutine of functie-definitie.", opdracht.regelnummer()-1)));
+                            return Err(EcolFout::melding(EcolFoutVariant::NietInSubroutineOfFunctie("STOP-functie".to_string())).met_regel(opdracht.regelnummer() - 1));
                         },
                     }
                 },
@@ -643,7 +632,7 @@ pub(super) fn execute_all (
                     (Some(machine.execute_np( output)), no_next_line, no_whats_next)
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: NP kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("NP".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -657,7 +646,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: NR kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("NR".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -702,7 +691,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: SCHRIJF kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("SCHRIJF".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -719,7 +708,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: SCHRIJFSYM kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("SCHRIJFSYM".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -736,7 +725,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: SCHRIJM kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("SCHRIJM".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -753,7 +742,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: SPATIE kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("SPATIE".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -762,7 +751,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { (Some(machine.execute_start(None, lees_geheugen, output)?), no_next_line, no_whats_next) },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: START mag niet in een programma (interpreter-besturing).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("START".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -771,7 +760,7 @@ pub(super) fn execute_all (
             match context {
                 Context::Direct => { no_reply },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: fout bij verwerking subroutine (interne fout).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::InSubroutine).met_regel(opdracht.regelnummer() - 1));
                 },
             }
         }
@@ -787,7 +776,7 @@ pub(super) fn execute_all (
                     no_reply
                 },
                 Context::Functie => {
-                    return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: TEKST kan niet in een FUN definitie (geen uitvoer-apparaat).", opdracht.regelnummer()-1)));
+                    return Err(EcolFout::melding(EcolFoutVariant::NietInFunctieUitvoer("TEKST".to_string())).met_regel(opdracht.regelnummer() - 1));
                 },
 
             }
@@ -809,10 +798,10 @@ pub(super) fn execute_all (
         LineInhoud::Verwijderen { } => {
             return match context {
                 Context::Direct => {
-                    Err(EcolFout::FoutMelding("Verwijderen van een ongenummerde regel is niet mogelijk.".to_string()))
+                    Err(EcolFout::melding(EcolFoutVariant::VerwijderenOngenummerd))
                 },
                 Context::Programma | Context::Subroutine | Context::Functie => {
-                    Err(EcolFout::FoutMelding("Verwijderen van een regel kan niet voorkomen in een programma (interne fout).".to_string()))
+                    Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("verwijderen".to_string())))
                 },
 
             }
@@ -833,7 +822,7 @@ fn doe_naar(machine: &mut EcolMachine
         Ok((None, Some(regel), None))
     } else {
         if no_stop {
-            return Err(EcolFout::FoutMelding(format!("FOUTMELDING in regel {}: STOP-functie is niet geldig in functie-definitie.", regel - 1)));
+            return Err(EcolFout::melding(EcolFoutVariant::NietInFunctie("STOP-functie".to_string())).met_regel(*regel - 1));
         }
         Ok((None, None, Some(WhatsNext::Break)))
     }

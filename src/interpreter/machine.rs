@@ -89,7 +89,7 @@ pub(super) fn symbolen_reverse(symbool: char) -> Option<u8> {
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
-use crate::interpreter::errors::EcolFout;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 pub(crate) use crate::interpreter::leesgeheugen::LeesGeheugen;
 use crate::interpreter::opdrachten::{execute_all, Context};
 use crate::interpreter::parsers::{parseer_regel};
@@ -107,7 +107,7 @@ impl RegelBuffer {
         match self {
             RegelBuffer::Regel(r) => {
                 if r.len() + regel.len() > 80 {
-                    return Err(EcolFout::FoutMelding("Regelbuffer overschrijdt het maximum van 80 tekens. Vergeet NR niet.".to_string()));
+                    return Err(EcolFout::melding(EcolFoutVariant::BufferOverflow));
                 }
                 r.push_str(regel);
             },
@@ -174,23 +174,23 @@ impl VariabelenOpslag {
         let doelwaarde: Waarde;
         if self.bestaat(naam) {
             let Some(doel_waarde) = self.lees_waarde(naam) else {
-                return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: variabele '{naam}' niet opgeslagen.")));
+                return Err(EcolFout::melding(EcolFoutVariant::VariabeleNietGevonden(naam.to_string())));
             };
+            if waarde.type_van().is_none() {
+                return Err(EcolFout::melding(EcolFoutVariant::OnbekendType(naam.to_string())));
+            }
             doelwaarde = doel_waarde;
             if doelwaarde.type_van().is_some()
                 && doelwaarde.type_van() != waarde.type_van() {
-                    return Err(EcolFout::FoutMelding(format!("Variabele '{}' is gedefinieerd als een {}, en de waarde om op te slaan is een {}."
-                                       ,naam
-                                       ,doelwaarde.type_van().unwrap().to_string()
-                                       ,waarde
-                                                                 .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
-
+                    return Err(EcolFout::melding(EcolFoutVariant::VerkeerdType(
+                        naam.to_string(),
+                        doelwaarde.type_van().unwrap(), //veilig, want is_some() is al gecontroleerd.
+                        waarde.type_van().unwrap() //veilig, want is_some() is al gecontroleerd.
+                    )));
             }
         } else {
-            if waarde.type_van() == Some(VariabeleType::Rij) {
-                return Err(EcolFout::FoutMelding(format!("RIJ-variabele '{naam}' is nog niet gedefinieerd.")));
-            } else if waarde.type_van() == Some(VariabeleType::Rijsym) {
-                return Err(EcolFout::FoutMelding(format!("RIJSYM-variabele '{naam}' is nog niet gedefinieerd.")));
+            if waarde.type_van() == Some(VariabeleType::Rij) || waarde.type_van() == Some(VariabeleType::Rijsym) {
+                return Err(EcolFout::melding(EcolFoutVariant::RijNietGedefinieerd(naam.to_string())));
             }
         }
 
@@ -247,7 +247,7 @@ impl EcolMachine {
     pub(super) fn schrijf_subregister(&mut self, naam: &str, definitie: SubDef) -> Result<(), EcolFout> {
 
         if self.sub_register.insert(naam.to_string(), definitie).is_some() {
-            return Err(EcolFout::FoutMelding(format!("Interne fout: Subroutine met naam '{naam}' bestaat al")));
+            return Err(EcolFout::melding(EcolFoutVariant::SubRoutineBestaatAl(naam.to_string())));
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ impl EcolMachine {
     }
     pub(super) fn start_sub(&mut self, naam: &str, regelnummer: u16) -> Result<(), EcolFout> {
         if !self.is_sub(naam) {
-            return Err(EcolFout::FoutMelding(format!("Subroutine met naam '{naam}' bestaat niet")));
+            return Err(EcolFout::melding(EcolFoutVariant::OnbekendeSubroutine(naam.to_string())));
         }
         self.sub_return_stack.push(regelnummer);
         Ok(())
@@ -273,10 +273,10 @@ impl EcolMachine {
     }
     pub(super) fn var_schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), EcolFout> {
         if self.is_fun(naam) {
-            return Err(EcolFout::FoutMelding(format!("Ongeldige variabele naam: '{naam}' is gedefinieerd als FUN.")))
+            return Err(EcolFout::melding(EcolFoutVariant::NaamIsFun(naam.to_string())));
         }
         if self.is_sub(naam) {
-            return Err(EcolFout::FoutMelding(format!("Ongeldige variabele naam: '{naam}' is gedefinieerd als SUB.")))
+            return Err(EcolFout::melding(EcolFoutVariant::NaamIsSubroutine(naam.to_string())))
         }
         self.variabelen_opslag.schrijf_waarde(naam, waarde)
     }
@@ -294,7 +294,7 @@ impl EcolMachine {
             return Ok(None)
         }
         if stap == 0.0 {
-            return Err(EcolFout::FoutMelding("Stapgrootte mag niet 0 zijn.".to_string()))
+            return Err(EcolFout::melding(EcolFoutVariant::StapgrootteNul))
         }
 
         let var_typ = self.var_type_van(naam);
@@ -310,7 +310,7 @@ impl EcolMachine {
 
                 Ok(Some(()))
             },
-            Some(v_type) => Err(EcolFout::FoutMelding(format!("Variabele '{}' bestaat al met type '{}'.", naam, v_type.to_string()))),
+            Some(v_type) => Err(EcolFout::melding(EcolFoutVariant::TellerBestaatAl(naam.to_string(), v_type))),
         }
     }
     pub(super) fn teller_naar_herhaal(programma: &BTreeMap<u16, LineInhoud>, regel: &u16) -> Result<u16, EcolFout> {
@@ -318,7 +318,7 @@ impl EcolMachine {
         let mut met_diepte = 0u16;
         loop{
             let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
-                return Err(EcolFout::FoutMelding("FOUTMELDING: Geen HERHAAL aangetroffen na MET.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::MetZonderHerhaal));
             };
             current = regelnummer + 1;
             match current_regel {
@@ -337,11 +337,11 @@ impl EcolMachine {
     }
     pub(super) fn teller_herhaal(&mut self) -> Result<Option<u16>, EcolFout> {
         let naam = self.actieve_tellers.last()
-            .ok_or_else(|| EcolFout::FoutMelding("HERHAAL zonder MET aangetroffen.".to_string()))?
+            .ok_or_else(|| EcolFout::melding(EcolFoutVariant::HerhaalZonderMet))?
             .clone();
 
         let Some(mut teller) = self.var_lees_waarde(&naam) else {
-            return Err(EcolFout::FoutMelding(format!("INTERNE FOUT: Teller '{naam}' bestaat niet.")))
+            return Err(EcolFout::melding(EcolFoutVariant::OnbekendeTeller(naam)))
         };
 
         let regel = teller.teller_lees_regel()?;
@@ -381,15 +381,15 @@ impl EcolMachine {
     pub(super) fn laad_programma(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
         self.programma.laad(bron);
     }
-    pub(super) fn laad_functies(&mut self, bron: &mut HashMap<String, FunDef>) {
-        bron.clone_from(&self.functie_register);
+    pub(super) fn laad_functies(&mut self, bron: &HashMap<String, FunDef>) {
+        self.functie_register.clone_from(bron);
     }
     pub(super) fn haal_functiedefinitie(&self, naam: &str) -> Option<&FunDef> {
         self.functie_register.get(naam)
     }
     pub(super) fn schrijf_nieuwe_functie(&mut self, naam: &str, fundef: &FunDef) -> Result<(), EcolFout>{
         if self.functie_register.contains_key(naam) {
-            return Err(EcolFout::FoutMelding(format!("Functie met naam '{naam}' bestaat al")));
+            return Err(EcolFout::melding(EcolFoutVariant::FunctieBestaatAl(naam.to_string())));
         }
         self.functie_register.insert(naam.to_string(), fundef.clone());
         Ok(())
@@ -435,16 +435,16 @@ impl EcolMachine {
             if let Ok(waarde) = waarde {
                 lees_geheugen.schrijf_lees_waarde(waarde);
                 let Some(regel) = lees_geheugen.lees_hervat_bij() else {
-                    return Err(EcolFout::FoutMelding("Er is een fout opgetreden. Geef opnieuw in.".to_string()));
+                    return Err(EcolFout::melding(EcolFoutVariant::InvoerFout));
                 };
                 self.hervat_uitvoering(regel, lees_geheugen, output)
             } else {
-                return Err(EcolFout::FoutMelding("Alleen numerieke waarden kunnen ingegeven worden. Geef opnieuw in.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::InvoerNietNumeriek));
             }
         } else if lees_geheugen.wacht_op_leessym() {
             //let waarde_input = input;
             if input.len() != 1 {
-                return Err(EcolFout::FoutMelding("Voor LEESSYM mag slechts één karakter worden ingegeven. Geef opnieuw in.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::InvoerLengteNietNul));
             }
             let waarde_char = input.chars().next().unwrap_or_default();
             let waarde = symbolen_reverse(waarde_char);
@@ -452,11 +452,11 @@ impl EcolMachine {
                 Some(c) => {
                     lees_geheugen.schrijf_leessym_waarde(f32::from(c))?;
                     let Some(regel) = lees_geheugen.leessym_hervat_bij() else {
-                        return Err(EcolFout::FoutMelding("Er is een fout opgetreden. Geef opnieuw in.".to_string()));
+                        return Err(EcolFout::melding(EcolFoutVariant::InvoerFout));
                     };
                     self.hervat_uitvoering(regel, lees_geheugen, output)
                 },
-                None => return Err(EcolFout::FoutMelding("Alleen symbolen kunnen ingegeven worden. Geef opnieuw in.".to_string())),
+                None => return Err(EcolFout::melding(EcolFoutVariant::InvoerGeenSymbool)),
             }
         } else {
             match parseer_regel(input){
@@ -468,14 +468,14 @@ impl EcolMachine {
                             Err(EcolFout::FoutMelding(e)) => return Err(EcolFout::FoutMelding(e)),
                             Err(EcolFout::WachtOpLees(r)) => {
                                 if r == 0 {
-                                    return Err(EcolFout::FoutMelding("FOUTMELDING: LEES kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string()));
+                                    return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEES".to_string())));
                                 }
                                 lees_geheugen.lees_hervat_bij_op_regel(r);
                                  None
                             },
                             Err(EcolFout::WachtOpLeessym(r)) => {
                                 if r == 0 {
-                                    return Err(EcolFout::FoutMelding("FOUTMELDING: LEES SYM kan alleen in programma's gebruikt worden (geen regelnummer gevonden).".to_string()));
+                                    return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEESSYM".to_string())));
                                 }
                                 lees_geheugen.leessym_hervat_bij_op_regel(r);
                                 None
@@ -493,7 +493,7 @@ impl EcolMachine {
                     }
                 }
                 Err(e) => {
-                    return Err(EcolFout::FoutMelding(format!("Ongeldige invoer: {e}")));
+                    return Err(EcolFout::melding(EcolFoutVariant::OngeldigeInvoer(e.to_string())));
                 }
             }
         };
@@ -514,7 +514,7 @@ impl EcolMachine {
     fn hervat_uitvoering(&mut self, regel: u16, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> Option<String> {
         match self.execute_start(Some(regel), lees_geheugen, output) {
             Ok(r) => Some(r),
-            Err(EcolFout::FoutMelding(e)) => Some(e),
+            Err(EcolFout::FoutMelding(e)) => Some(e.to_string()),
             Err(EcolFout::WachtOpLees(_) | EcolFout::WachtOpLeessym(_) |
 EcolFout::WachtOpLaad) => None,
         }

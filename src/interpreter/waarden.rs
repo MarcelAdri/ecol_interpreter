@@ -1,4 +1,5 @@
-use crate::interpreter::errors::EcolFout;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
+use crate::interpreter::errors::EcolFout::FoutMelding;
 use crate::interpreter::helpers::get_sym_value;
 
 pub(super) struct VariabeleAanroep {
@@ -31,7 +32,7 @@ impl VariabeleAanroep {
 }
 fn get_index(positie: usize, start: usize, einde: usize) -> Result<usize, EcolFout> {
     if positie < start || positie > einde {
-        return Err(EcolFout::FoutMelding(format!("Index {positie} is niet geldig; moet liggen tussen {start} en {einde}.")))
+        return Err(EcolFout::melding(EcolFoutVariant::OngeldigeIndex(positie, start, einde)))
     }
     let index = positie - start;
 
@@ -46,10 +47,10 @@ pub(super) struct EcolRij {
 impl EcolRij {
     fn new(start: usize, einde: usize) -> Result<Self, EcolFout> {
         if start < 1 {
-            return Err(EcolFout::FoutMelding("De index van een RIJ kan niet lager zijn dan 1.".to_string()));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijStart("RIJ".to_string())));
         }
         if start > einde{
-            return Err(EcolFout::FoutMelding(format!("Een RIJ moet tenminste 2 waarden  bevatten (start={start}, eind={einde}).")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijAantal("RIJ".to_string(), start, einde)));
         }
 
         let lengte = einde - start + 1;
@@ -85,10 +86,10 @@ pub(super) struct EcolRijsym {
 impl EcolRijsym {
     fn new(start: usize, einde: usize) -> Result<Self, EcolFout> {
         if start < 1 {
-            return Err(EcolFout::FoutMelding("De index van een RIJSYM kan niet lager zijn dan 1.".to_string()));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijStart("RIJSYM".to_string())));
         }
         if start > einde{
-            return Err(EcolFout::FoutMelding(format!("Een RIJSYM moet tenminste 2 waarden  bevatten (start={start}, eind={einde}).")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenRijAantal("RIJSYM".to_string(), start, einde)));
         }
 
         let lengte = einde - start + 1;
@@ -159,19 +160,14 @@ pub(super) enum VariabeleType {
     Rijsym,
     Teller,
 }
-impl VariabeleType {
-    pub(super) fn to_string(self) -> &'static str {
-        match self {
-            VariabeleType::Getal => "Getal",
-            VariabeleType::Rij => "Rij",
-            VariabeleType::Rijsym => "Rijsym",
-            VariabeleType::Teller => "Teller",
-        }
-    }
-}
 impl std::fmt::Display for VariabeleType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        match self {
+            VariabeleType::Getal => write!(f, "Getal"),
+            VariabeleType::Rij => write!(f, "RIJ"),
+            VariabeleType::Rijsym => write!(f, "RIJSYM"),
+            VariabeleType::Teller => write!(f, "Teller"),
+        }
     }
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -208,7 +204,7 @@ impl Waarde {
         match self {
             Waarde::Rij(x) => { x.set_value(positie, value) },
             Waarde::Rijsym(x) => { x.set_value(positie, value)},
-            _ => Err(EcolFout::FoutMelding("Waarde is geen RIJ of RIJSYM".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::GeenRij("Waarde".to_string()))),
         }
     }
     pub(super) fn rij_haal_grenswaarden(&self) -> (usize, usize) {
@@ -224,7 +220,7 @@ impl Waarde {
             Waarde::Rij(x) => { Ok(x.get_value(positie)?) }
             Waarde::Rijsym(x) => { Ok(x.get_value(positie)?) }
             Waarde::Teller(x) => Ok(x.haal_waarde()),
-            Waarde::NogNietBepaald => Err(EcolFout::FoutMelding("Waarde is nog niet bepaald".to_string())),
+            Waarde::NogNietBepaald => Err(EcolFout::melding(EcolFoutVariant::GeenWaarde("ophalen van variabele".to_string()))),
         }
     }
     pub(super) fn teller_is_klaar(&self, new_current: f32) -> Result<bool, EcolFout> {
@@ -232,7 +228,7 @@ impl Waarde {
             Waarde::Teller(x) => {
                 Ok(x.klaar(new_current))
             }
-            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::GeenTeller)),
         }
     }
     pub(super) fn teller_schrijf_regel(&mut self, regel: u16) -> Result<(), EcolFout> {
@@ -241,7 +237,7 @@ impl Waarde {
                 x.schrijf_regel(regel);
                 Ok(())
             }
-            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::GeenTeller)),
         }
     }
     pub(super) fn teller_lees_regel(&self) -> Result<u16, EcolFout> {
@@ -249,7 +245,7 @@ impl Waarde {
             Waarde::Teller(x) => {
                 Ok(x.lees_regel())
             }
-            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::GeenTeller)),
         }
     }
     pub(super) fn teller_lees_stap(&self) -> Result<f32, EcolFout> {
@@ -257,7 +253,7 @@ impl Waarde {
             Waarde::Teller(x) => {
                 Ok(x.lees_stap())
             }
-            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::GeenTeller)),
         }
     }
     pub(super) fn teller_schrijf_current(&mut self, current: f32) -> Result<(), EcolFout> {
@@ -266,7 +262,7 @@ impl Waarde {
                 x.schrijf_current(current);
                 Ok(())
             }
-            _ => Err(EcolFout::FoutMelding("Waarde is geen teller".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::GeenTeller)),
         }
     }
 

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::collections::BTreeMap;
-use crate::interpreter::errors::EcolFout;
+use std::fmt::Display;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::{geen_spaties, vind_opmerking};
 
 pub(super) const WORDT_TEKEN: &str = ":=";
@@ -239,9 +240,9 @@ impl SprongDoel {
         let reply: SprongDoel = if geen_spaties(bron) == "STOP" {
             SprongDoel::Stop
         } else {
-            let regelnummer = bron.trim().parse::<u16>().map_err(|_| EcolFout::FoutMelding("Ongeldig regelnummer-getal.".to_string()))?;
+            let regelnummer = bron.trim().parse::<u16>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als regelnummer".to_string())))?;
             if !(1..=999).contains(&regelnummer) {
-                return Err(EcolFout::FoutMelding("Regelnummer moet tussen 1 en 999 (inclusief) liggen.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("regelnummer".to_string(), 1f32, 999f32, regelnummer as f32)));
             }
             SprongDoel::Regel(regelnummer)
 
@@ -342,7 +343,7 @@ impl LineInhoud {
             Sleutelwoord::NP => Ok(Self::NP { opm: vind_opmerking(input)? }),
             Sleutelwoord::NR => Ok(Self::NR { aantal: "1".to_string(), opm: vind_opmerking(input)? }),
             Sleutelwoord::START => { vind_opmerking(input)?; Ok(Self::Start {}) },
-            _ => Err(EcolFout::FoutMelding("Incomplete syntax".to_string())),
+            _ => Err(EcolFout::melding(EcolFoutVariant::IncompleteSyntax)),
         }
     }
     pub(super) fn as_str(&self) -> &str {
@@ -434,43 +435,57 @@ impl Operator {
         }
     }
 }
+
+impl Display for Operator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Plus => write!(f, "+"),
+            Self::Min => write!(f, "-"),
+            Self::Vermenigvuldig => write!(f, "*"),
+            Self::Deel => write!(f, "/"),
+            Self::Machtsverheffen => write!(f, "M"),
+        }
+
+    }
+}
+
 fn plus(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links + rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} + {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
+        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links} + {rechts}"))));
     }
     Ok(resultaat)
 }
 fn min(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links - rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} - {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
+        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links} - {rechts}"))));
     }
     Ok(resultaat)
 }
 fn maal(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links * rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} * {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
+        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links} * {rechts}"))));
     }
     Ok(resultaat)
 }
 fn deel(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     if rechts == 0.0 {
-        return Err(EcolFout::FoutMelding("Delen door nul is niet toegestaan in ECOL.".to_string()));
+        return Err(EcolFout:: melding(EcolFoutVariant::DelenDoorNul));
     }
     let resultaat = links / rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} / {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
+        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links} / {rechts}"))));
     }
     Ok(resultaat)
 }
 fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     if links < 0.0 && rechts.fract() != 0.0 {
-        return Err(EcolFout::FoutMelding(format!("Machtsverheffen met een negatieve basis en een niet-gehele exponent is niet toegestaan in ECOL ({links} M {rechts}).")));
+        return Err(EcolFout::melding(EcolFoutVariant::MachtsverheffenOngeldig(format!("{links} M {rechts}"))));
     }
     if rechts.abs() > 1000000.0 {
-        return Err(EcolFout::FoutMelding(format!("Exponent {rechts} is te groot voor machtsverheffen in ECOL ({links} M {rechts}).")));
+        return Err(EcolFout::melding(EcolFoutVariant::MachtsverheffenExponentTeGroot(rechts, format!("{links} M {rechts}"))));
     }
     let resultaat: f32 = if rechts.fract() == 0.0 {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -479,7 +494,7 @@ fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
         links.powf(rechts)
     };
     if resultaat.is_infinite() || resultaat.is_nan() {
-        return Err(EcolFout::FoutMelding(format!("Het resultaat van de berekening {links} M {rechts} ligt buiten de grenzen van een variabele in ECOL.")));
+        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links} M {rechts}"))));
     }
     Ok(resultaat)
 }

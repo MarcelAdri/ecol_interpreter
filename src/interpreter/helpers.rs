@@ -1,4 +1,5 @@
-use crate::interpreter::errors::EcolFout;
+use std::convert::TryFrom;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel, WORDT_TEKEN};
 
 pub(super) fn extract_argumenten(input: &str) -> Option<(Vec<String>, &str)> {
@@ -54,7 +55,7 @@ pub(super) fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), Ecol
 
     let Some(resultaat_parsing) = nummer.trim().parse::<u16>().ok() else { return Ok((0u16, input.trim_start(), is_alleen_regelnummer)) };
     let regelnummer = resultaat_parsing;
-    if regelnummer > 999u16 { return Err(EcolFout::FoutMelding("Regelnummer mag niet groter zijn dan 999".to_string())) }
+    if regelnummer > 999u16 { return Err(EcolFout::melding(EcolFoutVariant::RegelnummerTeGroot)) }
 
 
     Ok((regelnummer, restregel, is_alleen_regelnummer))
@@ -79,7 +80,7 @@ pub(super) fn extract_stap_expressie(input: &str) -> Result<(String, String), Ec
             let (stap_tekst, r) = werkstring.split_at(p);
             Ok((stap_tekst.to_string(), r[1..].to_string()))
         },
-        None => Err(EcolFout::FoutMelding("Ongeldige syntax voor MET bij de STAP-expressie.".to_string())),
+        None => Err(EcolFout::melding(EcolFoutVariant::OngeldigeSyntaxMet("STAP".to_string()))),
     }
 }
 pub(super) fn extract_start_expressie(input: &str) -> Result<(String, String, String), EcolFout> {
@@ -88,11 +89,11 @@ pub(super) fn extract_start_expressie(input: &str) -> Result<(String, String, St
     match vind_top_level_komma(&werkstring) {
         Some(p) => {
             let (toekenning_string, r) = werkstring.split_at(p);
-            let Some((naam, rest_na_variabele)) = extract_variabele_naam(toekenning_string) else { return Err(EcolFout::FoutMelding("Ongeldige variabele-naam in MET.".to_string())) };
-            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken in MET.".to_string())) };
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(toekenning_string) else { return Err(EcolFout::melding(EcolFoutVariant::OngeldigeVariabeleNaam)) };
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken)) };
             Ok((naam.to_string(), rest_na_wordt_teken.to_string(), r[1..].to_string()))
         },
-        None => Err(EcolFout::FoutMelding("Ongeldige syntax voor MET bij de START-expressie.".to_string())),
+        None => Err(EcolFout::melding(EcolFoutVariant::OngeldigeSyntaxMet("START".to_string()))),
     }
 }
 pub(super) fn extract_variabele_naam(input: &str) -> Option<(&str, &str)> {
@@ -162,6 +163,18 @@ pub(super) fn extract_opmerking(input: &str) -> (String, String) {
 
     (deel_voor_opmerking, opmerking)
 }
+pub(super) fn f32_naar_usize(x: f32) -> Result<usize, EcolFout> {
+    if !x.is_finite() {
+        return Err(EcolFout::melding(EcolFoutVariant::OngeldigGetal("bij bepaling index".to_string())));
+    }
+    if x < 0f32 {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenPositiefGetal(x)));
+    }
+    if x.fract() != 0f32 {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenGeheelGetal(x)));
+    }
+    Ok(x as usize) //Veilig, want hierboven gevalideerd dat het een geldig, positief geheel getal is
+}
 pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Result<String, EcolFout> {
     let mut b = breedte;
     let mut d = decimalen;
@@ -182,31 +195,31 @@ pub(super) fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Resu
     let reply = format!("{x:b_totaal$.d$}");
 
     if reply.len() > b_totaal {
-        return Err(EcolFout::FoutMelding(format!("De opgegeven waarde {x} past niet in de opgegeven breedte {breedte}.")))
+        return Err(EcolFout::melding(EcolFoutVariant::BreedteTeKlein(x, breedte)))
     }
 
     Ok(reply)
 
 }
 pub(super) fn geen_rest_gewenst() -> EcolFout {
-    EcolFout::FoutMelding("FOUTMELDING: Tekst aangetroffen na complete programmaregel.".to_string())
+    EcolFout::melding(EcolFoutVariant::TekstNaRegel)
 }
 pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
 pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
     if getal.is_nan() || !(0.0..=99.0).contains(getal) || getal.fract() != 0.0 {
-        return Err(EcolFout::FoutMelding(format!("Waarde {getal} is ongeldig (xxxSYM verwacht een geheel getal 0–99).")));
+        return Err(EcolFout::melding(EcolFoutVariant::SymboolWaarde(*getal)));
     }
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     Ok(*getal as u8) //veilig, want hierboven gevalideerd als geheel getal tussen 0 en 99
 }
 pub(super) fn grens_bewaking (getal: f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, EcolFout> {
     if getal.fract() != 0.0 && alleen_hele_getallen {
-        return Err(EcolFout::FoutMelding(format!("Getal moet een heel getal zijn, maar is {getal}")));
+        return Err(EcolFout::melding(EcolFoutVariant::GeenGeheelGetal(getal)));
     }
     if getal <= 0f32 && alleen_positieve_getallen {
-        return Err(EcolFout::FoutMelding(format!("Getal moet positief zijn, maar is {getal}")));
+        return Err(EcolFout::melding(EcolFoutVariant::GeenPositiefGetal(getal)));
     }
 
     Ok(getal)
@@ -258,17 +271,17 @@ pub(super) fn literal_to_string (literal: &str) -> Result<String, EcolFout> {
     let werk_string = literal.trim();
 
     if !werk_string.starts_with('"') {
-        return Err(EcolFout::FoutMelding("Tekstblok moet beginnen met een aanhalingsteken.".to_string()));
+        return Err(EcolFout::melding(EcolFoutVariant::GeenAanhalingOpen));
     }
 
     if !werk_string.ends_with('"') {
-        return Err(EcolFout::FoutMelding("Tekstblok moet eindigen met een aanhalingsteken.".to_string()));
+        return Err(EcolFout::melding(EcolFoutVariant::GeenAanhalingSluiten));
     }
 
     let inhoud = &werk_string[1..werk_string.len() - 1];
 
     if inhoud.contains('"') {
-        return Err(EcolFout::FoutMelding("Slechts één aaneengesloten tekstblok toegestaan.".to_string()));
+        return Err(EcolFout::melding(EcolFoutVariant::MeerTekstblokken));
     }
 
     Ok(inhoud.to_string())

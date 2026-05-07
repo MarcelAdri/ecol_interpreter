@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::errors::EcolFout;
-use crate::interpreter::helpers::{geen_spaties};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
+use crate::interpreter::helpers::{f32_naar_usize, geen_spaties};
 use crate::interpreter::parsers::{parseer_eigen_functie, parseer_functie, parseer_variabele, FunctieAanroep};
 use crate::interpreter::program::{Operator};
 use crate::interpreter::functions::{Functie, FunctieNaam};
@@ -25,7 +25,7 @@ impl EcolMachine {
             };
 
             let Some(start) = werk_expressie[..slot].rfind('(') else {
-                return Err(EcolFout::FoutMelding("Haak sluiten gevonden zonder haak openen".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::GeenHaakOpenen));
             };
 
             let deel_expressie = &werk_expressie[start + 1..slot];
@@ -34,7 +34,7 @@ impl EcolMachine {
             werk_expressie.replace_range(start..=slot, deel_resultaat.trim());
         }
 
-        if werk_expressie.find('(').is_some() { return Err(EcolFout::FoutMelding("Haak openen gevonden zonder haak sluiten".to_string())); }
+        if werk_expressie.find('(').is_some() { return Err(EcolFout::melding(EcolFoutVariant::GeenHaakSluiten)); }
 
         *expressie = werk_expressie;
         Ok(())
@@ -51,13 +51,13 @@ impl EcolMachine {
         match resultaat {
             Ok(result) => {
                 if result.is_infinite() || result.is_nan() {
-                    return Err(EcolFout::FoutMelding(format!("Rekenkundig overflow: '{expressie}' is te groot of ongeldig")));
+                    return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(expressie.to_string())));
                 }
                 controleer_precisie(result, &werk_expressie)?;
                 Ok(result)
             }
-            Err(e) => {
-                Err(EcolFout::FoutMelding(format!("\"{expressie}\" levert geen geldig getal: {e}")))
+            Err(_) => {
+                Err(EcolFout::melding(EcolFoutVariant::OngeldigGetal(expressie.to_string())))
             }
         }
 
@@ -71,7 +71,7 @@ impl EcolMachine {
             let functie: Functie = if functie_naam == FunctieNaam::ONDIN || functie_naam == FunctieNaam::BOVIN {
                 let argumenten = werk_functie.argumenten();
                 if argumenten.len() != 1 {
-                    return Err(EcolFout::FoutMelding(format!("Functie {} verwacht slechts één argument ({}).", functie_naam, argumenten.len())));
+                    return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(functie_naam.to_string(), 1, argumenten.len())));
                 }
                 Functie::new(functie_naam, Vec::new(), &argumenten[0])?
             } else {
@@ -97,14 +97,14 @@ impl EcolMachine {
         while let Some((naam, start, einde, argumenten)) = parseer_eigen_functie(self.haal_functie_register(), werk_expressie) {
 
             let verwachte_argumenten = match self.get_fundef_parameters(&naam) {
-                None => return Err(EcolFout::FoutMelding(format!("Interne fout: functie '{naam}' niet gevonden."))),
-                Some(params) if params.is_empty() => return Err(EcolFout::FoutMelding(format!("Functie '{naam}' heeft geen parameters."))),
+                None => return Err(EcolFout::melding(EcolFoutVariant::GeenFunctie(naam))),
+                Some(params) if params.is_empty() => return Err(EcolFout::melding(EcolFoutVariant::GeenArgumenten(naam.to_string()))),
                 Some(params) => params,
             };
             let mut doel_argumenten: Vec<Waarde> = Vec::new();
 
             if verwachte_argumenten.len() != argumenten.len() {
-                return Err(EcolFout::FoutMelding(format!("Functie {} verwacht {} argumenten, maar {} argumenten zijn opgegeven.", naam, verwachte_argumenten.len(), argumenten.len())));
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(naam, verwachte_argumenten.len(), argumenten.len())));
             }
 
             for (index, (verwacht_argument, argument)) in verwachte_argumenten.iter()
@@ -113,15 +113,15 @@ impl EcolMachine {
             {
                 if verwacht_argument.starts_with("RIJSYM"){
                     if self.var_type_van(argument) != Some(VariabeleType::Rijsym) {
-                        return Err(EcolFout::FoutMelding(format!("Argument {} van functie {} verwacht een RIJSYM, maar {} is opgegeven.", index + 1, naam, argument)));
+                        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdArgument(index + 1, naam, "RIJSYM".to_string(), argument.to_string())));
                     }
-                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::FoutMelding("Variabele niet gevonden".to_string()));};
+                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(argument.to_string())));};
                     doel_argumenten.push(waarde);
                 } else if verwacht_argument.starts_with("RIJ") {
                     if self.var_type_van(argument) != Some(VariabeleType::Rij) {
-                        return Err(EcolFout::FoutMelding(format!("Argument {} van functie {} verwacht een RIJ, maar {} is opgegeven.", index + 1, naam, argument)));
+                        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdArgument(index + 1, naam, "RIJ".to_string(), argument.to_string())));
                     }
-                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::FoutMelding("Variabele niet gevonden".to_string()));};
+                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(argument.to_string())));};
                     doel_argumenten.push(waarde);
                 } else {
                     doel_argumenten.push(Waarde::Getal(self.solve_expression(argument, lees_geheugen)?));
@@ -138,33 +138,30 @@ impl EcolMachine {
     pub(super) fn vervang_variabelen_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
         while let Some(werk_variabele) = parseer_variabele(werk_expressie) {
             let Some(complete_waarde) = self.var_lees_waarde(werk_variabele.variabele_naam())
-                else { return Err(EcolFout::FoutMelding("Variabele niet gevonden".to_string()));};
+                else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(werk_variabele.variabele_naam().to_string())));};
             if let Some(var_typ) = complete_waarde.type_van() {
                 if var_typ != VariabeleType::Getal && var_typ != VariabeleType::Rij && var_typ != VariabeleType::Rijsym && var_typ != VariabeleType::Teller {
-                    return Err(EcolFout::FoutMelding(format!("Variabele {} is type {} en kan niet herleid worden tot een waarde.", werk_variabele.variabele_naam(), var_typ)));
+                    return Err(EcolFout::melding(EcolFoutVariant::GeenWaardeMogelijk(werk_variabele.variabele_naam().to_string(), var_typ)));
                 }
                 let index_expressie = werk_variabele.index().unwrap_or("0");
                 let p = self.solve_expression(index_expressie, lees_geheugen)?;
-                if p.fract() != 0f32 {
-                    return Err(EcolFout::FoutMelding(format!("Variabele {} kan geen decimale index hebben, de opgegeven index = {}.", werk_variabele.variabele_naam(), p)));
-                }
+                let pos = f32_naar_usize(p)?;
+                
                 if (var_typ == VariabeleType::Getal || var_typ == VariabeleType::Teller) && p != 0f32 {
-                    return Err(EcolFout::FoutMelding(format!("Variabele {} kan geen index hebben, de opgegeven index = {}.", werk_variabele.variabele_naam(), p)));
+                    return Err(EcolFout::melding(EcolFoutVariant::WaardeZonderIndex(werk_variabele.variabele_naam().to_string(), var_typ)));
                 }
                 if var_typ == VariabeleType::Rij || var_typ == VariabeleType::Rijsym {
                     let (b, e) = complete_waarde.rij_haal_grenswaarden();
                     if p < b as f32 || p > e as f32 {
-                        return Err(EcolFout::FoutMelding(format!("Variabele {} heeft index {} buiten bereik [{}..{}].", werk_variabele.variabele_naam(), p, b, e)));
+                        return Err(EcolFout::melding(EcolFoutVariant::OngeldigeIndex(pos, b, e)));
                     }
                 }
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let positie = p as usize; //Veilig, want hierboven gevalideerd aan de hand van in opdrachten.rs gevalideerde grenswaarden.
-                let result = complete_waarde.haal_getal(positie)?.to_string();
+                let result = complete_waarde.haal_getal(pos)?.to_string();
 
                 werk_expressie.replace_range(werk_variabele.start()..werk_variabele.einde(), result.trim());
 
             } else {
-                return Err(EcolFout::FoutMelding(format!("Variabele {:?} is niet goed opgeslagen", werk_variabele.variabele_naam())));
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(werk_variabele.variabele_naam().to_string())));
             }
 
         }
@@ -206,13 +203,11 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
                     controleer_precisie(rechts, rechts_deel)?;
                     let uitkomst = o.bereken(links, rechts)?;
                     if uitkomst.is_infinite() || uitkomst.is_nan() {
-                        return Err(EcolFout::FoutMelding("Rekenkundig overflow".to_string()));
+                        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links_deel} {} {rechts_deel}", o.to_string()))));
                     }
                     werk_expressie.replace_range(links_pos..rechts_pos, &uitkomst.to_string());
                 }
-                _ => return Err(EcolFout::FoutMelding(
-                    "Ongeldige tekens in numerieke expressie".to_string()
-                )),
+                _ => return Err(EcolFout::melding(EcolFoutVariant::OngeldigeTekens(format!("{links_deel} {} {rechts_deel}", o.to_string())))),
             }
         }
     }
@@ -227,9 +222,7 @@ pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout>
 fn controleer_precisie(getal: f32, source: &str) -> Result<(), EcolFout> {
     if let Ok(als_f64) = f64::from_str(source) {
         if (f64::from(getal) - als_f64).abs() > 0.5 {
-            return Err(EcolFout::FoutMelding(format!(
-                "Precisieverlies: '{source}' kan niet exact worden weergegeven"
-            )));
+            return Err(EcolFout::melding(EcolFoutVariant::PrecisieVerlies(source.to_string())));
         }
     }
     Ok(())

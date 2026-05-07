@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::errors::EcolFout;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, grens_bewaking};
 use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
 use crate::interpreter::program::{FunDef, Line, LineInhoud};
@@ -106,7 +106,7 @@ pub(super) enum Functie {
 impl Functie {
     pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, rij_naam: &str) -> Result<Self, EcolFout> {
         if argumenten.len() != functienaam.verwacht_argumenten() {
-            return Err(EcolFout::FoutMelding(format!("Verkeerd aantal argumenten voor '{functienaam}'")));
+            return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(functienaam.to_string(), argumenten.len(), functienaam.verwacht_argumenten())));
         }
         match functienaam {
             FunctieNaam::ABS => Ok(Functie::ABS { getal: argumenten[0] }),
@@ -138,13 +138,14 @@ impl EigenFunctie {
     }
 
     fn eigen_functie(functies: &mut HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
-        if diepte > 64 {
-            return Err(EcolFout::FoutMelding("Maximum recursie-diepte overschreden (64).".to_string()));
+        let max_diepte = 50u16;
+        if diepte > max_diepte {
+            return Err(EcolFout::melding(EcolFoutVariant::MaximumRecursieDiepte(max_diepte)));
         }
         let mut machine = Self::new();
         machine.functie_omgeving.stel_functie_diepte_in(diepte);
         if argumenten.len() != functie.parameters().len() {
-            return Err(EcolFout::FoutMelding(format!("Functie verwacht {} argumenten, er staan {} argumenten in de aanroep.", functie.parameters().len(), argumenten.len())));
+            return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("Functie".to_string(), functie.parameters().len(), argumenten.len())));
         }
         machine.functie_omgeving.laad_programma(functie.body());
         machine.functie_omgeving.laad_functies(functies);
@@ -156,29 +157,21 @@ impl EigenFunctie {
             let mut naam = param.clone();
             if geen_spaties(&naam).starts_with("RIJSYM") {
                 naam = geen_spaties(&naam[6..]);
-                if argument.type_van() != Some(VariabeleType::Rijsym) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJSYM als argument nr. {}, maar ontving een {}."
-                                                             ,index + 1
-                                                             ,argument
-                                                                 .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
+
+                if type_test(argument.type_van(), VariabeleType::Rijsym, &naam, index)? {
+                    let (begin, einde) = argument.rij_haal_grenswaarden();
+                    machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
                 }
-                let (begin, einde) = argument.rij_haal_grenswaarden();
-                machine.functie_omgeving.var_reserveer_rijsym(&naam, begin, einde)?;
             } else if geen_spaties(&naam).starts_with("RIJ") {
                 naam = geen_spaties(&naam[3..]);
-                if argument.type_van() != Some(VariabeleType::Rij) {
-                    return Err(EcolFout::FoutMelding(format!("Functie verwacht RIJ als argument nr. {}, maar ontving een {}."
-                                                             ,index + 1
-                                                             ,argument
-                                                                 .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
+
+                if type_test(argument.type_van(), VariabeleType::Rij, &naam, index)? {
+                    let (begin, einde) = argument.rij_haal_grenswaarden();
+                    machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
                 }
-                let (begin, einde) = argument.rij_haal_grenswaarden();
-                machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
+
             } else if argument.type_van() != Some(VariabeleType::Getal) {
-                return Err(EcolFout::FoutMelding(format!("Functie verwacht GETAL als argument nr. {}, maar ontving een {}."
-                                                         ,index + 1
-                                                         ,argument
-                                                             .type_van().map_or_else(|| "onbekend type", super::waarden::VariabeleType::to_string))));
+                if type_test(argument.type_van(), VariabeleType::Getal, &naam, index)? {};
             }
             machine.functie_omgeving.var_schrijf_waarde(&naam, argument.clone())?;
         }
@@ -188,7 +181,7 @@ impl EigenFunctie {
         loop {
 
             let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
-                return Err(EcolFout::FoutMelding("FOUTMELDING: Er zijn geen regels meer om uit te voeren. FUN := niet aangetroffen.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::GeenFunEinde));
             };
             current = regelnummer + 1;
             let regel = Line::new(current, current_regel.clone());
@@ -200,7 +193,7 @@ impl EigenFunctie {
 
                 if let Some(r) = reply_option {
                     let reply: String = r;
-                    return reply.parse::<f32>().map_err(|_| EcolFout::FoutMelding("FOUTMELDING: De functie heeft een ongeldig resultaat.".to_string()));
+                    return reply.parse::<f32>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als uitkomst van de functie".to_string())));
                 }
 
                 if let Some(nextline) = nextline_option {
@@ -220,7 +213,7 @@ impl EigenFunctie {
 
         }
 
-        Err(EcolFout::FoutMelding("FOUTMELDING: FUNctie  eindigde zonder resultaat".to_string()))
+        Err(EcolFout::melding(EcolFoutVariant::FunctieZonderResultaat))
     }
 }
 
@@ -257,10 +250,10 @@ impl EcolMachine {
         Ok(getal.atan())
     }
     fn execute_function_bovin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
-        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{variabele_naam}' bestaat niet")));};
+        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::melding(EcolFoutVariant::VariabeleNietGevonden(variabele_naam.to_string())));};
         match waarde.type_van() {
             Some(VariabeleType::Rij | VariabeleType::Rijsym) => {}
-            _ => return Err(EcolFout::FoutMelding(format!("'{variabele_naam}' is geen RIJ of RIJSYM variabele"))),
+            _ => return Err(EcolFout::melding(EcolFoutVariant::GeenRij(variabele_naam.to_string()))),
         }
         let (_, result) = waarde.rij_haal_grenswaarden();
         Ok(result as f32)
@@ -284,7 +277,7 @@ impl EcolMachine {
         let laag = grens_bewaking(laag, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         let hoog = grens_bewaking(hoog, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
         if laag >= hoog {
-            return Err(EcolFout::FoutMelding(format!("De lage waarde van de GOK ({laag}) moet kleiner zijn dan de hoge waarde ({hoog})")));
+            return Err(EcolFout::melding(EcolFoutVariant::GrenzenVolgorde("GOK".to_string(), laag, hoog)));
         }
 
         Ok(self.volgende_willekeurig(laag, hoog).round())
@@ -295,7 +288,7 @@ impl EcolMachine {
     fn execute_function_lees(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if lees_geheugen.wacht_op_lees() {
             let Some(getal) = lees_geheugen.lees_waarde() else {
-                return Err(EcolFout::FoutMelding("Geen waarde na LEES(SYM) (interne fout).".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::GeenWaarde("LEES".to_string())));
             };
             lees_geheugen.lees_hervat_none();
             Ok(getal)
@@ -307,7 +300,7 @@ impl EcolMachine {
     fn execute_function_leessym(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if lees_geheugen.wacht_op_leessym() {
             let Some(getal) = lees_geheugen.leessym_waarde() else {
-                return Err(EcolFout::FoutMelding("Geen waarde na LEES(SYM) (interne fout).".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::GeenWaarde("LEESSYM".to_string())));
             };
             lees_geheugen.leessym_hervat_none();
 
@@ -327,10 +320,10 @@ impl EcolMachine {
         Ok(getal.log10())
     }
     fn execute_function_ondin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
-        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::FoutMelding(format!("De variabele '{variabele_naam}' bestaat niet")));};
+        let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::melding(EcolFoutVariant::VariabeleNietGevonden(variabele_naam.to_string())));};
         match waarde.type_van() {
             Some(VariabeleType::Rij | VariabeleType::Rijsym) => {}
-            _ => return Err(EcolFout::FoutMelding(format!("'{variabele_naam}' is geen RIJ of RIJSYM variabele"))),
+            _ => return Err(EcolFout::melding(EcolFoutVariant::GeenRij(variabele_naam.to_string()))),
         }
         let (result, _) = waarde.rij_haal_grenswaarden();
         Ok(result as f32)
@@ -352,7 +345,7 @@ impl EcolMachine {
     }
     pub(super) fn execute_eigen_functie(&mut self, naam: &str, argumenten: Vec<Waarde>, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         let definitie = self.haal_functiedefinitie(naam)
-            .ok_or_else(|| EcolFout::FoutMelding(format!("Functie '{naam}' bestaat niet")))?
+            .ok_or_else(|| EcolFout::melding(EcolFoutVariant::GeenFunctie(naam.to_string())))?
             .clone();
         let diepte = self.functie_diepte() + 1;
         EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte, lees_geheugen)
@@ -399,4 +392,18 @@ impl EcolMachine {
         Ok(nieuwe_programma)
     }
 
+}
+fn type_test(type_: Option<VariabeleType>, verwacht: VariabeleType, naam: &str, index: usize) -> Result<bool, EcolFout> {
+    if type_ != Some(verwacht) {
+        if type_.is_none() {
+            return Err(EcolFout::melding(EcolFoutVariant::OnbekendType(naam.to_string())))
+        }
+        return Err(EcolFout::melding(EcolFoutVariant::ArgumentVerkeerdType(
+            "Functie".to_string(),
+            verwacht,
+            index + 1,
+            type_.unwrap(), //Veilig te doen omdat we hier geen onbekend type kunnen krijgen.
+        )));
+    }
+    Ok(true)
 }

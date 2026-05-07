@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 use crate::EcolMachine;
-use crate::interpreter::errors::EcolFout;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::program::LineInhoud;
 
 pub struct LeesGeheugen {
@@ -60,7 +60,7 @@ impl LeesGeheugen {
     }
     pub(super) fn schrijf_leessym_waarde(&mut self, waarde: f32) -> Result<(), EcolFout> {
         if waarde.fract() != 0.0 || !(0f32..=99f32).contains(&waarde) {
-            return Err(EcolFout::FoutMelding(format!("Waarde {waarde} is ongeldig (xxxSYM verwacht een geheel getal 0–99).")));
+            return Err(EcolFout::melding(EcolFoutVariant::SymboolWaarde(waarde)));
         }
         
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

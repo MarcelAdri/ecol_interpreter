@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::interpreter::errors::EcolFout;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::{extract_als, extract_anders, extract_argumenten, extract_dan, extract_keyword, extract_opmerking, extract_regelnummer, extract_stap_expressie, extract_start_expressie, extract_variabele_naam, geen_spaties, is_alleen_keyword, is_geldig_wordt_teken, is_geldige_variabele_naam, vind_opmerking};
 use crate::interpreter::program::{FunDef, Line, LineInhoud, Operator, Sleutelwoord, SprongDoel};
 use crate::interpreter::functions::{FunctieNaam};
@@ -54,7 +54,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
 
     let functienaam = &expressie[start_naam..einde_naam];
     let Some(functie) = FunctieNaam::from_str(functienaam) else {
-        return Err(EcolFout::FoutMelding(format!("Ongeldige functienaam: '{functienaam}'")));
+        return Err(EcolFout::melding(EcolFoutVariant::OngeldigeFunctieNaam(functienaam.to_string())));
     };
 
     // 3. Geen argumenten: direct klaar
@@ -66,7 +66,7 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
     let rest = expressie[einde_naam..].trim_start();
     let rest_offset = expressie.len() - rest.len(); // absolute byte-offset van `rest` in `expressie`
     if !rest.starts_with('(') {
-        return Err(EcolFout::FoutMelding(format!("'(' verwacht na '{functienaam}'")));
+        return Err(EcolFout::melding(EcolFoutVariant::GeenArgumenten(functienaam.to_string())));
     }
     // 5. Zoek bijbehorend sluithaakje (haakjes-diepte meetellen)
     let rel_sluit = vind_sluitende_haak(rest)?;
@@ -76,16 +76,14 @@ pub(super) fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>,
     let argumenten = splits_argumenten(argumenten_str);
 
     if argumenten.len() != functie.verwacht_argumenten() && !functie.verwacht_string_argument() {
-        return Err(EcolFout::FoutMelding(format!(
-            "'{}' verwacht {} argumenten, maar {} zijn gegeven",
-            functienaam,
+        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(
+            functienaam.to_string(),
             functie.verwacht_argumenten(),
             argumenten.len()
         )));
     } else if functie.verwacht_string_argument()  && argumenten.len() != 1 {
-        return Err(EcolFout::FoutMelding(format!(
-            "'{}' verwacht 1 string argument, maar {} zijn gegeven",
-            functienaam,
+        return Err(EcolFout::melding(EcolFoutVariant::GeenStringArgument(
+            functienaam.to_string(),
             argumenten.len()
         )));
     }
@@ -107,7 +105,7 @@ fn vind_sluitende_haak(s: &str) -> Result<usize, EcolFout> {
             _ => {}
         }
     }
-    Err(EcolFout::FoutMelding("Haakjespaar is niet gesloten".to_string()))
+    Err(EcolFout::melding(EcolFoutVariant::GeenHaakSluiten))
 }
 
 /// Splitst argumenten-string op komma's, waarbij haakjes-diepte wordt gerespecteerd.
@@ -148,14 +146,14 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
     }
 
     let Some((keyword, rest_na_keyword)) = extract_keyword(rest_na_regelnummer) else {
-        return Err(EcolFout::FoutMelding("Onbekend of geen keyword.".to_string()))
+        return Err(EcolFout::melding(EcolFoutVariant::OnbekendSleutelwoord))
     };
 
     match keyword {
         Sleutelwoord::ALS => {
             if regelnummer != 0 {
                 let Some((vergelijking_str, rest_na_als)) = extract_als(rest_na_keyword) else {
-                    return Err(EcolFout::FoutMelding("Geen DAN gevonden na ALS".to_string()))
+                    return Err(EcolFout::melding(EcolFoutVariant::GeenDan))
                 };
                 let vergelijking = vergelijking_str.to_string();
                 let (dan, rest_na_dan) = extract_dan(rest_na_als)?;
@@ -172,23 +170,23 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
 
                 Ok(Line::new(regelnummer, LineInhoud::Als { vergelijking, dan, anders, opm: vind_opmerking(rest_tekst)? }))
             } else {
-                Err(EcolFout::FoutMelding("ALS kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("ALS".to_string())))
             }
 
         },
         Sleutelwoord::END => {
             if regelnummer == 0 {
-                return Err(EcolFout::FoutMelding("END kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("END".to_string())))
             }
 
             Ok(Line::new(regelnummer, LineInhoud::End { opm: vind_opmerking(rest_na_keyword)?}))
         },
         Sleutelwoord::FUNstart => {
             if regelnummer == 0 {
-                return Err(EcolFout::FoutMelding("FUN definitie kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("FUN definitie".to_string())))
             }
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else {
-                return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
             };
             let parameters = rest_na_variabele.trim().trim_start_matches('(').trim_end_matches(')');
             let rest_na_parameters = rest_na_variabele
@@ -200,10 +198,10 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::FUNeind => {
             if regelnummer == 0 {
-                return Err(EcolFout::FoutMelding("FUN toekenning kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("FUN :=".to_string())))
             }
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
-                return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
             };
             let (expressie, rest_na_expressie) = extract_opmerking(rest_na_wordt_teken);
             
@@ -211,7 +209,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         }
         Sleutelwoord::GASUB => {
             if regelnummer == 0 {
-                return Err(EcolFout::FoutMelding("Een subroutine aanroepen kan alleen in een programma (regelnummer verplicht).".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("Een subroutine aanroepen".to_string())))
             }
             let (subroutine, rest_na_subroutine) = extract_opmerking(rest_na_keyword);
             
@@ -221,33 +219,33 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("HELP kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("HELP".to_string())))
             }
         },
         Sleutelwoord::HERHAAL => {
             if regelnummer != 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("HERHAAL kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("HERHAAL".to_string())))
             }
         },
         Sleutelwoord::KLAAR => {
             if regelnummer != 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("KLAAR kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("KLAAR".to_string())))
             }
         },
         Sleutelwoord::LIJST => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("LIJST kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("LIJST".to_string())))
             }
         },
         Sleutelwoord::MET => {
             if regelnummer == 0 {
-                return Err(EcolFout::FoutMelding("MET kan alleen in een programma worden uitgevoerd (regelnummer verplicht).".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("MET".to_string())))
             }
             let (stap_expressie, rest_na_stap) = extract_stap_expressie(rest_na_keyword)?;
             let (variabele_naam, start_expressie, rest_na_start) = extract_start_expressie(&rest_na_stap)?;
@@ -265,7 +263,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         Sleutelwoord::NR => {
             let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 1 && !argumenten.is_empty() {
-                return Err(EcolFout::FoutMelding(format!("NR verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())))
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumentenDubbel("NR".to_string(), "geen of één".to_string(), argumenten.len())))
             }
             if argumenten.is_empty() {
                 argumenten.push("1".to_string());
@@ -276,11 +274,11 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         Sleutelwoord::RIJ => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 2 {
-                return Err(EcolFout::FoutMelding(format!("RIJ verwacht twee argumenten. {} argumenten aangetroffen", argumenten.len())))
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("RIJ".to_string(), 2, argumenten.len())))
             }
 
             let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else {
-                return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
             };
 
             Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(rest_na_variabele)? }))
@@ -288,18 +286,18 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         Sleutelwoord::RIJSYM => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 2 {
-                return Err(EcolFout::FoutMelding(format!("RIJSYM verwacht twee argumenten. {} argumenten aangetroffen", argumenten.len())))
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("RIJSYM".to_string(), 2, argumenten.len())))
             }
 
             let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else {
-                return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
             };
 
             Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(rest_na_variabele)? }))
         }
         Sleutelwoord::TOEKENNEN => {
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else {
-                return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
             };
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));
             let argument: String;
@@ -308,17 +306,17 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             } else if argumenten.len() == 1 {
                 argument = argumenten[0].clone();
             } else {
-                return Err(EcolFout::FoutMelding("Een RIJ variabele verwacht slechts één argument.".to_string()));
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("Een RIJ variabele".to_string(), 1, argumenten.len())));
             }
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else {
-                return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
             };
             let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
             Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam: variabele_naam.to_string(), argument, expressie, opm: vind_opmerking(&opmerking)? }))
         },
         Sleutelwoord::TEKST => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
-                return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
             };
             let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
 
@@ -327,7 +325,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         Sleutelwoord::SCHRIJF => {
             let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 2 && !argumenten.is_empty() {
-                return Err(EcolFout::FoutMelding(format!("SCHRIJF verwacht geen of twee argumenten. {} argumenten aangetroffen", argumenten.len())))
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumentenDubbel("SCHRIJF".to_string(), "geen of 2".to_string(), argumenten.len())))
             }
             let breedte: usize;
             let decimalen: usize;
@@ -335,15 +333,15 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
                 breedte = 0;
                 decimalen = 0;
             } else {
-                breedte = argumenten[0].trim().parse::<usize>().map_err(|_| EcolFout::FoutMelding("SCHRIJF verwacht een getal als breedte.".to_string()))? ;
-                decimalen = argumenten[1].trim().parse::<usize>().map_err(|_| EcolFout::FoutMelding("SCHRIJF verwacht een getal als aantal decimalen.".to_string()))? ;
+                breedte = argumenten[0].trim().parse::<usize>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als breedte bij SCHRIJF".to_string())))? ;
+                decimalen = argumenten[1].trim().parse::<usize>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als aantal decimalen bij SCHRIJF".to_string())))? ;
                 if breedte == 0 {
-                    return Err(EcolFout::FoutMelding("SCHRIJF verwacht een breedte groter dan 0 als eerste argument.".to_string()));
+                    return Err(EcolFout::melding(EcolFoutVariant::GetalNietGroterDan("De breedte bij SCHRIJF".to_string(), 0)));
                 }
             }
 
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else {
-                return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
             };
 
             let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
@@ -352,7 +350,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::SCHRIJFSYM => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
-                return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
             };
             let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
 
@@ -360,7 +358,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         },
         Sleutelwoord::SCHRIJM => {
             let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
-                return Err(EcolFout::FoutMelding("Ongeldig 'wordt'-teken.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
             };
             let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
 
@@ -369,7 +367,7 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
         Sleutelwoord::SPATIE => {
             let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
             if argumenten.len() != 1 && !argumenten.is_empty() {
-                return Err(EcolFout::FoutMelding(format!("SPATIE verwacht geen of één argument. {} argumenten aangetroffen", argumenten.len())))
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumentenDubbel("SPATIE".to_string(), "geen of één".to_string(), argumenten.len())))
             }
             if argumenten.is_empty() {
                 argumenten.push("1".to_string());
@@ -381,29 +379,29 @@ pub(super) fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("BEWAAR kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("BEWAAR".to_string())))
             }
         },
         Sleutelwoord::LAAD => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("LAAD kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("LAAD".to_string())))
             }
         },
         Sleutelwoord::START => {
             if regelnummer == 0 {
                 is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
             } else {
-                Err(EcolFout::FoutMelding("START kan alleen direct vanaf de prompt worden uitgevoerd (regelnummer niet toegestaan).".to_string()))
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("START".to_string())))
             }
         },
         Sleutelwoord::SUB => {
             if regelnummer == 0 {
-                return Err(EcolFout::FoutMelding("Een subroutine definiëren kan alleen in een programma (regelnummer verplicht).".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("SUB".to_string())))
             }
             let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else {
-                return Err(EcolFout::FoutMelding("Variabele naam ontbreekt.".to_string()))
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
             };
 
             Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam), opm: vind_opmerking(rest_na_variabele)? }))
