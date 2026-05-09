@@ -2,13 +2,13 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
-use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, grens_bewaking};
+use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties};
 use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
 use crate::interpreter::program::{FunDef, Line, LineInhoud};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
 
-pub(super) const MAG_ALLEEN_HELE_GETALLEN: bool = true;
-pub(super) const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
+const MAG_ALLEEN_HELE_GETALLEN: bool = true;
+const MAG_ALLEEN_POSITIEVE_GETALLEN: bool = true;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, PartialEq)]
@@ -392,6 +392,16 @@ impl EcolMachine {
         Ok(nieuwe_programma)
     }
 
+}
+fn grens_bewaking (getal: f32, alleen_positieve_getallen: bool, alleen_hele_getallen: bool) -> Result<f32, EcolFout> {
+    if getal.fract() != 0.0 && alleen_hele_getallen {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenGeheelGetal(getal)));
+    }
+    if getal <= 0f32 && alleen_positieve_getallen {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenPositiefGetal(getal)));
+    }
+
+    Ok(getal)
 }
 fn type_test(type_: Option<VariabeleType>, verwacht: VariabeleType, naam: &str, index: usize) -> Result<bool, EcolFout> {
     if type_ != Some(verwacht) {

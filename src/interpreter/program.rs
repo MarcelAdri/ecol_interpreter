@@ -20,14 +20,23 @@ impl Line {
             inhoud,
         }
     }
-    pub(super) fn genereer_regel(&self) -> String {
-        let regelnummer:String =  if self.regelnummer == 0 {
+
+    pub(super) fn regelnummer(&self) -> u16 {
+        self.regelnummer
+    }
+    pub(super) fn inhoud(&self) -> &LineInhoud {
+        &self.inhoud
+    }
+}
+impl Display for Line {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let regelnummer:String =  if self.regelnummer() == 0 {
             String::new()
         } else {
-            format!("{:>4} ", self.regelnummer)
+            format!("{:>4} ", self.regelnummer())
         };
         #[allow(clippy::match_same_arms)]
-        match &self.inhoud {
+        let regel_inhoud = match &self.inhoud() {
             LineInhoud::Als { vergelijking, dan, anders, opm } => {
                 match anders {
                     Some( x ) => format!("{}ALS {} DAN {} ANDERS {}{}"
@@ -132,8 +141,8 @@ impl Line {
                         ,regelnummer
                         ,aantal
                         ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
-                .trim_start()
-                .to_string(),
+                    .trim_start()
+                    .to_string(),
             LineInhoud::Rij { start, eind, variabele_naam, opm } =>
                 format!("{}RIJ({}, {}) {}{}"
                         ,regelnummer
@@ -141,8 +150,8 @@ impl Line {
                         ,eind
                         ,variabele_naam
                         ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
-                .trim_start()
-                .to_string(),
+                    .trim_start()
+                    .to_string(),
             LineInhoud::Rijsym { start, eind, variabele_naam, opm } =>
                 format!("{}RIJSYM({}, {}) {}{}"
                         ,regelnummer
@@ -150,8 +159,8 @@ impl Line {
                         ,eind
                         ,variabele_naam
                         ,if opm.is_some() { format!(" ; {}", opm.as_ref().unwrap()) } else { String::new() })
-                .trim_start()
-                .to_string(),
+                    .trim_start()
+                    .to_string(),
             LineInhoud::Schrijf { breedte, decimalen, expressie, opm } =>
                 format!("{}SCHRIJF({}, {}) := {}{}"
                         ,regelnummer
@@ -213,13 +222,8 @@ impl Line {
                 },
 
             LineInhoud::Verwijderen { } => String::new(),
-        }
-    }
-    pub(super) fn regelnummer(&self) -> u16 {
-        self.regelnummer
-    }
-    pub(super) fn inhoud(&self) -> &LineInhoud {
-        &self.inhoud
+        };
+        write!(f, "{}", regel_inhoud)
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,7 +254,7 @@ impl SprongDoel {
         Ok(reply)
     }
 }
-impl fmt::Display for SprongDoel {
+impl Display for SprongDoel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SprongDoel::Regel(n) => write!(f, "{n}"),
@@ -259,7 +263,7 @@ impl fmt::Display for SprongDoel {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) enum LineInhoud {
     Als {vergelijking: String, dan: SprongDoel, anders: Option<SprongDoel>, opm: Option<String>},
     Bewaar {},
@@ -346,37 +350,6 @@ impl LineInhoud {
             _ => Err(EcolFout::melding(EcolFoutVariant::IncompleteSyntax)),
         }
     }
-    pub(super) fn as_str(&self) -> &str {
-        match self {
-            LineInhoud::Als { .. } => "Als",
-            LineInhoud::Bewaar { } => "Bewaar",
-            LineInhoud::End { .. } => "End",
-            LineInhoud::FunStart { .. } => "FunStart",
-            LineInhoud::FunEind { .. } => "FunEind",
-            LineInhoud::GaSub { .. } => "GaSub",
-            LineInhoud::Help { } => "Help",
-            LineInhoud::Herhaal { .. } => "Herhaal",
-            LineInhoud::Klaar { .. } => "Klaar",
-            LineInhoud::Laad { } => "Laad",
-            LineInhoud::LegeRegel { .. } => "",
-            LineInhoud::Lijst { } => "Lijst",
-            LineInhoud::Met { .. } => "Met",
-            LineInhoud::Naar { .. } => "Naar",
-            LineInhoud::NP { .. } => "NP",
-            LineInhoud::NR { .. } => "NR",
-            LineInhoud::Rij { .. } => "Rij",
-            LineInhoud::Rijsym { .. } => "Rijsym",
-            LineInhoud::Schrijf { .. } => "Schrijf",
-            LineInhoud::Schrijfsym { .. } => "Schrijfsym",
-            LineInhoud::Schrijm { .. } => "Schrijm",
-            LineInhoud::Spatie { .. } => "Spatie",
-            LineInhoud::Start { } => "Start",
-            LineInhoud::Sub { .. } => "Sub",
-            LineInhoud::Tekst { .. } => "Tekst",
-            LineInhoud::Toekennen { .. } => "Toekennen",
-            LineInhoud::Verwijderen { } => "Verwijderen",
-        }
-    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Operator {
@@ -397,25 +370,12 @@ impl Operator {
             _ => None,
         }
     }
-
-    fn from_string(s: &str) -> Option<Self> {
-        match s {
-            "+" => Some(Self::Plus),
-            "-" => Some(Self::Min),
-            "*" => Some(Self::Vermenigvuldig),
-            "/" => Some(Self::Deel),
-            "M" => Some(Self::Machtsverheffen),
-            _ => None,
-        }
-    }
-
     pub(super) fn is_operator_char(c: char) -> bool {
         Self::from_char(c).is_some()
     }
     pub(super) fn is_operator_string(s: &str) -> bool {
-        Self::from_string(s).is_some()
+        s.chars().next().is_some_and(|c| Self::from_char(c).is_some())
     }
-
     pub(super) fn operator_prioriteiten() -> Vec<Vec<Self>> {
         vec![
             vec![Self::Machtsverheffen],
@@ -437,7 +397,7 @@ impl Operator {
 }
 
 impl Display for Operator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Plus => write!(f, "+"),
             Self::Min => write!(f, "-"),
@@ -448,7 +408,6 @@ impl Display for Operator {
 
     }
 }
-
 fn plus(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     let resultaat = links + rechts;
     if resultaat.is_infinite() || resultaat.is_nan() {
@@ -497,41 +456,6 @@ fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
         return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links} M {rechts}"))));
     }
     Ok(resultaat)
-}
-pub(super) struct Programma {
-    programma: BTreeMap<u16, LineInhoud>
-}
-impl Programma {
-    pub(super) fn new() -> Self {
-        Self {
-            programma: BTreeMap::new(),
-        }
-    }
-    pub(super) fn laad(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
-        self.programma = bron.clone();
-    }
-    pub(super) fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
-        &self.programma
-    }
-    pub(super) fn regel_toevoegen(&mut self, regel: Line) -> String {
-        let regelnummer = regel.regelnummer;
-        let regel_inhoud = regel.inhoud;
-
-        let Some(oude_regel) = self.programma.insert(regelnummer, regel_inhoud) else {
-            return String::new();
-        };
-
-        format!("{} // vervangen", Line::new(regelnummer, oude_regel).genereer_regel())
-    }
-
-    pub(super) fn regel_verwijderen(&mut self, regelnummer: u16) -> Option<String> {
-        let regel_inhoud = self.programma.remove(&regelnummer)?;
-        let regel=Line::new(regelnummer, regel_inhoud);
-        let reply = format!("{} // verwijderd", regel.genereer_regel());
-
-        Some(reply)
-
-    }
 }
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

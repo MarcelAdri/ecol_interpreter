@@ -4,7 +4,7 @@ use crate::interpreter::helpers::geen_spaties;
 use crate::interpreter::LeesGeheugen;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Vergelijking {
+enum Vergelijking {
     Gelijk,
     NietGelijk,
     GroterDan,
@@ -28,7 +28,7 @@ impl Vergelijking {
     fn alle_vergelijking_operatoren() -> Vec<&'static str> {
         vec!["<=", ">=", "<>", "≤", "≥", "≠", "=", ">", "<"]
     }
-    pub(super) fn vergelijk(&self, links: f32, rechts: f32) -> bool {
+    fn vergelijk(&self, links: f32, rechts: f32) -> bool {
         match self {
             Self::Gelijk => links == rechts,
             Self::NietGelijk => links != rechts,
@@ -103,7 +103,7 @@ impl EcolMachine {
         self.parse_simpele_vergelijking(werk, lees_geheugen)
     }
 
-    pub(super) fn parse_simpele_vergelijking(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<bool, EcolFout> {
+    fn parse_simpele_vergelijking(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<bool, EcolFout> {
         let mut links: &str = "";
         let mut rechts: &str = "";
         let mut operator_teken = Vergelijking::Gelijk;

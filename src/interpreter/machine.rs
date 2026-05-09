@@ -1,4 +1,13 @@
-pub(super) const HELP_PAGINA: &str = concat!("ecol_syntaxis.html?v=", env!("CARGO_PKG_VERSION"));
+use std::collections::{BTreeMap, HashMap};
+use std::f32;
+use web_sys::js_sys;
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
+use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, is_geldige_variabele_naam, vind_opmerking};
+pub(crate) use crate::interpreter::leesgeheugen::LeesGeheugen;
+use crate::interpreter::opdrachten::{execute_all, Context};
+use super::waarden::{VariabeleType, Waarde};
+use super::program::{FunDef, Line, LineInhoud, Sleutelwoord, SprongDoel, SubDef, WORDT_TEKEN};
+
 pub(super) const SYMBOLEN: [Option<char>; 100] = {
     let mut t = [None; 100];
     let mut teller = 0u8;
@@ -73,7 +82,7 @@ pub(super) const SYMBOLEN: [Option<char>; 100] = {
 
     t
 };
-pub(super) fn symbolen_reverse(symbool: char) -> Option<u8> {
+fn symbolen_reverse(symbool: char) -> Option<u8> {
     let mut i = 0usize;
 
     loop {
@@ -85,17 +94,6 @@ pub(super) fn symbolen_reverse(symbool: char) -> Option<u8> {
     }
     None
 }
-
-use std::collections::{BTreeMap, HashMap};
-use std::f32;
-use web_sys::js_sys;
-use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
-pub(crate) use crate::interpreter::leesgeheugen::LeesGeheugen;
-use crate::interpreter::opdrachten::{execute_all, Context};
-use crate::interpreter::parsers::{parseer_regel};
-use super::waarden::{VariabeleType, Waarde};
-use super::program::{FunDef, LineInhoud, Programma, SubDef};
-
 enum RegelBuffer {
     Regel(String),
 }
@@ -214,6 +212,42 @@ impl VariabelenOpslag {
         self.symbolen.contains_key(naam)
     }
 }
+pub(super) struct Programma {
+    programma: BTreeMap<u16, LineInhoud>
+}
+impl Programma {
+    fn new() -> Self {
+        Self {
+            programma: BTreeMap::new(),
+        }
+    }
+    fn laad(&mut self, bron: &BTreeMap<u16, LineInhoud>) {
+        self.programma = bron.clone();
+    }
+    fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
+        &self.programma
+    }
+    fn regel_toevoegen(&mut self, regel: Line) -> String {
+        let regelnummer = regel.regelnummer();
+        let regel_inhoud = regel.inhoud().clone();
+
+        let Some(oude_regel) = self.programma.insert(regelnummer, regel_inhoud) else {
+            return String::new();
+        };
+
+        format!("{} // vervangen", Line::new(regelnummer, oude_regel))
+    }
+
+    fn regel_verwijderen(&mut self, regelnummer: u16) -> Option<String> {
+        let regel_inhoud = self.programma.remove(&regelnummer)?;
+        let regel=Line::new(regelnummer, regel_inhoud);
+        let reply = format!("{} // verwijderd", regel);
+
+        Some(reply)
+
+    }
+}
+
 
 
 
@@ -313,28 +347,6 @@ impl EcolMachine {
             Some(v_type) => Err(EcolFout::melding(EcolFoutVariant::TellerBestaatAl(naam.to_string(), v_type))),
         }
     }
-    pub(super) fn teller_naar_herhaal(programma: &BTreeMap<u16, LineInhoud>, regel: &u16) -> Result<u16, EcolFout> {
-        let mut current = *regel;
-        let mut met_diepte = 0u16;
-        loop{
-            let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
-                return Err(EcolFout::melding(EcolFoutVariant::MetZonderHerhaal));
-            };
-            current = regelnummer + 1;
-            match current_regel {
-                LineInhoud::Met { .. } => {
-                    met_diepte += 1;
-                },
-                LineInhoud::Herhaal { .. } => {
-                    if met_diepte == 0 {
-                        return Ok(current)
-                    }
-                    met_diepte -= 1;
-                },
-                _ => {  },
-            }
-        }
-    }
     pub(super) fn teller_herhaal(&mut self) -> Result<Option<u16>, EcolFout> {
         let naam = self.actieve_tellers.last()
             .ok_or_else(|| EcolFout::melding(EcolFoutVariant::HerhaalZonderMet))?
@@ -408,9 +420,6 @@ impl EcolMachine {
     pub(super) fn is_fun(&self, naam: &str) -> bool {
         self.functie_register.contains_key(naam)
     }
-
-
-
     pub(super) fn volgende_willekeurig(&mut self, laag: f32, hoog: f32) -> f32 {
         self.seed ^= self.seed << 13;
         self.seed ^= self.seed >> 7;
@@ -418,7 +427,6 @@ impl EcolMachine {
         let basis = (self.seed as f32) / (u64::MAX as f32);  // getal tussen 0.0 en 1.0
         basis * (hoog - laag) + laag
     }
-
     pub fn execute(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> String {
         match self.execute_intern(input, lees_geheugen, output) {
             Ok(Some(s)) => s,
@@ -489,7 +497,7 @@ impl EcolMachine {
                                 }
                             },
                         }
-                    } else if regel.inhoud().as_str() == "Verwijderen" {
+                    } else if matches!(regel.inhoud(), LineInhoud::Verwijderen {}) {
                         let verwijder_resultaat = self.programma.regel_verwijderen(regel.regelnummer());
                         Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()))
                     } else {
@@ -524,5 +532,444 @@ impl EcolMachine {
     }
 
 }
+fn extract_als(input: &str) -> Option<(&str, &str)> {
+    let werkstring = input.trim_start();
+    let pos = werkstring.find("DAN");
+    match pos {
+        Some(positie) => {
+            let vergelijking = &werkstring[..positie];
+            let rest = &werkstring[positie + 3..];
+            Some((vergelijking.trim(), rest.trim_start()))
+        }
+        None => None,
+    }
+}
+pub(super) fn extract_anders(input: &str) -> Result<(SprongDoel, &str), EcolFout> {
+    let werkstring = geen_spaties(input);
+
+    let anders = SprongDoel::vul(&werkstring)?;
+
+    Ok((anders, ""))
+}
+fn extract_argumenten(input: &str) -> Option<(Vec<String>, &str)> {
+    let werkstring = input.trim_start();
+
+    let (mut inhoud, rest) = werkstring.split_once(')')?;
+    inhoud = inhoud.strip_prefix('(')?;
+
+    let reply = argumenten_to_vec(inhoud);
+    Some((reply, rest.trim_start()))
+}
+pub(super) fn extract_dan(input: &str) -> Result<(SprongDoel, &str), EcolFout> {
+    let werkstring = input.trim_start();
+    let pos = werkstring.find("ANDERS");
+    let dan_reply: SprongDoel;
+
+    if let Some(positie) = pos {
+        let dan = &werkstring[..positie];
+        let rest = &werkstring[positie + 6..];
+
+        dan_reply = SprongDoel::vul(&geen_spaties(dan))?;
+
+        Ok((dan_reply, rest.trim_start()))
+    } else {
+        let dan = &geen_spaties(werkstring);
+        dan_reply = SprongDoel::vul(dan)?;
+
+        Ok((dan_reply, ""))
+    }
+}
+fn extract_keyword(input: &str) -> Option<(Sleutelwoord, &str)> {
+    let werkstring = input.trim_start();
+
+    if werkstring.chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+        let (variabele, rest_na_variabele) = extract_variabele_naam(werkstring).unwrap_or(("", werkstring.trim_start()));
+        if variabele.is_empty() { return None }
+        if geen_spaties(rest_na_variabele).is_empty() { return Some((Sleutelwoord::GASUB, variabele)); }
+
+        return Some((Sleutelwoord::TOEKENNEN, rest_na_variabele.trim_start()));
+    }
+    let position = werkstring.find(|c: char| !c.is_ascii_uppercase()).unwrap_or(werkstring.len());
+    let (keyword_string, rest) = werkstring.split_at(position);
+
+    let resultaat: Sleutelwoord = if keyword_string.trim_start().starts_with("FUN") {
+        if rest.trim_start().chars().next().is_some_and(|c| c.is_ascii_lowercase()) {
+            Sleutelwoord::FUNstart
+        } else {
+            Sleutelwoord::FUNeind
+        }
+    } else {
+        Sleutelwoord::from_string(keyword_string.trim_start())?
+    };
+
+
+    Some((resultaat, rest.trim_start()))
+}
+fn extract_opmerking(input: &str) -> (String, String) {
+    let deel_voor_opmerking: String;
+    let opmerking: String;
+
+    let rp = input.find(';');
+    if let Some(p) = rp {
+        deel_voor_opmerking = geen_spaties(&input[..p]);
+        opmerking = input[p..].to_string();
+    } else {
+        deel_voor_opmerking = geen_spaties(input);
+        opmerking = String::new();
+    }
+
+    (deel_voor_opmerking, opmerking)
+}
+fn extract_regelnummer(input: &str) -> Result<(u16, &str, bool), EcolFout> {
+    let is_alleen_regelnummer: bool = input.trim().chars().all(|c| c.is_ascii_digit());
+
+    let (nummer, restregel) = if is_alleen_regelnummer {
+        (input.trim(), "")
+    } else if let Some(positie) = input.find(|c: char| c.is_ascii_alphabetic() || c == ':') {
+        let (gevonden_nummer, rest) = input.split_at(positie);
+        (gevonden_nummer, rest.trim_start())
+    } else {
+        ("0", input.trim_start())
+    };
+
+    let Some(resultaat_parsing) = nummer.trim().parse::<u16>().ok() else { return Ok((0u16, input.trim_start(), is_alleen_regelnummer)) };
+    let regelnummer = resultaat_parsing;
+    if regelnummer > 999u16 { return Err(EcolFout::melding(EcolFoutVariant::RegelnummerTeGroot)) }
+
+
+    Ok((regelnummer, restregel, is_alleen_regelnummer))
+}
+fn extract_stap_expressie(input: &str) -> Result<(String, String), EcolFout> {
+    let werkstring = geen_spaties(input);
+
+    match vind_top_level_komma(&werkstring) {
+        Some(p) => {
+            let (stap_tekst, r) = werkstring.split_at(p);
+            Ok((stap_tekst.to_string(), r[1..].to_string()))
+        },
+        None => Err(EcolFout::melding(EcolFoutVariant::OngeldigeSyntaxMet("STAP".to_string()))),
+    }
+}
+fn extract_start_expressie(input: &str) -> Result<(String, String, String), EcolFout> {
+    let werkstring = geen_spaties(input);
+
+    match vind_top_level_komma(&werkstring) {
+        Some(p) => {
+            let (toekenning_string, r) = werkstring.split_at(p);
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(toekenning_string) else { return Err(EcolFout::melding(EcolFoutVariant::OngeldigeVariabeleNaam)) };
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_variabele) else { return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken)) };
+            Ok((naam.to_string(), rest_na_wordt_teken.to_string(), r[1..].to_string()))
+        },
+        None => Err(EcolFout::melding(EcolFoutVariant::OngeldigeSyntaxMet("START".to_string()))),
+    }
+}
+fn extract_variabele_naam(input: &str) -> Option<(&str, &str)> {
+    let werkstring = input.trim_start();
+    let position = werkstring.find(|c: char| !c.is_ascii_lowercase() && !c.is_ascii_digit() && c != '_').unwrap_or(werkstring.len());
+    let (variabele_naam, rest) = werkstring.split_at(position);
+
+    if is_geldige_variabele_naam(variabele_naam.trim()) {
+
+        Some((variabele_naam.trim(), rest.trim_start()))
+    } else {
+        None
+    }
+
+}
+fn is_alleen_keyword(input: &str, regelnummer: u16, keyword: Sleutelwoord) -> Result<Line, EcolFout> {
+    Ok(Line::new(regelnummer, LineInhoud::from_sleutelwoord(keyword, input)?))
+}
+fn is_geldig_wordt_teken(input: &str) -> Option<&str> {
+    let rest = input.strip_prefix(WORDT_TEKEN)?;
+    Some(rest.trim_start())
+}
+fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
+    let (regelnummer, rnn, is_alleen_regelnummer) = extract_regelnummer(input)?;
+    if is_alleen_regelnummer {
+        return Ok(Line::new(regelnummer, LineInhoud::Verwijderen {}));
+    }
+    let rest_na_regelnummer: &str = rnn;
+    if rest_na_regelnummer.trim_start().starts_with(':') {
+        let rest_na_dubbele_punt = rest_na_regelnummer.trim_start().trim_start_matches(':');
+
+        return Ok(Line::new(regelnummer, LineInhoud::LegeRegel { opm: vind_opmerking(rest_na_dubbele_punt)? }));
+    }
+
+    let Some((keyword, rest_na_keyword)) = extract_keyword(rest_na_regelnummer) else {
+        return Err(EcolFout::melding(EcolFoutVariant::OnbekendSleutelwoord))
+    };
+
+    match keyword {
+        Sleutelwoord::ALS => {
+            if regelnummer != 0 {
+                let Some((vergelijking_str, rest_na_als)) = extract_als(rest_na_keyword) else {
+                    return Err(EcolFout::melding(EcolFoutVariant::GeenDan))
+                };
+                let vergelijking = vergelijking_str.to_string();
+                let (dan, rest_na_dan) = extract_dan(rest_na_als)?;
+                let anders: Option<SprongDoel>;
+                let rest_tekst: &str;
+                if geen_spaties(rest_na_dan).is_empty() || rest_na_dan.trim_start().starts_with(';') {
+                    rest_tekst = rest_na_dan;
+                    anders = None;
+                } else {
+                    let (anders_getal, rest) = extract_anders(rest_na_dan)?;
+                    rest_tekst = rest;
+                    anders = Some(anders_getal);
+                }
+
+                Ok(Line::new(regelnummer, LineInhoud::Als { vergelijking, dan, anders, opm: vind_opmerking(rest_tekst)? }))
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("ALS".to_string())))
+            }
+
+        },
+        Sleutelwoord::END => {
+            if regelnummer == 0 {
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("END".to_string())))
+            }
+
+            Ok(Line::new(regelnummer, LineInhoud::End { opm: vind_opmerking(rest_na_keyword)?}))
+        },
+        Sleutelwoord::FUNstart => {
+            if regelnummer == 0 {
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("FUN definitie".to_string())))
+            }
+            let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else {
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
+            };
+            let parameters = rest_na_variabele.trim().trim_start_matches('(').trim_end_matches(')');
+            let rest_na_parameters = rest_na_variabele
+                .find(')')
+                .map_or("", |i| &rest_na_variabele[i + 1..]);
+
+
+            Ok(Line::new(regelnummer, LineInhoud::FunStart { variabele_naam: variabele_naam.to_string() , argumenten: parameters.to_string(), opm: vind_opmerking(rest_na_parameters)? }))
+        },
+        Sleutelwoord::FUNeind => {
+            if regelnummer == 0 {
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("FUN :=".to_string())))
+            }
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
+            };
+            let (expressie, rest_na_expressie) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::FunEind { expressie: geen_spaties(&expressie), opm: vind_opmerking(&rest_na_expressie)? }))
+        }
+        Sleutelwoord::GASUB => {
+            if regelnummer == 0 {
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("Een subroutine aanroepen".to_string())))
+            }
+            let (subroutine, rest_na_subroutine) = extract_opmerking(rest_na_keyword);
+
+            Ok(Line::new(regelnummer, LineInhoud::GaSub { sub_naam: geen_spaties(&subroutine), opm: vind_opmerking(&rest_na_subroutine)? }))
+        }
+        Sleutelwoord::HELP => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("HELP".to_string())))
+            }
+        },
+        Sleutelwoord::HERHAAL => {
+            if regelnummer != 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("HERHAAL".to_string())))
+            }
+        },
+        Sleutelwoord::KLAAR => {
+            if regelnummer != 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("KLAAR".to_string())))
+            }
+        },
+        Sleutelwoord::LIJST => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("LIJST".to_string())))
+            }
+        },
+        Sleutelwoord::MET => {
+            if regelnummer == 0 {
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("MET".to_string())))
+            }
+            let (stap_expressie, rest_na_stap) = extract_stap_expressie(rest_na_keyword)?;
+            let (variabele_naam, start_expressie, rest_na_start) = extract_start_expressie(&rest_na_stap)?;
+            let (stop_expressie, opm) = extract_opmerking(&rest_na_start);
+
+            Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie, opm: vind_opmerking(&opm)? }))
+        },
+        Sleutelwoord::NAAR => {
+            let (sprong_doel, opmerking) = extract_opmerking(rest_na_keyword);
+            Ok(Line::new(regelnummer, LineInhoud::Naar{ sprong_doel: SprongDoel::vul(&sprong_doel)?, opm: vind_opmerking(&opmerking)? }))
+        },
+        Sleutelwoord::NP => {
+            is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+        },
+        Sleutelwoord::NR => {
+            let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 1 && !argumenten.is_empty() {
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumentenDubbel("NR".to_string(), "geen of één".to_string(), argumenten.len())))
+            }
+            if argumenten.is_empty() {
+                argumenten.push("1".to_string());
+            }
+
+            Ok(Line::new(regelnummer, LineInhoud::NR{ aantal: argumenten[0].clone(), opm: vind_opmerking(rest_na_argumenten)? }))
+        },
+        Sleutelwoord::RIJ => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 2 {
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("RIJ".to_string(), 2, argumenten.len())))
+            }
+
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else {
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
+            };
+
+            Ok(Line::new(regelnummer, LineInhoud::Rij{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(rest_na_variabele)? }))
+        },
+        Sleutelwoord::RIJSYM => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 2 {
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("RIJSYM".to_string(), 2, argumenten.len())))
+            }
+
+            let Some((naam, rest_na_variabele)) = extract_variabele_naam(rest_na_argumenten) else {
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
+            };
+
+            Ok(Line::new(regelnummer, LineInhoud::Rijsym{ start: argumenten[0].clone(), eind: argumenten[1].clone(), variabele_naam: naam.to_string(), opm: vind_opmerking(rest_na_variabele)? }))
+        }
+        Sleutelwoord::TOEKENNEN => {
+            let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_regelnummer) else {
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
+            };
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_variabele).unwrap_or( (Vec::new(), rest_na_variabele));
+            let argument: String;
+            if argumenten.is_empty() {
+                argument = String::new();
+            } else if argumenten.len() == 1 {
+                argument = argumenten[0].clone();
+            } else {
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten("Een RIJ variabele".to_string(), 1, argumenten.len())));
+            }
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else {
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
+            };
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+            Ok(Line::new(regelnummer, LineInhoud::Toekennen{ variabele_naam: variabele_naam.to_string(), argument, expressie, opm: vind_opmerking(&opmerking)? }))
+        },
+        Sleutelwoord::TEKST => {
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
+            };
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Tekst{ expressie, opm: vind_opmerking(&opmerking)? }))
+        },
+        Sleutelwoord::SCHRIJF => {
+            let (argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 2 && !argumenten.is_empty() {
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumentenDubbel("SCHRIJF".to_string(), "geen of 2".to_string(), argumenten.len())))
+            }
+            let breedte: usize;
+            let decimalen: usize;
+            if argumenten.is_empty() {
+                breedte = 0;
+                decimalen = 0;
+            } else {
+                breedte = argumenten[0].trim().parse::<usize>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als breedte bij SCHRIJF".to_string())))? ;
+                decimalen = argumenten[1].trim().parse::<usize>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als aantal decimalen bij SCHRIJF".to_string())))? ;
+                if breedte == 0 {
+                    return Err(EcolFout::melding(EcolFoutVariant::GetalNietGroterDan("De breedte bij SCHRIJF".to_string(), 0)));
+                }
+            }
+
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_argumenten) else {
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
+            };
+
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Schrijf{ breedte, decimalen, expressie, opm: vind_opmerking(&opmerking)? }))
+        },
+        Sleutelwoord::SCHRIJFSYM => {
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
+            };
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Schrijfsym{ expressie, opm: vind_opmerking(&opmerking)? }))
+        },
+        Sleutelwoord::SCHRIJM => {
+            let Some(rest_na_wordt_teken) = is_geldig_wordt_teken(rest_na_keyword) else {
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigWordtTeken))
+            };
+            let (expressie, opmerking) = extract_opmerking(rest_na_wordt_teken);
+
+            Ok(Line::new(regelnummer, LineInhoud::Schrijm{ expressie, opm: vind_opmerking(&opmerking)? }))
+        },
+        Sleutelwoord::SPATIE => {
+            let (mut argumenten, rest_na_argumenten) = extract_argumenten(rest_na_keyword).unwrap_or( (Vec::new(), rest_na_keyword));
+            if argumenten.len() != 1 && !argumenten.is_empty() {
+                return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumentenDubbel("SPATIE".to_string(), "geen of één".to_string(), argumenten.len())))
+            }
+            if argumenten.is_empty() {
+                argumenten.push("1".to_string());
+            }
+
+            Ok(Line::new(regelnummer, LineInhoud::Spatie{ aantal: argumenten[0].clone(), opm: vind_opmerking(rest_na_argumenten)? }))
+        },
+        Sleutelwoord::BEWAAR => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("BEWAAR".to_string())))
+            }
+        },
+        Sleutelwoord::LAAD => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("LAAD".to_string())))
+            }
+        },
+        Sleutelwoord::START => {
+            if regelnummer == 0 {
+                is_alleen_keyword(rest_na_keyword, regelnummer, keyword)
+            } else {
+                Err(EcolFout::melding(EcolFoutVariant::NietInProgramma("START".to_string())))
+            }
+        },
+        Sleutelwoord::SUB => {
+            if regelnummer == 0 {
+                return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("SUB".to_string())))
+            }
+            let Some((variabele_naam, rest_na_variabele)) = extract_variabele_naam(rest_na_keyword) else {
+                return Err(EcolFout::melding(EcolFoutVariant::GeenVariabeleNaam))
+            };
+
+            Ok(Line::new(regelnummer, LineInhoud::Sub { sub_naam: geen_spaties(variabele_naam), opm: vind_opmerking(rest_na_variabele)? }))
+        }
+    }
+}
+fn vind_top_level_komma(s: &str) -> Option<usize> {
+    let mut diepte = 0usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => diepte += 1,
+            ')' => diepte -= 1,
+            ',' if diepte == 0 => return Some(i),
+            _ => {}
+        }
+    }
+    None
+}
+
 
 

@@ -4,10 +4,12 @@ use wasm_bindgen::JsValue;
 use web_sys::js_sys;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
-use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string};
+use crate::interpreter::helpers::{get_sym_value};
 use crate::interpreter::machine::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud, SprongDoel, SubDef};
 use crate::interpreter::waarden::{VariabeleType, Waarde};
+
+const HELP_PAGINA: &str = concat!("ecol_syntaxis.html?v=", env!("CARGO_PKG_VERSION"));
 
 type UitvoeringResultaat = Result<(Option<String>, Option<u16>, Option<WhatsNext>), EcolFout>;
 
@@ -24,9 +26,9 @@ pub(super) enum WhatsNext {
 }
 
 impl EcolMachine {
-    pub(super) fn execute_help(&self) -> Result<String, EcolFout> {
+    fn execute_help(&self) -> Result<String, EcolFout> {
         if let Some(window) = web_sys::window() {
-            let geopend = window.open_with_url_and_target(crate::interpreter::machine::HELP_PAGINA, "_blank");
+            let geopend = window.open_with_url_and_target(HELP_PAGINA, "_blank");
             match geopend {
                 Ok(_) => Ok("Zie het help-document in ander tabblad.".to_string()),
                 Err(_) => Err(EcolFout::melding(EcolFoutVariant::HelpDocument)),
@@ -36,7 +38,7 @@ impl EcolMachine {
         }
     }
 
-    pub(super) fn execute_bewaar(&self) -> Result<String, EcolFout> {
+    fn execute_bewaar(&self) -> Result<String, EcolFout> {
         let tekst = self.execute_lijst();
         if tekst.is_empty() {
             return Ok("Programma is leeg, niets op te slaan.".to_string());
@@ -63,27 +65,27 @@ impl EcolMachine {
         Ok("Programma opgeslagen als 'programma.ecol'.".to_string())
     }
 
-    pub(super) fn execute_laad(&self) -> Result<(), EcolFout> {
+    fn execute_laad(&self) -> Result<(), EcolFout> {
         Err(EcolFout::Signaal(EcolSignaal::WachtOpLaad))
     }
 
-    pub(super) fn execute_lijst(&self) -> String {
+    fn execute_lijst(&self) -> String {
         let mut reply = String::new();
         for (regelnummer, regel_inh) in self.programma() {
             let regel_inhoud = regel_inh.clone();
-            reply.push_str(&Line::new(*regelnummer, regel_inhoud).genereer_regel());
+            reply.push_str(&Line::new(*regelnummer, regel_inhoud).to_string());
             reply.push('\n');
         }
         reply
     }
-    pub(super) fn execute_met(&mut self, variabele_naam: &str, stap_expressie: &str, start_expressie: &str, stop_expressie: &str, volgende_regel: u16, lees_geheugen: &mut LeesGeheugen) -> Result<Option<()>, EcolFout> {
+    fn execute_met(&mut self, variabele_naam: &str, stap_expressie: &str, start_expressie: &str, stop_expressie: &str, volgende_regel: u16, lees_geheugen: &mut LeesGeheugen) -> Result<Option<()>, EcolFout> {
         let stap = self. solve_expression(stap_expressie, lees_geheugen)?;
         let start = self. solve_expression(start_expressie, lees_geheugen)?;
         let stop = self. solve_expression(stop_expressie, lees_geheugen)?;
 
         self.teller_nieuw(variabele_naam, stap, start, stop, volgende_regel)
     }
-    pub(super) fn execute_naar(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, sprong_doel: &SprongDoel, current: &u16) -> Result<Option<u16>, EcolFout> {
+    fn execute_naar(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, sprong_doel: &SprongDoel, current: &u16) -> Result<Option<u16>, EcolFout> {
         match sprong_doel.regelnummer() {
             Some(regel) => {
                 if lopend_programma.contains_key(&regel) {
@@ -100,11 +102,11 @@ impl EcolMachine {
 
 
     }
-    pub(super)  fn execute_np(&self, output: &mut dyn FnMut(&str)) -> String {
+    fn execute_np(&self, output: &mut dyn FnMut(&str)) -> String {
         output("\x0C");
         String::new()
     }
-    pub(super) fn execute_nr(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_nr(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let number = self.solve_expression(aantal, lees_geheugen)?;
 
         if !(1f32..=99f32).contains(&number) || number.fract() != 0f32 {
@@ -117,7 +119,7 @@ impl EcolMachine {
         self.leeg_regel_buffer();
         Ok(reply)
     }
-    pub(super) fn execute_rij(&mut self, start: &str, eind: &str, variabele_naam: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_rij(&mut self, start: &str, eind: &str, variabele_naam: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let begin = self.solve_expression(start, lees_geheugen)?;
         let einde = self.solve_expression(eind, lees_geheugen)?;
         if !(1f32..=9999f32).contains(&begin) || !(1f32..=9999f32).contains(&einde) {
@@ -137,7 +139,7 @@ impl EcolMachine {
         self.var_reserveer_rij(variabele_naam, b, e)?;
         Ok(String::new())
     }
-    pub(super) fn execute_rijsym(&mut self, start: &str, eind: &str, variabele_naam: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_rijsym(&mut self, start: &str, eind: &str, variabele_naam: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let begin = self.solve_expression(start, lees_geheugen)?;
         let einde = self.solve_expression(eind, lees_geheugen)?;
         if !(1f32..=9999f32).contains(&begin) || !(1f32..=9999f32).contains(&einde) {
@@ -157,13 +159,13 @@ impl EcolMachine {
         Ok(String::new())
     }
 
-    pub(super) fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_schrijf(&mut self, breedte: usize, decimalen: usize, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         self.naar_regel_buffer(&format_getal(value, breedte, decimalen)?)?;
         Ok(String::new())
     }
-    pub(super) fn execute_schrijfsym(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+   fn execute_schrijfsym(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         if !(0f32..=99f32).contains(&value) || value.fract() != 0f32 {
@@ -181,7 +183,7 @@ impl EcolMachine {
         self.naar_regel_buffer(symbool.to_string().as_str())?;
         Ok(String::new())
     }
-    pub(super) fn execute_schrijm(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_schrijm(&mut self, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         if value.is_nan() {
@@ -210,7 +212,7 @@ impl EcolMachine {
 
         Ok(String::new())
     }
-    pub(super) fn execute_spatie(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_spatie(&mut self, aantal: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let number = self.solve_expression(aantal, lees_geheugen)?;
         if number.fract() != 0f32 || !(1f32..=80f32).contains(&number) {
             return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("SPATIE".to_string(), 1f32, 80f32, number)));
@@ -286,11 +288,11 @@ impl EcolMachine {
 
         Ok("Programma is normaal beëindigd.".to_string())
     }
-    pub(super) fn execute_tekst(&mut self, expressie: &str) -> Result<String, EcolFout> {
+    fn execute_tekst(&mut self, expressie: &str) -> Result<String, EcolFout> {
         self.naar_regel_buffer(&literal_to_string(expressie)?)?;
         Ok(String::new())
     }
-    pub(super) fn execute_toekennen(&mut self, variabele_naam: &str, argument: &str, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
+    fn execute_toekennen(&mut self, variabele_naam: &str, argument: &str, expressie: &str, lees_geheugen: &mut LeesGeheugen) -> Result<String, EcolFout> {
         let value = self.solve_expression(expressie, lees_geheugen)?;
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -361,7 +363,7 @@ impl EcolMachine {
             }
         }
     }
-    pub(super) fn extract_sub_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, EcolFout> {
+    fn extract_sub_definities(&mut self, volledige_programma: &BTreeMap<u16,LineInhoud>) -> Result<BTreeMap<u16,LineInhoud>, EcolFout> {
         let mut nieuwe_programma: BTreeMap<u16, LineInhoud> = BTreeMap::new();
         let mut in_sub_definitie = false;
         let mut sub_def = SubDef::new();
@@ -597,7 +599,7 @@ pub(super) fn execute_all (
                     match regel {
                         Some(()) => { (no_reply_string, no_next_line, Some(WhatsNext::Continue)) },
                         None => {
-                            (no_reply_string, Some(EcolMachine::teller_naar_herhaal(programma, &opdracht.regelnummer())?), Some(WhatsNext::Continue))
+                            (no_reply_string, Some(teller_naar_herhaal(programma, &opdracht.regelnummer())?), Some(WhatsNext::Continue))
                         }
                     }
                 },
@@ -821,7 +823,7 @@ fn doe_naar(machine: &mut EcolMachine
             ,programma: &BTreeMap<u16, LineInhoud>
             ,sprong_doel: &SprongDoel
             ,regel: &u16
-,no_stop: bool) -> UitvoeringResultaat {
+            ,no_stop: bool) -> UitvoeringResultaat {
     if let Some(regel) = machine.execute_naar(programma, sprong_doel, regel)? {
         Ok((None, Some(regel), None))
     } else {
@@ -831,3 +833,72 @@ fn doe_naar(machine: &mut EcolMachine
         Ok((None, None, Some(WhatsNext::Break)))
     }
 }
+fn format_getal(getal: f32, breedte: usize, decimalen: usize) -> Result<String, EcolFout> {
+    let mut b = breedte;
+    let mut d = decimalen;
+    let x = getal;
+
+    if breedte == 0 {
+        b = 6;
+        if x == x.trunc() {
+            d = 0;
+        } else {
+            d = 4;
+        }
+    }
+
+    let ruimte_voor_teken = usize::from(x < 0f32);
+    let b_totaal = if d == 0 { b + ruimte_voor_teken } else { b + d + ruimte_voor_teken + 1 };
+
+    let reply = format!("{x:b_totaal$.d$}");
+
+    if reply.len() > b_totaal {
+        return Err(EcolFout::melding(EcolFoutVariant::BreedteTeKlein(x, breedte)))
+    }
+
+    Ok(reply)
+
+}
+fn literal_to_string (literal: &str) -> Result<String, EcolFout> {
+    let werk_string = literal.trim();
+
+    if !werk_string.starts_with('"') {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenAanhalingOpen));
+    }
+
+    if !werk_string.ends_with('"') {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenAanhalingSluiten));
+    }
+
+    let inhoud = &werk_string[1..werk_string.len() - 1];
+
+    if inhoud.contains('"') {
+        return Err(EcolFout::melding(EcolFoutVariant::MeerTekstblokken));
+    }
+
+    Ok(inhoud.to_string())
+
+}
+fn teller_naar_herhaal(programma: &BTreeMap<u16, LineInhoud>, regel: &u16) -> Result<u16, EcolFout> {
+    let mut current = *regel;
+    let mut met_diepte = 0u16;
+    loop{
+        let Some((&regelnummer, current_regel)) = programma.range(current..).next() else {
+            return Err(EcolFout::melding(EcolFoutVariant::MetZonderHerhaal));
+        };
+        current = regelnummer + 1;
+        match current_regel {
+            LineInhoud::Met { .. } => {
+                met_diepte += 1;
+            },
+            LineInhoud::Herhaal { .. } => {
+                if met_diepte == 0 {
+                    return Ok(current)
+                }
+                met_diepte -= 1;
+            },
+            _ => {  },
+        }
+    }
+}
+

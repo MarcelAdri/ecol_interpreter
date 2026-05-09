@@ -1,22 +1,51 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
-use crate::interpreter::helpers::{f32_naar_usize, geen_spaties};
-use crate::interpreter::parsers::{parseer_eigen_functie, parseer_functie, parseer_variabele, FunctieAanroep};
-use crate::interpreter::program::{Operator};
+use crate::interpreter::helpers::{geen_spaties, is_geldige_variabele_naam};
+use crate::interpreter::program::{FunDef, Operator};
 use crate::interpreter::functions::{Functie, FunctieNaam};
-use crate::interpreter::waarden::{VariabeleType, Waarde};
+use crate::interpreter::waarden::{VariabeleAanroep, VariabeleType, Waarde};
+#[derive(Debug, Clone, PartialEq)]
+struct FunctieAanroep {
+    functie: FunctieNaam,
+    start: usize,
+    einde: usize,
+    argumenten: Vec<String>,
+}
+impl FunctieAanroep {
+    fn new(functie: FunctieNaam, start: usize, einde: usize, argumenten: Vec<String>) -> Self {
+        FunctieAanroep {
+            functie,
+            start,
+            einde,
+            argumenten
+        }
+    }
+    fn functie(&self) -> &FunctieNaam {
+        &self.functie
+    }
+    fn start(&self) -> usize {
+        self.start
+    }
+    fn einde(&self) -> usize {
+        self.einde
+    }
+    fn argumenten(&self) -> &Vec<String> {
+        &self.argumenten
+    }
+}
 
 
 impl EcolMachine {
-    pub(super) fn bereken_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
+    fn bereken_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
         self.bereken_tussen_haakjes(werk_expressie, lees_geheugen)?;
         bereken_operatoren(werk_expressie)?;
 
         Ok(())
     }
 
-    pub(super) fn bereken_tussen_haakjes(&mut self, expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
+    fn bereken_tussen_haakjes(&mut self, expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
         let mut werk_expressie = expressie.clone();
 
         loop {
@@ -62,7 +91,7 @@ impl EcolMachine {
         }
 
     }
-    pub(super) fn vervang_functies_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
+    fn vervang_functies_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
 
         while let Some(w) = parseer_functie(werk_expressie)? {
             let werk_functie: FunctieAanroep = w;
@@ -92,7 +121,7 @@ impl EcolMachine {
 
         Ok(())
     }
-    pub(super) fn vervang_eigen_functies_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
+    fn vervang_eigen_functies_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
 
         while let Some((naam, start, einde, argumenten)) = parseer_eigen_functie(self.haal_functie_register(), werk_expressie) {
 
@@ -135,7 +164,7 @@ impl EcolMachine {
 
         Ok(())
     }
-    pub(super) fn vervang_variabelen_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
+    fn vervang_variabelen_in_expressie(&mut self, werk_expressie: &mut String, lees_geheugen: &mut LeesGeheugen) -> Result<(), EcolFout> {
         while let Some(werk_variabele) = parseer_variabele(werk_expressie) {
             let Some(complete_waarde) = self.var_lees_waarde(werk_variabele.variabele_naam())
                 else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(werk_variabele.variabele_naam().to_string())));};
@@ -170,7 +199,7 @@ impl EcolMachine {
     }
 }
 
-pub(super) fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout> {
+fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout> {
     let mut werk_expressie = expressie.clone();
     
     for groep in Operator::operator_prioriteiten() {
@@ -227,6 +256,188 @@ fn controleer_precisie(getal: f32, source: &str) -> Result<(), EcolFout> {
     }
     Ok(())
 }
+fn f32_naar_usize(x: f32) -> Result<usize, EcolFout> {
+    if !x.is_finite() {
+        return Err(EcolFout::melding(EcolFoutVariant::OngeldigGetal("bij bepaling index".to_string())));
+    }
+    if x < 0f32 {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenPositiefGetal(x)));
+    }
+    if x.fract() != 0f32 {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenGeheelGetal(x)));
+    }
+    Ok(x as usize) //Veilig, want hierboven gevalideerd dat het een geldig, positief geheel getal is
+}
+fn haal_index_expressie(expressie: &str, naam_einde: usize) -> (Option<String>, usize) {
+    let rest = &expressie[naam_einde..];
+    if !rest.trim_start().starts_with('(') {
+        return (None, naam_einde);
+    }
+    let rest_getrimd = rest.trim_start();  // begint op '('
+    match vind_sluitende_haak(rest_getrimd) {
+        Ok(rel_sluit) => {
+            let inhoud = rest_getrimd[1..rel_sluit].trim().to_string();
+            let abs_sluit = naam_einde + (rest.len() - rest_getrimd.len()) + rel_sluit;
+            (Some(inhoud), abs_sluit + 1)
+        }
+        Err(_) => (None, naam_einde),
+    }
+}
+fn parseer_eigen_functie(functie_register: &HashMap<String, FunDef>, expressie: &str) -> Option<(String, usize, usize, Vec<String>)> {
+    let mut naam_start: Option<usize> = None;
+
+    for (i, c) in expressie.char_indices() {
+
+        match naam_start {
+            None => {
+                if c.is_ascii_lowercase() {
+                    naam_start = Some(i);
+                }
+            }
+            Some(start) => {
+                if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
+                    continue;
+                }
+
+                let naam = &expressie[start..i];
+                if functie_register.contains_key(naam) {
+                    let (arg_str, einde) = haal_index_expressie(expressie, i);
+                    let argumenten = match arg_str {
+                        Some(s) => splits_argumenten(&s),
+                        None => Vec::new(),
+                    };
+                    return Some((naam.to_string(), start, einde, argumenten));
+                }
+                naam_start = None;
+            }
+        }
+
+    }
+    if let Some(start) = naam_start {
+        let naam = &expressie[start..];
+        if functie_register.contains_key(naam) {
+            return Some((naam.to_string(), start, expressie.len(), Vec::new()));
+        }
+    }
+
+    None
+}
+fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>, EcolFout> {
+    // 1+2. Zoek de eerste hoofdletterreeks die geen operator is
+    let mut zoek_vanaf = 0;
+    let (start_naam, einde_naam) = loop {
+        let rel = match expressie[zoek_vanaf..].find(|c: char| c.is_ascii_uppercase()) {
+            Some(pos) => pos,
+            None => return Ok(None),
+        };
+        let start = zoek_vanaf + rel;
+        let einde = expressie[start..]
+            .find(|c: char| !c.is_ascii_uppercase())
+            .map_or(expressie.len(), |p| start + p);
+        if Operator::is_operator_string(&expressie[start..einde]) {
+            zoek_vanaf = einde;
+            continue;
+        }
+        break (start, einde);
+    };
+
+    let functienaam = &expressie[start_naam..einde_naam];
+    let Some(functie) = FunctieNaam::from_str(functienaam) else {
+        return Err(EcolFout::melding(EcolFoutVariant::OngeldigeFunctieNaam(functienaam.to_string())));
+    };
+
+    // 3. Geen argumenten: direct klaar
+    if functie.verwacht_argumenten() == 0 && !functie.verwacht_string_argument() {
+        return Ok(Some(FunctieAanroep::new(functie, start_naam, einde_naam, vec![])));
+    }
+
+    // 4. Zoek openingshaakje
+    let rest = expressie[einde_naam..].trim_start();
+    let rest_offset = expressie.len() - rest.len(); // absolute byte-offset van `rest` in `expressie`
+    if !rest.starts_with('(') {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenArgumenten(functienaam.to_string())));
+    }
+    // 5. Zoek bijbehorend sluithaakje (haakjes-diepte meetellen)
+    let rel_sluit = vind_sluitende_haak(rest)?;
+
+    // 6. Parseer argumenten
+    let argumenten_str = &rest[1..rel_sluit];
+    let argumenten = splits_argumenten(argumenten_str);
+
+    if argumenten.len() != functie.verwacht_argumenten() && !functie.verwacht_string_argument() {
+        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(
+            functienaam.to_string(),
+            functie.verwacht_argumenten(),
+            argumenten.len()
+        )));
+    } else if functie.verwacht_string_argument()  && argumenten.len() != 1 {
+        return Err(EcolFout::melding(EcolFoutVariant::GeenStringArgument(
+            functienaam.to_string(),
+            argumenten.len()
+        )));
+    }
+
+    Ok(Some(FunctieAanroep::new(functie, start_naam, rest_offset + rel_sluit + 1, argumenten)))
+}
+fn parseer_variabele(expressie: &str) -> Option<VariabeleAanroep> {
+    let mut naam_start: Option<usize> = None;
+
+    for (i, c) in expressie.char_indices() {
+
+        match naam_start {
+            None => {
+                if c.is_ascii_lowercase() {
+                    naam_start = Some(i);
+                }
+            }
+            Some(start) => {
+                if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
+                    continue;
+                }
+
+                let naam = &expressie[start..i];
+                if is_geldige_variabele_naam(naam) {
+                    let (index, einde) = haal_index_expressie(expressie, i);
+                    return Some(VariabeleAanroep::new(naam.to_string(), start, einde, index));
+                }
+                naam_start = None;
+            }
+        }
+
+    }
+    if let Some(start) = naam_start {
+        let naam = &expressie[start..];
+        if is_geldige_variabele_naam(naam) {
+            return Some(VariabeleAanroep::new(naam.to_string(), start, expressie.len(), None));
+        }
+    }
+
+    None
+}
+fn splits_argumenten(s: &str) -> Vec<String> {
+    if s.trim().is_empty() {
+        return vec![];
+    }
+
+    let mut argumenten = Vec::new();
+    let mut diepte = 0usize;
+    let mut start = 0;
+
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => diepte += 1,
+            ')' => diepte -= 1,
+            ',' if diepte == 0 => {
+                argumenten.push(s[start..i].trim().to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+
+    argumenten.push(s[start..].trim().to_string());
+    argumenten
+}
 fn vind_operand_links(expr: &str, op_pos: usize) -> usize {
     let bytes = expr.as_bytes();
     let mut i = op_pos;
@@ -272,4 +483,20 @@ fn vind_operand_rechts(expr: &str, op_pos: usize) -> usize {
     };
 
     einde + op_pos + 1
+}
+/// Zoekt de `)` die hoort bij de `(` op `open`-positie in `s`.
+fn vind_sluitende_haak(s: &str) -> Result<usize, EcolFout> {
+    // s begint op de '('
+    let mut diepte = 0usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '(' => diepte += 1,
+            ')' => {
+                diepte -= 1;
+                if diepte == 0 { return Ok(i); }
+            }
+            _ => {}
+        }
+    }
+    Err(EcolFout::melding(EcolFoutVariant::GeenHaakSluiten))
 }

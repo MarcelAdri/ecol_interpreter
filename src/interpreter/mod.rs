@@ -1,7 +1,6 @@
 mod machine;
 mod waarden;
 mod program;
-mod parsers;
 mod helpers;
 mod opdrachten;
 mod expressies;
