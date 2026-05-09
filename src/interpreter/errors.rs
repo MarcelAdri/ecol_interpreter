@@ -429,20 +429,32 @@ impl Display for EcolFoutMelding {
         write!(f, "{voorloop}{tekst}")
     }
 }
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum EcolSignaal{
+    WachtOpLees(u16),
+    WachtOpLeessym(u16),
+    WachtOpLaad,
+}
+impl Display for EcolSignaal{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EcolSignaal::WachtOpLees(regel) => write!(f, "Wacht op LEES op regel {}.", regel),
+            EcolSignaal::WachtOpLeessym(regel) => write!(f, "Wacht op LEESSYM op regel {}.", regel),
+            EcolSignaal::WachtOpLaad => write!(f, "Wacht op LAAD."),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum EcolFout {
     FoutMelding(EcolFoutMelding),
-    WachtOpLees(u16),
-    WachtOpLeessym(u16),
-    WachtOpLaad,
+    Signaal(EcolSignaal),
 }
 
 impl EcolFout {
     pub(super) fn melding(fout: EcolFoutVariant) -> Self {
         EcolFout::FoutMelding(EcolFoutMelding::nieuw(fout))
     }
-
     pub(super) fn met_regel(self, regel: u16) -> EcolFout {
         match self {
             EcolFout::FoutMelding(melding) => EcolFout::FoutMelding(melding.met_regel(regel)),
@@ -454,10 +466,8 @@ impl EcolFout {
 impl Display for EcolFout {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let melding = match self {
-            EcolFout::FoutMelding(melding) => melding.to_string(),
-            EcolFout::WachtOpLees(regel) => format!("Wachten op LEES regel {regel}."),
-            EcolFout::WachtOpLeessym(regel) => format!("Wachten op LEESSYM regel {regel}."),
-            EcolFout::WachtOpLaad => "Wachten op LAAD.".to_string(),
+            EcolFout::FoutMelding(m) => m.to_string(),
+            EcolFout::Signaal(s) => s.to_string(),
         };
 
         write!(f, "{melding}")

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
 use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, grens_bewaking};
 use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
 use crate::interpreter::program::{FunDef, Line, LineInhoud};
@@ -293,7 +293,7 @@ impl EcolMachine {
             lees_geheugen.lees_hervat_none();
             Ok(getal)
         } else {
-            Err(EcolFout::WachtOpLees(0))
+            Err(EcolFout::Signaal(EcolSignaal::WachtOpLees(0)))
         }
     }
 
@@ -306,7 +306,7 @@ impl EcolMachine {
 
             Ok(getal)
         } else {
-            Err(EcolFout::WachtOpLeessym(0))
+            Err(EcolFout::Signaal(EcolSignaal::WachtOpLeessym(0)))
         }
     }
     fn execute_function_ln(getal: f32) -> Result<f32, EcolFout> {

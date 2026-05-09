@@ -89,7 +89,7 @@ pub(super) fn symbolen_reverse(symbool: char) -> Option<u8> {
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
-use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
 pub(crate) use crate::interpreter::leesgeheugen::LeesGeheugen;
 use crate::interpreter::opdrachten::{execute_all, Context};
 use crate::interpreter::parsers::{parseer_regel};
@@ -466,23 +466,27 @@ impl EcolMachine {
                         match execute_all(&regel, self, &programma, Context::Direct, lees_geheugen, output) {
                             Ok((r, _, _)) => r,
                             Err(EcolFout::FoutMelding(e)) => return Err(EcolFout::FoutMelding(e)),
-                            Err(EcolFout::WachtOpLees(r)) => {
-                                if r == 0 {
-                                    return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEES".to_string())));
+                            Err(EcolFout::Signaal(s)) => {
+                                match s {
+                                    EcolSignaal::WachtOpLees(r) => {
+                                        if r == 0 {
+                                            return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEES".to_string())));
+                                        }
+                                        lees_geheugen.lees_hervat_bij_op_regel(r);
+                                        None
+                                    },
+                                    EcolSignaal::WachtOpLeessym(r) => {
+                                        if r == 0 {
+                                            return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEESSYM".to_string())));
+                                        }
+                                        lees_geheugen.leessym_hervat_bij_op_regel(r);
+                                        None
+                                    },
+                                    EcolSignaal::WachtOpLaad => {
+                                        lees_geheugen.stel_laad_in();
+                                        None
+                                    },
                                 }
-                                lees_geheugen.lees_hervat_bij_op_regel(r);
-                                 None
-                            },
-                            Err(EcolFout::WachtOpLeessym(r)) => {
-                                if r == 0 {
-                                    return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEESSYM".to_string())));
-                                }
-                                lees_geheugen.leessym_hervat_bij_op_regel(r);
-                                None
-                            },
-                            Err(EcolFout::WachtOpLaad) => {
-                                lees_geheugen.stel_laad_in();
-                                None
                             },
                         }
                     } else if regel.inhoud().as_str() == "Verwijderen" {
@@ -515,8 +519,7 @@ impl EcolMachine {
         match self.execute_start(Some(regel), lees_geheugen, output) {
             Ok(r) => Some(r),
             Err(EcolFout::FoutMelding(e)) => Some(e.to_string()),
-            Err(EcolFout::WachtOpLees(_) | EcolFout::WachtOpLeessym(_) |
-EcolFout::WachtOpLaad) => None,
+            Err(EcolFout::Signaal(_)) => None,
         }
     }
 

@@ -3,7 +3,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::js_sys;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
 use crate::interpreter::helpers::{format_getal, get_sym_value, literal_to_string};
 use crate::interpreter::machine::SYMBOLEN;
 use crate::interpreter::program::{Line, LineInhoud, SprongDoel, SubDef};
@@ -64,7 +64,7 @@ impl EcolMachine {
     }
 
     pub(super) fn execute_laad(&self) -> Result<(), EcolFout> {
-        Err(EcolFout::WachtOpLaad)
+        Err(EcolFout::Signaal(EcolSignaal::WachtOpLaad))
     }
 
     pub(super) fn execute_lijst(&self) -> String {
@@ -258,17 +258,21 @@ impl EcolMachine {
                 Err(EcolFout::FoutMelding(s)) => {
                     return Err(EcolFout::FoutMelding(s));
                 },
-                Err(EcolFout::WachtOpLees(_)) => {
-                    lees_geheugen.sla_lopende_toestand_op(running_program, programma);
-                    return Err(EcolFout::WachtOpLees(old_current));
-                }
-                Err(EcolFout::WachtOpLeessym(_)) => {
-                    lees_geheugen.sla_lopende_toestand_op(running_program, programma);
-                    return Err(EcolFout::WachtOpLeessym(old_current));
-                }
-                Err(EcolFout::WachtOpLaad) => {
-                    return Err(EcolFout::melding(EcolFoutVariant::LaadInProgramma));
-                }
+                Err(EcolFout::Signaal(s)) => {
+                    return match s {
+                        EcolSignaal::WachtOpLees(_) => {
+                            lees_geheugen.sla_lopende_toestand_op(running_program, programma);
+                            Err(EcolFout::Signaal(EcolSignaal::WachtOpLees(old_current)))
+                        },
+                        EcolSignaal::WachtOpLeessym(_) => {
+                            lees_geheugen.sla_lopende_toestand_op(running_program, programma);
+                            Err(EcolFout::Signaal(EcolSignaal::WachtOpLeessym(old_current)))
+                        },
+                        EcolSignaal::WachtOpLaad => {
+                            Err(EcolFout::melding(EcolFoutVariant::LaadInProgramma))
+                        }
+                    }
+                },
             };
 
             if let Some(next_line) = current_option { current = next_line; }
