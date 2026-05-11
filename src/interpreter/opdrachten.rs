@@ -474,8 +474,8 @@ pub(super) fn execute_all (
                             }
 
                             match whats_next {
-                                Some(WhatsNext::Continue) => {},
-                                Some(WhatsNext::Break) | None => break,
+                                Some(WhatsNext::Break) => break,
+                                Some(WhatsNext::Continue) | None => {},
                             }
                         }
                         no_reply
