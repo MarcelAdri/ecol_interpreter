@@ -1,5 +1,4 @@
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
-use crate::interpreter::program::{Line, LineInhoud, Sleutelwoord, SprongDoel, WORDT_TEKEN};
 
 pub(super) fn argumenten_to_vec(input: &str) -> Vec<String> {
     input.split(',').filter_map(|s| { let t = s.trim().to_string(); if t.is_empty() { None } else { Some(t) } }).collect()
@@ -11,12 +10,12 @@ fn geen_rest_gewenst() -> EcolFout {
 pub(super) fn geen_spaties(input: &str) -> String {
     input.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
-pub(super) fn get_sym_value(getal: &f32) -> Result<u8, EcolFout> {
-    if getal.is_nan() || !(0.0..=99.0).contains(getal) || getal.fract() != 0.0 {
-        return Err(EcolFout::melding(EcolFoutVariant::SymboolWaarde(*getal)));
+pub(super) fn get_sym_value(getal: f32) -> Result<u8, EcolFout> {
+    if getal.is_nan() || !(0.0..=99.0).contains(&getal) || getal.fract() != 0.0 {
+        return Err(EcolFout::melding(EcolFoutVariant::SymboolWaarde(getal)));
     }
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    Ok(*getal as u8) //veilig, want hierboven gevalideerd als geheel getal tussen 0 en 99
+    Ok(getal as u8) //veilig, want hierboven gevalideerd als geheel getal tussen 0 en 99
 }
 fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     let mut chars = naam.chars();

@@ -29,6 +29,7 @@ impl Line {
     }
 }
 impl Display for Line {
+    #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let regelnummer:String =  if self.regelnummer() == 0 {
             String::new()
@@ -223,7 +224,7 @@ impl Display for Line {
 
             LineInhoud::Verwijderen { } => String::new(),
         };
-        write!(f, "{}", regel_inhoud)
+        write!(f, "{regel_inhoud}")
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -233,9 +234,9 @@ pub(super) enum SprongDoel {
 }
 
 impl SprongDoel {
-    pub(super) fn regelnummer(&self) -> Option<u16> {
+    pub(super) fn regelnummer(self) -> Option<u16> {
         match self {
-            SprongDoel::Regel(regelnummer) => Some(*regelnummer),
+            SprongDoel::Regel(regelnummer) => Some(regelnummer),
             SprongDoel::Stop => None,
         }
     }
@@ -246,7 +247,7 @@ impl SprongDoel {
         } else {
             let regelnummer = bron.trim().parse::<u16>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als regelnummer".to_string())))?;
             if !(1..=999).contains(&regelnummer) {
-                return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("regelnummer".to_string(), 1f32, 999f32, regelnummer as f32)));
+                return Err(EcolFout::melding(EcolFoutVariant::OngeldigAantal("regelnummer".to_string(), 1f32, 999f32, f32::from(regelnummer))));
             }
             SprongDoel::Regel(regelnummer)
 
@@ -384,7 +385,7 @@ impl Operator {
         ]
     }
 
-    pub(super) fn bereken(&self, links: f32, rechts: f32) -> Result<f32, EcolFout> {
+    pub(super) fn bereken(self, links: f32, rechts: f32) -> Result<f32, EcolFout> {
         match self {
             Self::Plus => plus(links, rechts),
             Self::Min => min(links, rechts),
@@ -443,7 +444,7 @@ fn macht(links: f32, rechts: f32) -> Result<f32, EcolFout> {
     if links < 0.0 && rechts.fract() != 0.0 {
         return Err(EcolFout::melding(EcolFoutVariant::MachtsverheffenOngeldig(format!("{links} M {rechts}"))));
     }
-    if rechts.abs() > 1000000.0 {
+    if rechts.abs() > 1_000_000.0 {
         return Err(EcolFout::melding(EcolFoutVariant::MachtsverheffenExponentTeGroot(rechts, format!("{links} M {rechts}"))));
     }
     let resultaat: f32 = if rechts.fract() == 0.0 {

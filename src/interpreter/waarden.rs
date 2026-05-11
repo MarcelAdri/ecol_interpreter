@@ -1,5 +1,4 @@
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
-use crate::interpreter::errors::EcolFout::FoutMelding;
 use crate::interpreter::helpers::get_sym_value;
 
 pub(super) struct VariabeleAanroep {
@@ -99,7 +98,7 @@ impl EcolRijsym {
 
     fn set_value(&mut self, positie: usize, value: f32) -> Result<(), EcolFout>{
 
-        let small_value: u8 = get_sym_value(&value)?;
+        let small_value: u8 = get_sym_value(value)?;
         let index = self.get_index(positie)?;
 
         self.value[index] = small_value;
@@ -179,6 +178,9 @@ pub(super) enum Waarde {
     NogNietBepaald,
 }
 impl Waarde {
+    pub(super) fn is_rij(&self) -> bool {
+        matches!(self, Waarde::Rij(_) | Waarde::Rijsym(_))
+    }
     pub(super) fn new_getal(value: f32) -> Self {
         Waarde::Getal(value)
     }
@@ -188,8 +190,8 @@ impl Waarde {
     pub(super) fn new_rijsym(start: usize, einde: usize) -> Result<Self, EcolFout> {
         Ok(Waarde::Rijsym(EcolRijsym::new(start, einde)?))
     }
-    pub(super) fn new_teller(stap: f32, start: f32, stop: f32) -> Self {
-        Waarde::Teller(EcolTeller::new(stap, start, stop))
+    pub(super) fn new_teller(stap: f32, start: f32, einde: f32) -> Self {
+        Waarde::Teller(EcolTeller::new(stap, start, einde))
     }
     pub(super) fn type_van(&self) -> Option<VariabeleType> {
         match self {

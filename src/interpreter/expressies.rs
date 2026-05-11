@@ -102,7 +102,7 @@ impl EcolMachine {
                 if argumenten.len() != 1 {
                     return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(functie_naam.to_string(), 1, argumenten.len())));
                 }
-                Functie::new(functie_naam, Vec::new(), &argumenten[0])?
+                Functie::new(&functie_naam, &[], &argumenten[0])?
             } else {
                 let mut argumenten_num: Vec<f32> = Vec::new();
                 for argument in werk_functie.argumenten() {
@@ -110,7 +110,7 @@ impl EcolMachine {
                     argumenten_num.push(arg);
                 }
 
-                Functie::new(functie_naam, argumenten_num, "")?
+                Functie::new(&functie_naam, &argumenten_num, "")?
             };
 
 
@@ -127,7 +127,7 @@ impl EcolMachine {
 
             let verwachte_argumenten = match self.get_fundef_parameters(&naam) {
                 None => return Err(EcolFout::melding(EcolFoutVariant::GeenFunctie(naam))),
-                Some(params) if params.is_empty() => return Err(EcolFout::melding(EcolFoutVariant::GeenArgumenten(naam.to_string()))),
+                Some(params) if params.is_empty() => return Err(EcolFout::melding(EcolFoutVariant::GeenArgumenten(naam))),
                 Some(params) => params,
             };
             let mut doel_argumenten: Vec<Waarde> = Vec::new();
@@ -142,22 +142,22 @@ impl EcolMachine {
             {
                 if verwacht_argument.starts_with("RIJSYM"){
                     if self.var_type_van(argument) != Some(VariabeleType::Rijsym) {
-                        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdArgument(index + 1, naam, "RIJSYM".to_string(), argument.to_string())));
+                        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdArgument(index + 1, naam, "RIJSYM".to_string(), argument.clone())));
                     }
-                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(argument.to_string())));};
+                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(argument.clone())));};
                     doel_argumenten.push(waarde);
                 } else if verwacht_argument.starts_with("RIJ") {
                     if self.var_type_van(argument) != Some(VariabeleType::Rij) {
-                        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdArgument(index + 1, naam, "RIJ".to_string(), argument.to_string())));
+                        return Err(EcolFout::melding(EcolFoutVariant::VerkeerdArgument(index + 1, naam, "RIJ".to_string(), argument.clone())));
                     }
-                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(argument.to_string())));};
+                    let Some(waarde) = self.var_lees_waarde(argument)  else { return Err(EcolFout::melding(EcolFoutVariant::GeenVariabele(argument.clone())));};
                     doel_argumenten.push(waarde);
                 } else {
                     doel_argumenten.push(Waarde::Getal(self.solve_expression(argument, lees_geheugen)?));
                 }
             }
 
-            let uitkomst = self.execute_eigen_functie(&naam, doel_argumenten, lees_geheugen)?.to_string();
+            let uitkomst = self.execute_eigen_functie(&naam, &doel_argumenten, lees_geheugen)?.to_string();
 
             werk_expressie.replace_range(start..einde, uitkomst.trim());
         }
@@ -181,7 +181,7 @@ impl EcolMachine {
                 }
                 if var_typ == VariabeleType::Rij || var_typ == VariabeleType::Rijsym {
                     let (b, e) = complete_waarde.rij_haal_grenswaarden();
-                    if p < b as f32 || p > e as f32 {
+                    if pos < b || pos > e {
                         return Err(EcolFout::melding(EcolFoutVariant::OngeldigeIndex(pos, b, e)));
                     }
                 }
@@ -232,11 +232,11 @@ fn bereken_operatoren(expressie: &mut String) -> Result<(), EcolFout> {
                     controleer_precisie(rechts, rechts_deel)?;
                     let uitkomst = o.bereken(links, rechts)?;
                     if uitkomst.is_infinite() || uitkomst.is_nan() {
-                        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links_deel} {} {rechts_deel}", o.to_string()))));
+                        return Err(EcolFout::melding(EcolFoutVariant::GetalBuitenGrens(format!("{links_deel} {o} {rechts_deel}"))));
                     }
                     werk_expressie.replace_range(links_pos..rechts_pos, &uitkomst.to_string());
                 }
-                _ => return Err(EcolFout::melding(EcolFoutVariant::OngeldigeTekens(format!("{links_deel} {} {rechts_deel}", o.to_string())))),
+                _ => return Err(EcolFout::melding(EcolFoutVariant::OngeldigeTekens(format!("{links_deel} {o} {rechts_deel}")))),
             }
         }
     }
@@ -266,6 +266,8 @@ fn f32_naar_usize(x: f32) -> Result<usize, EcolFout> {
     if x.fract() != 0f32 {
         return Err(EcolFout::melding(EcolFoutVariant::GeenGeheelGetal(x)));
     }
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     Ok(x as usize) //Veilig, want hierboven gevalideerd dat het een geldig, positief geheel getal is
 }
 fn haal_index_expressie(expressie: &str, naam_einde: usize) -> (Option<String>, usize) {
@@ -326,10 +328,7 @@ fn parseer_functie(expressie: &str) -> Result<Option<FunctieAanroep>, EcolFout> 
     // 1+2. Zoek de eerste hoofdletterreeks die geen operator is
     let mut zoek_vanaf = 0;
     let (start_naam, einde_naam) = loop {
-        let rel = match expressie[zoek_vanaf..].find(|c: char| c.is_ascii_uppercase()) {
-            Some(pos) => pos,
-            None => return Ok(None),
-        };
+        let Some(rel) = expressie[zoek_vanaf..].find(|c: char| c.is_ascii_uppercase()) else { return Ok(None) };
         let start = zoek_vanaf + rel;
         let einde = expressie[start..]
             .find(|c: char| !c.is_ascii_uppercase())

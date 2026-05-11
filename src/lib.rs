@@ -9,6 +9,7 @@ pub use interpreter::EcolMachine;
 use crate::interpreter::LeesGeheugen;
 
 #[wasm_bindgen(start)]
+#[allow(clippy::missing_panics_doc, clippy::missing_errors_doc, clippy::too_many_lines)]
 pub fn start() -> Result<(), JsValue> {
     utils::set_panic_hook();
 
@@ -119,7 +120,7 @@ pub fn start() -> Result<(), JsValue> {
             }
 
             cur_keydown.set_inner_text("");
-            win_keydown.scroll_to_with_x_and_y(0.0, 1000000.0);
+            win_keydown.scroll_to_with_x_and_y(0.0, 1_000_000.0);
         }
     }) as Box<dyn FnMut(web_sys::KeyboardEvent)>);
 

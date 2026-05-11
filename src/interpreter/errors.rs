@@ -222,6 +222,7 @@ impl EcolFoutMelding {
 }
 
 impl Display for EcolFoutMelding {
+    #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let voorloop = match self.regel {
             Some(r) => format!("Regel {r}: "),
@@ -367,7 +368,7 @@ impl Display for EcolFoutMelding {
             EcolFoutVariant::OngeldigeIndex(positie, start, einde) =>
                 format!("E089: Index {positie} is niet geldig; moet liggen tussen {start} en {einde}."),
             EcolFoutVariant::OngeldigeInvoer(invoer) =>
-                format!("E053: Ongeldige invoer: {}.", invoer),
+                format!("E053: Ongeldige invoer: {invoer}."),
             EcolFoutVariant::OngeldigeSyntaxMet(expressie) =>
                 format!("E073: Ongeldige syntax voor MET bij de {expressie}-expressie."),
             EcolFoutVariant::OngeldigeTekens(expressie) =>
@@ -430,17 +431,17 @@ impl Display for EcolFoutMelding {
     }
 }
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum EcolSignaal{
-    WachtOpLees(u16),
-    WachtOpLeessym(u16),
-    WachtOpLaad,
+pub(super) enum EcolWachtSignaal {
+    Lees(u16),
+    Leessym(u16),
+    Laad,
 }
-impl Display for EcolSignaal{
+impl Display for EcolWachtSignaal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            EcolSignaal::WachtOpLees(regel) => write!(f, "Wacht op LEES op regel {}.", regel),
-            EcolSignaal::WachtOpLeessym(regel) => write!(f, "Wacht op LEESSYM op regel {}.", regel),
-            EcolSignaal::WachtOpLaad => write!(f, "Wacht op LAAD."),
+            EcolWachtSignaal::Lees(regel) => write!(f, "Wacht op LEES op regel {regel}."),
+            EcolWachtSignaal::Leessym(regel) => write!(f, "Wacht op LEESSYM op regel {regel}."),
+            EcolWachtSignaal::Laad => write!(f, "Wacht op LAAD."),
         }
     }
 }
@@ -448,7 +449,7 @@ impl Display for EcolSignaal{
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum EcolFout {
     FoutMelding(EcolFoutMelding),
-    Signaal(EcolSignaal),
+    Signaal(EcolWachtSignaal),
 }
 
 impl EcolFout {
@@ -458,7 +459,7 @@ impl EcolFout {
     pub(super) fn met_regel(self, regel: u16) -> EcolFout {
         match self {
             EcolFout::FoutMelding(melding) => EcolFout::FoutMelding(melding.met_regel(regel)),
-            _ => self,
+            EcolFout::Signaal(_) => self,
         }
     }
 }

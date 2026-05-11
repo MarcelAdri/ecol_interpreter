@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
-use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolWachtSignaal};
 use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties, is_geldige_variabele_naam, vind_opmerking};
 pub(crate) use crate::interpreter::leesgeheugen::LeesGeheugen;
 use crate::interpreter::opdrachten::{execute_all, Context};
@@ -86,7 +86,8 @@ fn symbolen_reverse(symbool: char) -> Option<u8> {
     let mut i = 0usize;
 
     loop {
-        if let Some(s) = SYMBOLEN[i] {if s == symbool {return Some(i as u8)}}
+        #[allow(clippy::cast_possible_truncation)]
+        if let Some(s) = SYMBOLEN[i] {if s == symbool {return Some(i as u8)}} //Veilig, want SYMBOLEN[i] is al gecontroleerd.
         i += 1;
         if i > 99 {
             break;
@@ -171,13 +172,13 @@ impl VariabelenOpslag {
     fn schrijf_waarde(&mut self, naam: &str, waarde: Waarde) -> Result<(), EcolFout> {
         let doelwaarde: Waarde;
         if self.bestaat(naam) {
-            let Some(doel_waarde) = self.lees_waarde(naam) else {
+            let Some(dw) = self.lees_waarde(naam) else {
                 return Err(EcolFout::melding(EcolFoutVariant::VariabeleNietGevonden(naam.to_string())));
             };
             if waarde.type_van().is_none() {
                 return Err(EcolFout::melding(EcolFoutVariant::OnbekendType(naam.to_string())));
             }
-            doelwaarde = doel_waarde;
+            doelwaarde = dw;
             if doelwaarde.type_van().is_some()
                 && doelwaarde.type_van() != waarde.type_van() {
                     return Err(EcolFout::melding(EcolFoutVariant::VerkeerdType(
@@ -186,10 +187,8 @@ impl VariabelenOpslag {
                         waarde.type_van().unwrap() //veilig, want is_some() is al gecontroleerd.
                     )));
             }
-        } else {
-            if waarde.type_van() == Some(VariabeleType::Rij) || waarde.type_van() == Some(VariabeleType::Rijsym) {
-                return Err(EcolFout::melding(EcolFoutVariant::RijNietGedefinieerd(naam.to_string())));
-            }
+        } else if waarde.type_van() == Some(VariabeleType::Rij) || waarde.type_van() == Some(VariabeleType::Rijsym) {
+            return Err(EcolFout::melding(EcolFoutVariant::RijNietGedefinieerd(naam.to_string())));
         }
 
         let index = self.pak_of_maak_index(naam);
@@ -227,7 +226,7 @@ impl Programma {
     fn programma(&self) -> &BTreeMap<u16, LineInhoud> {
         &self.programma
     }
-    fn regel_toevoegen(&mut self, regel: Line) -> String {
+    fn regel_toevoegen(&mut self, regel: &Line) -> String {
         let regelnummer = regel.regelnummer();
         let regel_inhoud = regel.inhoud().clone();
 
@@ -241,10 +240,8 @@ impl Programma {
     fn regel_verwijderen(&mut self, regelnummer: u16) -> Option<String> {
         let regel_inhoud = self.programma.remove(&regelnummer)?;
         let regel=Line::new(regelnummer, regel_inhoud);
-        let reply = format!("{} // verwijderd", regel);
 
-        Some(reply)
-
+        Some(format!("{regel} // verwijderd"))
     }
 }
 
@@ -275,7 +272,9 @@ impl EcolMachine {
             functie_recursie_diepte: 0,
             sub_register: HashMap::new(),
             sub_return_stack: Vec::new(),
-            seed: js_sys::Date::now() as u64,
+            #[allow(clippy::cast_possible_truncation)]
+            #[allow(clippy::cast_sign_loss)]
+            seed: js_sys::Date::now() as u64, //Veilig, omdat deze waarde altijd kleiner is dan 2^53 en positief.
         }
     }
     pub(super) fn schrijf_subregister(&mut self, naam: &str, definitie: SubDef) -> Result<(), EcolFout> {
@@ -323,8 +322,8 @@ impl EcolMachine {
     pub(super) fn var_wis(&mut self, variabele_naam: &str) {
         self.variabelen_opslag.wis_variabele(variabele_naam);
     }
-    pub(super) fn teller_nieuw(&mut self, naam: &str, stap: f32, start: f32, stop: f32, regel: u16) -> Result<Option<()>, EcolFout> {
-        if (stap > 0.0 && start > stop) || (stap < 0.0 && start < stop) {
+    pub(super) fn teller_nieuw(&mut self, naam: &str, stap: f32, start: f32, einde: f32, regel: u16) -> Result<Option<()>, EcolFout> {
+        if (stap > 0.0 && start > einde) || (stap < 0.0 && start < einde) {
             return Ok(None)
         }
         if stap == 0.0 {
@@ -337,7 +336,7 @@ impl EcolMachine {
                 if var_typ.is_some() {
                     self.var_wis(naam);
                 }
-                let mut teller = Waarde::new_teller(stap, start, stop);
+                let mut teller = Waarde::new_teller(stap, start, einde);
                 teller.teller_schrijf_regel(regel)?;
                 self.var_schrijf_waarde(naam, teller)?;
                 self.actieve_tellers.push(naam.to_string());
@@ -424,6 +423,7 @@ impl EcolMachine {
         self.seed ^= self.seed << 13;
         self.seed ^= self.seed >> 7;
         self.seed ^= self.seed << 17;
+        #[allow(clippy::cast_precision_loss)] // f32 heeft 23 bits mantisse; voor willekeurige getallen is dat voldoende
         let basis = (self.seed as f32) / (u64::MAX as f32);  // getal tussen 0.0 en 1.0
         basis * (hoog - laag) + laag
     }
@@ -471,29 +471,29 @@ impl EcolMachine {
                 Ok(regel) => {
                     if regel.regelnummer() == 0 {
                         let programma = BTreeMap::new();
-                        match execute_all(&regel, self, &programma, Context::Direct, lees_geheugen, output) {
+                        match execute_all(&regel, self, &programma, &Context::Direct, lees_geheugen, output) {
                             Ok((r, _, _)) => r,
                             Err(EcolFout::FoutMelding(e)) => return Err(EcolFout::FoutMelding(e)),
                             Err(EcolFout::Signaal(s)) => {
                                 match s {
-                                    EcolSignaal::WachtOpLees(r) => {
+                                    EcolWachtSignaal::Lees(r) => {
                                         if r == 0 {
                                             return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEES".to_string())));
                                         }
                                         lees_geheugen.lees_hervat_bij_op_regel(r);
                                         None
                                     },
-                                    EcolSignaal::WachtOpLeessym(r) => {
+                                    EcolWachtSignaal::Leessym(r) => {
                                         if r == 0 {
                                             return Err(EcolFout::melding(EcolFoutVariant::AlleenInProgramma("LEESSYM".to_string())));
                                         }
                                         lees_geheugen.leessym_hervat_bij_op_regel(r);
                                         None
                                     },
-                                    EcolSignaal::WachtOpLaad => {
+                                    EcolWachtSignaal::Laad => {
                                         lees_geheugen.stel_laad_in();
                                         None
-                                    },
+                                    }
                                 }
                             },
                         }
@@ -501,7 +501,7 @@ impl EcolMachine {
                         let verwijder_resultaat = self.programma.regel_verwijderen(regel.regelnummer());
                         Some(verwijder_resultaat.unwrap_or("Geen regel om te verwijderen.".to_string()))
                     } else {
-                        Some(self.programma.regel_toevoegen(regel))
+                        Some(self.programma.regel_toevoegen(&regel))
                     }
                 }
                 Err(e) => {
@@ -511,6 +511,7 @@ impl EcolMachine {
         };
         Ok(Some(reply.unwrap_or_default()))
     }
+    #[allow(clippy::missing_errors_doc)]
     pub fn execute_direct(&mut self, input: &str, _output: &mut dyn FnMut(&str)) -> Result<String, String> {
         let mut lees_geheugen = LeesGeheugen::new();
         let mut output_buffer = String::new();
@@ -611,10 +612,10 @@ fn extract_opmerking(input: &str) -> (String, String) {
 
     let rp = input.find(';');
     if let Some(p) = rp {
-        deel_voor_opmerking = geen_spaties(&input[..p]);
+        deel_voor_opmerking = input[..p].trim_start().to_string();
         opmerking = input[p..].to_string();
     } else {
-        deel_voor_opmerking = geen_spaties(input);
+        deel_voor_opmerking = input.trim_start().to_string();
         opmerking = String::new();
     }
 
@@ -683,6 +684,7 @@ fn is_geldig_wordt_teken(input: &str) -> Option<&str> {
     let rest = input.strip_prefix(WORDT_TEKEN)?;
     Some(rest.trim_start())
 }
+#[allow(clippy::too_many_lines)]
 fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
     let (regelnummer, rnn, is_alleen_regelnummer) = extract_regelnummer(input)?;
     if is_alleen_regelnummer {
@@ -799,9 +801,9 @@ fn parseer_regel(input: &str) -> Result<Line, EcolFout> {
             }
             let (stap_expressie, rest_na_stap) = extract_stap_expressie(rest_na_keyword)?;
             let (variabele_naam, start_expressie, rest_na_start) = extract_start_expressie(&rest_na_stap)?;
-            let (stop_expressie, opm) = extract_opmerking(&rest_na_start);
+            let (einde_expressie, opm) = extract_opmerking(&rest_na_start);
 
-            Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie, opm: vind_opmerking(&opm)? }))
+            Ok(Line::new(regelnummer, LineInhoud::Met{ variabele_naam, stap_expressie, start_expressie, stop_expressie: einde_expressie, opm: vind_opmerking(&opm)? }))
         },
         Sleutelwoord::NAAR => {
             let (sprong_doel, opmerking) = extract_opmerking(rest_na_keyword);

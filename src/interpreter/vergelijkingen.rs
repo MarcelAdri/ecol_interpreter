@@ -28,7 +28,8 @@ impl Vergelijking {
     fn alle_vergelijking_operatoren() -> Vec<&'static str> {
         vec!["<=", ">=", "<>", "≤", "≥", "≠", "=", ">", "<"]
     }
-    fn vergelijk(&self, links: f32, rechts: f32) -> bool {
+    #[allow(clippy::float_cmp)] //De precieze vergelijking is gewenst gedrag
+    fn vergelijk(self, links: f32, rechts: f32) -> bool {
         match self {
             Self::Gelijk => links == rechts,
             Self::NietGelijk => links != rechts,
@@ -40,7 +41,7 @@ impl Vergelijking {
     }
 }
 
-// Zoekt naar `zoek` alleen op haakjesdiepte 0.
+// Zoekt naar `zoek` alleen op haakjes-diepte 0.
 fn vind_top_level_logisch(s: &str, zoek: &str) -> Option<usize> {
     let mut depth = 0i32;
     for (i, c) in s.char_indices() {

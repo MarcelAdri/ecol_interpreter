@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
-use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolSignaal};
+use crate::interpreter::errors::{EcolFout, EcolFoutVariant, EcolWachtSignaal};
 use crate::interpreter::helpers::{argumenten_to_vec, geen_spaties};
 use crate::interpreter::opdrachten::{execute_all, Context, WhatsNext};
 use crate::interpreter::program::{FunDef, Line, LineInhoud};
@@ -104,7 +104,7 @@ pub(super) enum Functie {
     WRTL { getal: f32 },
 }
 impl Functie {
-    pub(super) fn new(functienaam: FunctieNaam, argumenten: Vec<f32>, rij_naam: &str) -> Result<Self, EcolFout> {
+    pub(super) fn new(functienaam: &FunctieNaam, argumenten: &[f32], rij_naam: &str) -> Result<Self, EcolFout> {
         if argumenten.len() != functienaam.verwacht_argumenten() {
             return Err(EcolFout::melding(EcolFoutVariant::VerkeerdAantalArgumenten(functienaam.to_string(), argumenten.len(), functienaam.verwacht_argumenten())));
         }
@@ -137,7 +137,7 @@ impl EigenFunctie {
         EigenFunctie { functie_omgeving: Box::new(EcolMachine::new()) }
     }
 
-    fn eigen_functie(functies: &mut HashMap<String, FunDef>, functie: &FunDef, argumenten: Vec<Waarde>, diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+    fn eigen_functie(functies: &mut HashMap<String, FunDef>, functie: &FunDef, argumenten: &[Waarde], diepte: u16, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         let max_diepte = 50u16;
         if diepte > max_diepte {
             return Err(EcolFout::melding(EcolFoutVariant::MaximumRecursieDiepte(max_diepte)));
@@ -170,9 +170,9 @@ impl EigenFunctie {
                     machine.functie_omgeving.var_reserveer_rij(&naam, begin, einde)?;
                 }
 
-            } else if argument.type_van() != Some(VariabeleType::Getal) {
-                if type_test(argument.type_van(), VariabeleType::Getal, &naam, index)? {};
-            }
+            } else if argument.type_van() != Some(VariabeleType::Getal) &&
+                type_test(argument.type_van(), VariabeleType::Getal, &naam, index)? {}
+
             machine.functie_omgeving.var_schrijf_waarde(&naam, argument.clone())?;
         }
 
@@ -188,29 +188,25 @@ impl EigenFunctie {
 
             if let LineInhoud::FunEind { expressie, ..} = current_regel {
                 return machine.functie_omgeving.solve_expression(expressie, lees_geheugen);
-            } else {
-                let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, Context::Functie, lees_geheugen, &mut |_| {})?;
+            }
+            let (reply_option, nextline_option, whatsnext_option) = execute_all(&regel, &mut machine.functie_omgeving, &programma, &Context::Functie, lees_geheugen, &mut |_| {})?;
 
-                if let Some(r) = reply_option {
-                    let reply: String = r;
-                    return reply.parse::<f32>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als uitkomst van de functie".to_string())));
-                }
-
-                if let Some(nextline) = nextline_option {
-                    current = nextline;
-                    continue;
-                }
-
-                if let Some(whatsnext) = whatsnext_option {
-                    match whatsnext {
-                        WhatsNext::Break => break,
-                        WhatsNext::Continue => { },
-                    }
-                }
+            if let Some(r) = reply_option {
+                let reply: String = r;
+                return reply.parse::<f32>().map_err(|_| EcolFout::melding(EcolFoutVariant::OngeldigGetal("als uitkomst van de functie".to_string())));
             }
 
+            if let Some(nextline) = nextline_option {
+                current = nextline;
+                continue;
+            }
 
-
+            if let Some(whatsnext) = whatsnext_option {
+                match whatsnext {
+                    WhatsNext::Break => break,
+                    WhatsNext::Continue => { },
+                }
+            }
         }
 
         Err(EcolFout::melding(EcolFoutVariant::FunctieZonderResultaat))
@@ -229,8 +225,8 @@ impl EcolMachine {
             Functie::G { getal } => { let uitkomst = Self::execute_function_g(*getal)?; Ok(uitkomst) },
             Functie::GOK { laag, hoog } => { let uitkomst = self.execute_function_gok(*laag, *hoog)?; Ok(uitkomst) },
             Functie::GOKC { } => { let uitkomst = self.execute_function_gokc(); Ok(uitkomst) },
-            Functie::LEES { } => { let uitkomst = self.execute_function_lees(lees_geheugen)?; Ok(uitkomst) },
-            Functie::LEESSYM { } => { let uitkomst = self.execute_function_leessym(lees_geheugen)?; Ok(uitkomst) },
+            Functie::LEES { } => { let uitkomst = Self::execute_function_lees(lees_geheugen)?; Ok(uitkomst) },
+            Functie::LEESSYM { } => { let uitkomst = Self::execute_function_leessym(lees_geheugen)?; Ok(uitkomst) },
             Functie::LN { getal } => { let uitkomst = Self::execute_function_ln(*getal)?; Ok(uitkomst) },
             Functie::LOG { getal } => { let uitkomst = Self::execute_function_log(*getal)?; Ok(uitkomst) },
             Functie::ONDIN { variabele_naam } => { let uitkomst = self.execute_function_ondin(variabele_naam)?; Ok(uitkomst) },
@@ -251,12 +247,15 @@ impl EcolMachine {
     }
     fn execute_function_bovin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
         let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::melding(EcolFoutVariant::VariabeleNietGevonden(variabele_naam.to_string())));};
-        match waarde.type_van() {
-            Some(VariabeleType::Rij | VariabeleType::Rijsym) => {}
-            _ => return Err(EcolFout::melding(EcolFoutVariant::GeenRij(variabele_naam.to_string()))),
+
+        if !waarde.is_rij() {
+            return Err(EcolFout::melding(EcolFoutVariant::GeenRij(variabele_naam.to_string())));
         }
+
         let (_, result) = waarde.rij_haal_grenswaarden();
-        Ok(result as f32)
+
+        #[allow(clippy::cast_precision_loss)]
+        Ok(result as f32) //Veilig: grens_waarden zijn positieve getallen < 9999
     }
     fn execute_function_cos(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
@@ -285,7 +284,7 @@ impl EcolMachine {
     fn execute_function_gokc(&mut self) -> f32 {
         self.volgende_willekeurig(0.0, 1.0)
     }
-    fn execute_function_lees(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+    fn execute_function_lees(lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if lees_geheugen.wacht_op_lees() {
             let Some(getal) = lees_geheugen.lees_waarde() else {
                 return Err(EcolFout::melding(EcolFoutVariant::GeenWaarde("LEES".to_string())));
@@ -293,11 +292,11 @@ impl EcolMachine {
             lees_geheugen.lees_hervat_none();
             Ok(getal)
         } else {
-            Err(EcolFout::Signaal(EcolSignaal::WachtOpLees(0)))
+            Err(EcolFout::Signaal(EcolWachtSignaal::Lees(0)))
         }
     }
 
-    fn execute_function_leessym(&mut self, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+    fn execute_function_leessym(lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         if lees_geheugen.wacht_op_leessym() {
             let Some(getal) = lees_geheugen.leessym_waarde() else {
                 return Err(EcolFout::melding(EcolFoutVariant::GeenWaarde("LEESSYM".to_string())));
@@ -306,7 +305,7 @@ impl EcolMachine {
 
             Ok(getal)
         } else {
-            Err(EcolFout::Signaal(EcolSignaal::WachtOpLeessym(0)))
+            Err(EcolFout::Signaal(EcolWachtSignaal::Leessym(0)))
         }
     }
     fn execute_function_ln(getal: f32) -> Result<f32, EcolFout> {
@@ -321,17 +320,23 @@ impl EcolMachine {
     }
     fn execute_function_ondin(&self, variabele_naam: &str) -> Result<f32, EcolFout> {
         let Some(waarde) = self.var_lees_waarde(variabele_naam) else { return Err(EcolFout::melding(EcolFoutVariant::VariabeleNietGevonden(variabele_naam.to_string())));};
-        match waarde.type_van() {
-            Some(VariabeleType::Rij | VariabeleType::Rijsym) => {}
-            _ => return Err(EcolFout::melding(EcolFoutVariant::GeenRij(variabele_naam.to_string()))),
+        if !waarde.is_rij() {
+            return Err(EcolFout::melding(EcolFoutVariant::GeenRij(variabele_naam.to_string())));
         }
+
         let (result, _) = waarde.rij_haal_grenswaarden();
-        Ok(result as f32)
+
+        #[allow(clippy::cast_precision_loss)]
+        Ok(result as f32) //Veilig: grens_waarden zijn positieve getallen < 9999
     }
 
     fn execute_function_ps(&self) -> f32 {
         let werk = self.lees_regel();
-        werk.len() as f32
+
+        #[allow(clippy::cast_precision_loss)]
+        let werk_len = werk.len() as f32; //Veilig: lees_regel() genereert niet meer dan 80
+
+        werk_len
     }
     fn execute_function_sin(getal: f32) -> Result<f32, EcolFout> {
         let getal = grens_bewaking(getal, !MAG_ALLEEN_POSITIEVE_GETALLEN, !MAG_ALLEEN_HELE_GETALLEN)?;
@@ -343,12 +348,12 @@ impl EcolMachine {
 
         Ok(getal.sqrt())
     }
-    pub(super) fn execute_eigen_functie(&mut self, naam: &str, argumenten: Vec<Waarde>, lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
+    pub(super) fn execute_eigen_functie(&mut self, naam: &str, argumenten: &[Waarde], lees_geheugen: &mut LeesGeheugen) -> Result<f32, EcolFout> {
         let definitie = self.haal_functiedefinitie(naam)
             .ok_or_else(|| EcolFout::melding(EcolFoutVariant::GeenFunctie(naam.to_string())))?
             .clone();
         let diepte = self.functie_diepte() + 1;
-        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte, lees_geheugen)
+        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, &argumenten, diepte, lees_geheugen)
     }
     pub(super) fn get_fundef_parameters(&self, naam: &str) -> Option<Vec<String>> {
         let definitie = self.haal_functiedefinitie(naam)?;
