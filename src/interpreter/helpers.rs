@@ -1,3 +1,4 @@
+//! Hulpfuncties voor parsing en validatie.
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 
 pub(super) fn argumenten_to_vec(input: &str) -> Vec<String> {
@@ -17,6 +18,7 @@ pub(super) fn get_sym_value(getal: f32) -> Result<u8, EcolFout> {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     Ok(getal as u8) //veilig, want hierboven gevalideerd als geheel getal tussen 0 en 99
 }
+// Het laatste teken mag geen underscore zijn (namen mogen niet eindigen op '_').
 fn heeft_geldige_variabele_syntax(naam: &str) -> bool {
     let mut chars = naam.chars();
 

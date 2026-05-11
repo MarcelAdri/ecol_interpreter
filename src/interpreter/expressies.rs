@@ -1,3 +1,9 @@
+//! Evaluatie van numerieke ECOL-expressies.
+//!
+//! [`EcolMachine::solve_expression`] is de ingang: de expressie doorloopt een
+//! vaste pijplijn — spaties verwijderen, ingebouwde functies vervangen, eigen
+//! functies vervangen, variabelen vervangen, haakjes uitrekenen, operators
+//! uitrekenen — totdat een kale `f32` overblijft.
 use std::collections::HashMap;
 use std::str::FromStr;
 use crate::interpreter::{EcolMachine, LeesGeheugen};

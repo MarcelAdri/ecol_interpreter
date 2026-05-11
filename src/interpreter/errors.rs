@@ -1,3 +1,10 @@
+//! Fouttypen en uitvoeringsignalen van de ECOL-interpreter.
+//!
+//! [`EcolFout`] heeft twee varianten: [`EcolFout::FoutMelding`] voor echte fouten
+//! en [`EcolFout::Signaal`] voor control-flow-signalen (`LEES`, `LEESSYM`, `LAAD`).
+//! Signalen zijn geen fouten maar pauze-verzoeken: de uitvoering moet gestopt worden
+//! zodat de browser invoer kan ophalen, waarna [`crate::interpreter::LeesGeheugen`]
+//! de toestand bewaart voor hervatting.
 use std::fmt::{Display, Formatter};
 use crate::interpreter::waarden::VariabeleType;
 
@@ -430,6 +437,10 @@ impl Display for EcolFoutMelding {
         write!(f, "{voorloop}{tekst}")
     }
 }
+/// Pauze-signalen die geen fout zijn maar om externe invoer vragen.
+///
+/// `Lees` en `Leessym` bevatten het regelnummer waarop de uitvoering moet hervatten
+/// nadat de gebruiker invoer heeft geleverd. `Laad` triggert een bestandsdialoog.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum EcolWachtSignaal {
     Lees(u16),
@@ -446,6 +457,11 @@ impl Display for EcolWachtSignaal {
     }
 }
 
+/// Het centrale fouttype dat door de hele interpreter via `Result` wordt gepropageerd.
+///
+/// `FoutMelding` beëindigt de uitvoering met een leesbare fout.
+/// `Signaal` onderbreekt de uitvoering tijdelijk; de aanroeper vangt dit op
+/// en hervat de uitvoering via [`crate::interpreter::LeesGeheugen`] zodra invoer beschikbaar is.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum EcolFout {
     FoutMelding(EcolFoutMelding),

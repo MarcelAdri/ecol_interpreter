@@ -87,6 +87,7 @@
     .tag.hist    { background: #1a2a3a; color: #7fb3cc; border: 1px solid #335566; }
     .tag.ext     { background: #1a1a3a; color: #8899cc; border: 1px solid #334488; }
     .tag.nee     { background: #2a1a1a; color: #cc7f7f; border: 1px solid #663333; }
+    .tag.afw     { background: #2a1a2a; color: #cc88cc; border: 1px solid #664466; }
   </style>
 </head>
 <body>
@@ -104,7 +105,8 @@
   <span class="tag hist">historisch</span> — bevestigd uit het originele ECOL-rapport (IOWO, 1973) &nbsp;
   <span class="tag ok">geïmpl.</span> — geïmplementeerd in deze interpreter &nbsp;
   <span class="tag nee">niet gepland</span> — bewuste keuze: wordt niet geïmplementeerd &nbsp;
-  <span class="tag ext">extensie</span> — toegevoegd aan de taal, niet in het origineel
+  <span class="tag ext">extensie</span> — toegevoegd aan de taal, niet in het origineel &nbsp;
+  <span class="tag afw">afwijking</span> — bewuste afwijking van het origineel
 </div>
 
 <h2>Historische context</h2>
@@ -212,6 +214,8 @@ RIJSYM(m,n) naam    ; als RIJ, maar alleen gehele waarden 0–99</pre>
 <p><strong>Let op:</strong> in het originele ECOL werd de notatie <code>RIJ(m:n)naam</code> gebruikt (dubbele punt als scheidingsteken, geen spatie voor de naam). Deze interpreter gebruikt een komma als scheidingsteken; een spatie vóór de variabelenaam is toegestaan maar niet verplicht.</p>
 
 <p><strong>Grenzen:</strong> m en n moeten gehele getallen zijn tussen 1 en 9999, en n moet groter zijn dan m (minimaal 2 elementen). Een negatieve waarde, nul, een gebroken getal, of een reeks die niet oploopt, geeft een foutmelding.</p>
+
+<p><strong>Bemerking:</strong> In het origineel is <code>m = n</code> toegestaan (array van 1 element). In deze implementatie moet n strikt groter zijn dan m. <span class="tag afw">afwijking</span></p>
 
 <p>Een array-element toewijzen of uitlezen:</p>
 <pre>naam(index) := uitdrukking
@@ -426,7 +430,7 @@ HERHAAL</pre>
 
 <p>Geen SUB-beschrijvingen binnen een SUB. Een <code>GASUB</code>-aanroep mag vóór de beschrijving in de tekst staan (forward reference). SUB-definitieregels worden bij normale uitvoering overgeslagen.</p>
 
-<p><strong>Bemerking (afwijking van de 1973-beschrijving):</strong> In het origineel zijn subroutinenamen vrij te kiezen. In deze implementatie gelden dezelfde naamregels als voor variabelen en functies: kleine letters, cijfers en underscores, niet beginnend met een cijfer. Spaties in namen zijn niet toegestaan.</p>
+<p><strong>Bemerking:</strong> In het origineel zijn subroutinenamen vrij te kiezen. In deze implementatie gelden dezelfde naamregels als voor variabelen en functies: kleine letters, cijfers en underscores, niet beginnend met een cijfer. Spaties in namen zijn niet toegestaan. <span class="tag afw">afwijking</span></p>
 
 <h2>Functies: FUN</h2>
 
@@ -450,9 +454,9 @@ FUN := &lt;uitdrukking&gt;</pre>
 
 <p><strong>Opmerking:</strong> het FUN-mechanisme was bij het verschijnen van het docentenboek (1973) nog niet op alle computers geïmplementeerd.</p>
 
-<p><strong>Bemerking (afwijking van de 1973-beschrijving):</strong> In de originele beschrijving is de naam van een functie alleen verboden als lokale variabele <em>voor zover die functie vanuit zichzelf wordt aangeroepen</em> (recursieve aanroep). In deze implementatie mag een functienaam nooit als variabelenaam worden gebruikt, ook niet in functies die de betreffende functie niet aanroepen.</p>
+<p><strong>Bemerking:</strong> In de originele beschrijving is de naam van een functie alleen verboden als lokale variabele <em>voor zover die functie vanuit zichzelf wordt aangeroepen</em> (recursieve aanroep). In deze implementatie mag een functienaam nooit als variabelenaam worden gebruikt, ook niet in functies die de betreffende functie niet aanroepen. <span class="tag afw">afwijking</span></p>
 
-<p><strong>Bemerking (afwijking van de 1973-beschrijving):</strong> In de originele beschrijving kan een FUN ook als zelfstandige opdracht worden gebruikt, waarbij de returnwaarde wordt weggegooid. In deze implementatie kan een FUN uitsluitend vanuit een uitdrukking worden aangeroepen; de returnwaarde wordt altijd gebruikt.</p>
+<p><strong>Bemerking:</strong> In de originele beschrijving kan een FUN ook als zelfstandige opdracht worden gebruikt, waarbij de returnwaarde wordt weggegooid. In deze implementatie kan een FUN uitsluitend vanuit een uitdrukking worden aangeroepen; de returnwaarde wordt altijd gebruikt. <span class="tag afw">afwijking</span></p>
 
 <h2>Symboltabel (LEESSYM / SCHRIJFSYM)</h2>
 

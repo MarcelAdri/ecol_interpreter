@@ -1,3 +1,9 @@
+//! Parsing en evaluatie van ECOL-vergelijkingen.
+//!
+//! `OF` heeft lagere prioriteit dan `EN`; beide worden recursief gesplitst op
+//! het meest linkse top-level voorkomen (buiten haakjes). Een enkelvoudige
+//! vergelijking bestaat uit twee numerieke expressies gescheiden door een
+//! vergelijkingsoperator.
 use crate::EcolMachine;
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::geen_spaties;

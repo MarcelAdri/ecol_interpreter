@@ -1,3 +1,11 @@
+//! Uitvoering van ECOL-opdrachten en programma-flow.
+//!
+//! [`execute_all`] is de centrale dispatch: gegeven een geparseerde [`Line`] en
+//! de huidige [`Context`] roept het de juiste `execute_*`-methode aan en geeft
+//! terug wat er daarna moet gebeuren (doorgaan, springen, stoppen).
+//!
+//! `rollback_program` en de `extract_*`-functies ondersteunen achterwaartse sprongen
+//! en de extractie van FUN/SUB-definities voor uitvoering begint.
 use std::collections::BTreeMap;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
@@ -13,6 +21,12 @@ const HELP_PAGINA: &str = concat!("ecol_syntaxis.html?v=", env!("CARGO_PKG_VERSI
 
 type UitvoeringResultaat = Result<(Option<String>, Option<u16>, Option<WhatsNext>), EcolFout>;
 
+/// De uitvoeringscontext bepaalt welke opdrachten geldig zijn.
+///
+/// `Direct` is de REPL-modus (geen regelnummer); `Programma`, `Subroutine` en
+/// `Functie` gelden resp. in het hoofdprogramma, in een `SUB`-body en in een
+/// `FUN`-body. Sommige opdrachten (bijv. `NR`, `SCHRIJF`) zijn verboden in `Functie`
+/// omdat een FUN geen uitvoer mag produceren.
 pub(super) enum Context {
     Direct,
     Programma,
@@ -330,6 +344,10 @@ impl EcolMachine {
         Ok(String::new())
     }
 
+    // Bij een achterwaartse sprong (NAAR n waarbij n < current) worden alle RIJ- en
+    // RIJSYM-declaraties tussen het sprongdoel en de sprong-site gewist. Zonder dit
+    // zou de array na de sprong opnieuw gedeclareerd worden terwijl hij al bestaat,
+    // wat een onverwachte heroïnitialisatie veroorzaakt.
     fn rollback_program(&mut self, lopend_programma: &BTreeMap<u16, LineInhoud>, current: u16, doel: u16) {
         let mut current_line = doel;
 

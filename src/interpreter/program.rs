@@ -1,3 +1,9 @@
+//! AST-typen voor het opgeslagen ECOL-programma.
+//!
+//! Een ECOL-programma is een geordende reeks genummerde regels (1–999), opgeslagen
+//! als `BTreeMap<u16, LineInhoud>`. Elke [`Line`] bevat een regelnummer en een
+//! [`LineInhoud`]-variant die overeenkomt met één ECOL-opdracht. [`FunDef`] en
+//! [`SubDef`] slaan geëxtraheerde functie- en subroutine-definities op.
 use std::fmt;
 use std::collections::BTreeMap;
 use std::fmt::Display;
@@ -227,6 +233,7 @@ impl Display for Line {
         write!(f, "{regel_inhoud}")
     }
 }
+/// Het doel van een `NAAR`-, `DAN`- of `ANDERS`-sprong: een regelnummer of `STOP`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SprongDoel {
     Regel(u16),
@@ -517,6 +524,11 @@ impl Sleutelwoord {
         }
     }
 }
+/// Definitie van een gebruikersfunctie (`FUN naam(param, …) … FUN := expressie`).
+///
+/// Parameters zijn de formele parameternamen als strings; `body` is het
+/// deelprogramma tussen `FUN naam(…)` en `FUN :=`, geïndexeerd op regelnummer.
+/// De definitie wordt vóór uitvoering geëxtraheerd uit het hoofdprogramma.
 #[derive(Debug, Clone)]
 pub(super) struct FunDef {
     parameters: Vec<String>,
@@ -540,6 +552,10 @@ impl FunDef {
         self.body.insert(regelnummer, regel.clone());
     }
 }
+/// Definitie van een subroutine (`SUB naam … END`).
+///
+/// `regels` bevat alle regels van de subroutine inclusief de afsluitende `END`.
+/// Net als [`FunDef`] wordt de definitie vóór uitvoering geëxtraheerd.
 #[derive(Debug, Clone)]
 pub(super) struct SubDef {
     regels: BTreeMap<u16, LineInhoud>

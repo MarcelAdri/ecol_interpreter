@@ -1,3 +1,8 @@
+//! Waarde-types die in de symboltabel worden opgeslagen.
+//!
+//! Alle variabelen in ECOL zijn numeriek; tekst bestaat alleen als tijdelijke
+//! literal in de regelbuffer. De [`Waarde`]-enum verenigt enkelvoudige getallen,
+//! arrays en lus-tellers in één type zodat de symboltabel homogeen blijft.
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::helpers::get_sym_value;
 
@@ -117,6 +122,10 @@ impl EcolRijsym {
         get_index(positie, self.start, self.einde)
     }
 }
+/// Lus-teller voor een actieve `MET`-lus.
+///
+/// `regel` slaat het regelnummer van de bijbehorende `MET`-opdracht op zodat
+/// `HERHAAL` terug kan springen naar het begin van de lus-body.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct EcolTeller {
     stap: f32,
@@ -169,6 +178,10 @@ impl std::fmt::Display for VariabeleType {
         }
     }
 }
+/// De inhoud van één symboltabel-slot.
+///
+/// `NogNietBepaald` fungeert als placeholder die bij `pak_of_maak_index` wordt
+/// ingevoegd; het slot wordt daarna direct overschreven met de echte waarde.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Waarde {
     Getal(f32),

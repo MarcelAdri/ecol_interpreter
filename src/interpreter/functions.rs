@@ -1,3 +1,10 @@
+//! Ingebouwde en gebruikergedefinieerde ECOL-functies.
+//!
+//! Ingebouwde functies (ABS, SIN, GOK, LEES, …) worden afgehandeld via
+//! [`Functie`] en [`FunctieNaam`]. Gebruikergedefinieerde functies (`FUN naam(…)`)
+//! worden uitgevoerd via [`EigenFunctie`], dat voor elke aanroep een verse
+//! [`EcolMachine`] aanmaakt met alleen de doorgegeven parameters als variabelen,
+//! waardoor scoping automatisch geïsoleerd is.
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use crate::interpreter::{EcolMachine, LeesGeheugen};
@@ -353,7 +360,7 @@ impl EcolMachine {
             .ok_or_else(|| EcolFout::melding(EcolFoutVariant::GeenFunctie(naam.to_string())))?
             .clone();
         let diepte = self.functie_diepte() + 1;
-        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, &argumenten, diepte, lees_geheugen)
+        EigenFunctie::eigen_functie(self.haal_functie_register(), &definitie, argumenten, diepte, lees_geheugen)
     }
     pub(super) fn get_fundef_parameters(&self, naam: &str) -> Option<Vec<String>> {
         let definitie = self.haal_functiedefinitie(naam)?;

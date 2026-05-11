@@ -1,8 +1,25 @@
+//! Sessiestatus voor pauze en hervatting bij interactieve invoer.
+//!
+//! Wanneer de interpreter `LEES` of `LEESSYM` tegenkomt, kan de uitvoering niet
+//! doorgaan totdat de gebruiker iets intypt. In een synchrone context zou dit een
+//! blokkerende aanroep zijn, maar WebAssembly draait op de JavaScript-event-loop en
+//! mag die niet blokkeren. De oplossing: de interpreter gooit een [`EcolWachtSignaal`],
+//! de aanroeper bewaart de volledige machinestatus in [`LeesGeheugen`], geeft
+//! controle terug aan de browser, en hervat de uitvoering zodra de gebruiker Enter
+//! heeft gedrukt.
+//!
+//! [`EcolWachtSignaal`]: crate::interpreter::errors::EcolWachtSignaal
 use std::collections::{BTreeMap, VecDeque};
 use crate::EcolMachine;
 use crate::interpreter::errors::{EcolFout, EcolFoutVariant};
 use crate::interpreter::program::LineInhoud;
 
+/// Bewaart de volledige toestand van een lopend programma tijdens een invoerpauze.
+///
+/// Wanneer `is_some()` geldt voor `lees_hervat_bij` of `leessym_hervat_bij`,
+/// stuurt [`EcolMachine::execute`] alle invoer naar de buffers totdat de pauze
+/// opgeheven wordt. `lopende_machine` en `lopend_programma` bevatten dan de
+/// volledig bevroren interpreter-snapshot.
 pub struct LeesGeheugen {
     lees_hervat_bij: Option<u16>,
     lees_buffer: VecDeque<f32>,

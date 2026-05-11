@@ -1,3 +1,8 @@
+//! De centrale interpreterstruct [`EcolMachine`] en de parser [`parseer_regel`].
+//!
+//! `machine.rs` bevat ook de symboltabel ([`VariabelenOpslag`]), de regelbuffer,
+//! de symboolset ([`SYMBOLEN`]) en alle parsing-functies die een invoerstring
+//! omzetten in een [`Line`] met bijbehorende [`LineInhoud`].
 use std::collections::{BTreeMap, HashMap};
 use std::f32;
 use web_sys::js_sys;
@@ -8,6 +13,12 @@ use crate::interpreter::opdrachten::{execute_all, Context};
 use super::waarden::{VariabeleType, Waarde};
 use super::program::{FunDef, Line, LineInhoud, Sleutelwoord, SprongDoel, SubDef, WORDT_TEKEN};
 
+/// De 100-symbool tekentabel van ECOL (indices 0–99).
+///
+/// Indeling: 0–9 → cijfers, 10–35 → kleine letters a–z, 36–39 → niet gedefinieerd,
+/// 40–65 → hoofdletters A–Z, 66–69 → niet gedefinieerd, 70–91 → leestekens en
+/// speciale tekens (zie broncode voor de exacte mapping), 92–98 → niet gedefinieerd,
+/// 99 → `]`. `None`-sloten zijn gereserveerd maar bevatten geen geldig symbool.
 pub(super) const SYMBOLEN: [Option<char>; 100] = {
     let mut t = [None; 100];
     let mut teller = 0u8;
@@ -125,6 +136,11 @@ impl RegelBuffer {
         }
     }
 }
+/// Tweeledig symboltabel: naam → index in `data_pool`.
+///
+/// Variabelenamen worden nooit verwijderd uit `symbolen` (ook niet na `var_wis`);
+/// het bijbehorende `data_pool`-slot wordt dan op `NogNietBepaald` gezet.
+/// Dit houdt indices stabiel en voorkomt verschuivingen in de pool.
 pub(super) struct VariabelenOpslag {
     symbolen: HashMap<String, usize>,
     data_pool: Vec<Waarde>,
@@ -248,6 +264,13 @@ impl Programma {
 
 
 
+/// De ECOL-interpreter: houdt alle toestand bij van één lopende sessie.
+///
+/// `actieve_tellers` is een LIFO-stack van namen van actieve `MET`-lussen;
+/// geneste lussen worden correct afgehandeld doordat elke `HERHAAL` de bovenste
+/// naam van de stack pakt. `sub_return_stack` werkt analoog voor geneste
+/// `SUB`-aanroepen. `seed` is de toestand van de xorshift64-RNG, geïnitialiseerd
+/// vanuit `Date.now()` bij aanmaak.
 pub struct EcolMachine {
     variabelen_opslag: VariabelenOpslag,
     regel_buffer: RegelBuffer,
@@ -419,6 +442,7 @@ impl EcolMachine {
     pub(super) fn is_fun(&self, naam: &str) -> bool {
         self.functie_register.contains_key(naam)
     }
+    /// Geeft een willekeurig getal in het interval `[laag, hoog)` via xorshift64.
     pub(super) fn volgende_willekeurig(&mut self, laag: f32, hoog: f32) -> f32 {
         self.seed ^= self.seed << 13;
         self.seed ^= self.seed >> 7;
@@ -427,6 +451,11 @@ impl EcolMachine {
         let basis = (self.seed as f32) / (u64::MAX as f32);  // getal tussen 0.0 en 1.0
         basis * (hoog - laag) + laag
     }
+    /// Verwerkt één invoerstring vanuit de browser-UI.
+    ///
+    /// Geeft een lege string terug bij succes zonder uitvoer, anders de feedback-
+    /// of foutmelding als string. Streamende uitvoer (bijv. na `NR`) wordt direct
+    /// via `output` doorgegeven. Panics nooit; fouten worden omgezet naar strings.
     pub fn execute(&mut self, input: &str, lees_geheugen: &mut LeesGeheugen, output: &mut dyn FnMut(&str)) -> String {
         match self.execute_intern(input, lees_geheugen, output) {
             Ok(Some(s)) => s,
@@ -511,6 +540,10 @@ impl EcolMachine {
         };
         Ok(Some(reply.unwrap_or_default()))
     }
+    /// Testingang: verwerkt één regel en retourneert `Ok(uitvoer)` of `Err(fout)`.
+    ///
+    /// Maakt een wegwerp-[`LeesGeheugen`] aan; geschikt voor unit-tests maar niet
+    /// voor programma's die `LEES` of `LEESSYM` gebruiken.
     #[allow(clippy::missing_errors_doc)]
     pub fn execute_direct(&mut self, input: &str, _output: &mut dyn FnMut(&str)) -> Result<String, String> {
         let mut lees_geheugen = LeesGeheugen::new();

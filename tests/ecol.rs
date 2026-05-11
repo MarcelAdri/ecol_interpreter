@@ -651,6 +651,26 @@ mod tests {
         60 NR
         70 KLAAR"), Ok("5\n".to_string()));
     }
+    #[wasm_bindgen_test] fn rij_onderste_index() {
+        assert_eq!(run_program("
+        10 RIJ(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller + 8
+        40 HERHAAL
+        50 SCHRIJF(2,0) := a(3)
+        60 NR
+        70 KLAAR"), Ok("11\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn rij_bovenste_index() {
+        assert_eq!(run_program("
+        10 RIJ(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller + 4
+        40 HERHAAL
+        50 SCHRIJF(2,0) := a(10)
+        60 NR
+        70 KLAAR"), Ok("14\n".to_string()));
+    }
     #[wasm_bindgen_test] fn rij_beneden_index() {
         assert!(run_program("
         10 RIJ(3,10) a
@@ -674,11 +694,6 @@ mod tests {
     #[wasm_bindgen_test] fn rij_nul_index() {
         assert!(run_program("
         10 RIJ(0,10) a
-        20 MET 1, teller := 0, 10
-        30 a(teller) := teller
-        40 HERHAAL
-        50 SCHRIJF(1,0) := a(5)
-        60 NR
         70 KLAAR").is_err());
     }
     #[wasm_bindgen_test] fn rijsym_ok() {
@@ -690,6 +705,26 @@ mod tests {
         50 SCHRIJFSYM := a(5)
         60 NR
         70 KLAAR"), Ok("c\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn rijsym_onderste_index() {
+        assert_eq!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller + 8
+        40 HERHAAL
+        50 SCHRIJFSYM := a(3)
+        60 NR
+        70 KLAAR"), Ok("b\n".to_string()));
+    }
+    #[wasm_bindgen_test] fn rijsym_bovenste_index() {
+        assert_eq!(run_program("
+        10 RIJSYM(3,10) a
+        20 MET 1, teller := 3, 10
+        30 a(teller) := teller + 4
+        40 HERHAAL
+        50 SCHRIJFSYM := a(10)
+        60 NR
+        70 KLAAR"), Ok("e\n".to_string()));
     }
     #[wasm_bindgen_test] fn rijsym_beneden_index() {
         assert!(run_program("
@@ -736,11 +771,6 @@ mod tests {
     #[wasm_bindgen_test] fn rijsym_nul_index() {
         assert!(run_program("
         10 RIJSYM(0,10) a
-        20 MET 1, teller := 0, 10
-        30 a(teller) := teller
-        40 HERHAAL
-        50 SCHRIJFSYM := a(5)
-        60 NR
         70 KLAAR").is_err());
     }
     #[wasm_bindgen_test] fn rij_begin_te_groot() {
